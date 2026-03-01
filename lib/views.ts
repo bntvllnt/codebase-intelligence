@@ -5,6 +5,8 @@ import type {
   ForceApiResponse,
   RenderNode,
   RenderLink,
+  SymbolApiNode,
+  CallApiEdge,
 } from "./types";
 
 const MODULE_COLORS = [
@@ -274,6 +276,101 @@ export function coverageView(
   };
 }
 
+const SYMBOL_TYPE_COLORS: Record<string, string> = {
+  function: "#2563eb",
+  class: "#16a34a",
+  interface: "#9333ea",
+  type: "#ea580c",
+  enum: "#ca8a04",
+  variable: "#6b7280",
+};
+
+function symbolTypeColor(type: string): string {
+  return SYMBOL_TYPE_COLORS[type] ?? "#6b7280";
+}
+
+function symbolModule(filePath: string): string {
+  const parts = filePath.split("/");
+  if (parts.length <= 1) return ".";
+  return parts.slice(0, -1).join("/") + "/";
+}
+
+function toSymbolRenderNode(
+  s: SymbolApiNode,
+  color: string,
+  size: number,
+): RenderNode {
+  return {
+    id: s.id,
+    path: s.file,
+    label: s.name,
+    module: symbolModule(s.file),
+    loc: s.loc,
+    pageRank: s.pageRank,
+    betweenness: s.betweenness,
+    coupling: 0,
+    fanIn: s.fanIn,
+    fanOut: s.fanOut,
+    tension: 0,
+    isBridge: false,
+    churn: 0,
+    cyclomaticComplexity: 0,
+    blastRadius: 0,
+    deadExports: [],
+    hasTests: false,
+    testFile: "",
+    functions: [],
+    color,
+    size,
+  };
+}
+
+export function symbolView(
+  symbolNodes: SymbolApiNode[],
+  callEdges: CallApiEdge[],
+  cfg: GraphConfig,
+): { nodes: RenderNode[]; links: RenderLink[] } {
+  const nodeIds = new Set(symbolNodes.map((s) => s.id));
+  const validEdges = callEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
+  return {
+    nodes: symbolNodes.map((s) => {
+      const color = symbolTypeColor(s.type);
+      const size = (2 + Math.sqrt(s.pageRank * 10000)) * cfg.nodeSize;
+      return toSymbolRenderNode(s, color, size);
+    }),
+    links: validEdges.map((e) =>
+      toRenderLink(
+        e.source,
+        e.target,
+        e.confidence === "type-resolved" ? linkRgba(cfg, 0.6) : linkRgba(cfg, 0.3),
+        cfg.linkWidth,
+      ),
+    ),
+  };
+}
+
+export function typesView(
+  symbolNodes: SymbolApiNode[],
+  callEdges: CallApiEdge[],
+  cfg: GraphConfig,
+): { nodes: RenderNode[]; links: RenderLink[] } {
+  const typeKinds = new Set(["interface", "type", "enum"]);
+  const typeNodes = symbolNodes.filter((s) => typeKinds.has(s.type));
+  const typeIds = new Set(typeNodes.map((s) => s.id));
+  const typeEdges = callEdges.filter((e) => typeIds.has(e.source) && typeIds.has(e.target));
+
+  return {
+    nodes: typeNodes.map((s) => {
+      const color = symbolTypeColor(s.type);
+      const size = (2 + Math.sqrt(s.pageRank * 10000)) * cfg.nodeSize;
+      return toSymbolRenderNode(s, color, size);
+    }),
+    links: typeEdges.map((e) =>
+      toRenderLink(e.source, e.target, linkRgba(cfg, 0.5), cfg.linkWidth),
+    ),
+  };
+}
+
 export const LEGENDS: Record<string, Array<{ color: string; label: string }>> = {
   galaxy: [{ color: "", label: "Node color = module | Size = importance (PageRank)" }],
   depflow: [
@@ -307,5 +404,17 @@ export const LEGENDS: Record<string, Array<{ color: string; label: string }>> = 
   coverage: [
     { color: "#16a34a", label: "Green = has tests" },
     { color: "#dc2626", label: "Red = untested" },
+  ],
+  symbols: [
+    { color: "#2563eb", label: "Blue = function" },
+    { color: "#16a34a", label: "Green = class" },
+    { color: "#9333ea", label: "Purple = interface" },
+    { color: "#ea580c", label: "Orange = type" },
+    { color: "#ca8a04", label: "Yellow = enum" },
+  ],
+  types: [
+    { color: "#9333ea", label: "Purple = interface" },
+    { color: "#ea580c", label: "Orange = type" },
+    { color: "#ca8a04", label: "Yellow = enum" },
   ],
 };

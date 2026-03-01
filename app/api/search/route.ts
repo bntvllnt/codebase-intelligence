@@ -32,5 +32,5 @@ export function GET(request: Request): NextResponse {
     })),
   }));
 
-  return NextResponse.json({ query, results: mapped });
+  return NextResponse.json({ query, results: mapped, suggestions: [] });
 }

@@ -84,6 +84,11 @@ export function DetailPanel({
             {node.functions.map((f) => (
               <div key={f.name} className="py-0.5">
                 {f.name} ({f.loc} LOC)
+                {f.fanIn !== undefined && (
+                  <span className="text-[#666] ml-1">
+                    in:{f.fanIn} out:{f.fanOut ?? 0} PR:{(f.pageRank ?? 0).toFixed(3)}
+                  </span>
+                )}
               </div>
             ))}
           </div>

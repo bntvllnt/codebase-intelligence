@@ -7,6 +7,7 @@ import { ProjectBar } from "@/components/project-bar";
 import { ViewTabs } from "@/components/view-tabs";
 import { SearchInput } from "@/components/search-input";
 import { DetailPanel } from "@/components/detail-panel";
+import { SymbolDetailPanel } from "@/components/symbol-detail";
 import { SettingsPanel } from "@/components/settings-panel";
 import { Legend } from "@/components/legend";
 import { FileTree } from "@/components/file-tree";
@@ -17,6 +18,7 @@ function App(): React.ReactElement | null {
     graphData,
     forceData,
     groupData,
+    symbolData,
     projectName,
     staleness,
     isLoading,
@@ -27,6 +29,8 @@ function App(): React.ReactElement | null {
     setCurrentView,
     selectedNode,
     setSelectedNode,
+    selectedSymbol,
+    setSelectedSymbol,
     focusNodeId,
     handleNodeClick,
     handleNavigate,
@@ -74,7 +78,9 @@ function App(): React.ReactElement | null {
         focusNodeId={focusNodeId}
         forceData={forceData}
         circularDeps={graphData.stats.circularDeps}
+        symbolData={symbolData}
         onNodeClick={handleNodeClick}
+        onSymbolClick={setSelectedSymbol}
       />
       <DetailPanel
         node={selectedNode}
@@ -82,6 +88,11 @@ function App(): React.ReactElement | null {
         onClose={() => { setSelectedNode(null); }}
         onNavigate={handleNavigate}
         onFocus={handleFocus}
+      />
+      <SymbolDetailPanel
+        symbol={selectedSymbol}
+        callEdges={symbolData?.callEdges ?? []}
+        onClose={() => { setSelectedSymbol(null); }}
       />
       <Legend view={currentView} groups={groupData} showClouds={config.showModuleBoxes} />
       <SettingsPanel config={config} onChange={setConfig} />

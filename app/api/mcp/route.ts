@@ -125,7 +125,7 @@ function runTool(graph: CodebaseGraph, tool: string, params: Record<string, unkn
     }
 
     case "find_hotspots": {
-      const metric = params.metric as string;
+      const metric = (params.metric as string | undefined) ?? "coupling";
       const limit = (params.limit as number | undefined) ?? 10;
       type ScoredFile = { path: string; score: number; reason: string };
       const scored: ScoredFile[] = [];

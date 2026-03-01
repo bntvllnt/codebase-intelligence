@@ -25,7 +25,17 @@ export function GET(
       path: filePath,
       loc: node?.loc ?? 0,
       module: node?.module ?? "",
-      functions: functions.map((f) => ({ name: f.label, loc: f.loc })),
+      functions: functions.map((f) => {
+        const symId = `${filePath}::${f.label}`;
+        const symMetrics = graph.symbolMetrics.get(symId);
+        return {
+          name: f.label,
+          loc: f.loc,
+          fanIn: symMetrics?.fanIn ?? 0,
+          fanOut: symMetrics?.fanOut ?? 0,
+          pageRank: symMetrics?.pageRank ?? 0,
+        };
+      }),
       imports: imports.map((e) => ({ from: e.target, symbols: e.symbols })),
       dependents: dependents.map((e) => ({
         path: e.source,

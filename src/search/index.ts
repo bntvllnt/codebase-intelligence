@@ -1,12 +1,12 @@
 import type { CodebaseGraph } from "../types/index.js";
 
-export interface SearchDocument {
+interface SearchDocument {
   file: string;
   symbols: Array<{ name: string; type: string; loc: number }>;
   terms: string[];
 }
 
-export interface SearchResult {
+interface SearchResult {
   file: string;
   score: number;
   symbols: Array<{ name: string; type: string; loc: number; score: number }>;

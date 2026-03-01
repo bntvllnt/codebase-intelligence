@@ -108,10 +108,11 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
   const symbolNodes: SymbolNode[] = [];
   const callGraphNodeIds = new Set<string>();
 
-  // Build symbol nodes from exported functions/classes
+  // Build symbol nodes from all exported symbols (functions, classes, interfaces, types, enums)
+  const symbolTypes = new Set(["function", "class", "interface", "type", "enum"]);
   for (const file of files) {
     for (const exp of file.exports) {
-      if (exp.type === "function" || exp.type === "class") {
+      if (symbolTypes.has(exp.type)) {
         const symbolId = `${file.relativePath}::${exp.name}`;
         symbolNodes.push({
           id: symbolId,
@@ -130,17 +131,50 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
   }
 
   // Build call edges from callSites
+  const symbolNodeIds = new Set(symbolNodes.map((s) => s.id));
+
   for (const file of files) {
     for (const cs of file.callSites) {
+      // Skip edges involving node_modules (external dependencies not in symbolNodes)
+      if (cs.calleeFile.includes("node_modules") || cs.callerFile.includes("node_modules")) continue;
+      // Skip edges to files outside the project
+      if (!fileRelPaths.has(cs.calleeFile)) continue;
+
       const sourceId = `${cs.callerFile}::${cs.callerSymbol}`;
       const targetId = `${cs.calleeFile}::${cs.calleeSymbol}`;
 
+      // Add caller as symbol node if not already tracked (e.g., <module> scope, non-exported functions)
+      if (!symbolNodeIds.has(sourceId) && fileRelPaths.has(cs.callerFile)) {
+        symbolNodes.push({
+          id: sourceId,
+          name: cs.callerSymbol,
+          type: "function",
+          file: cs.callerFile,
+          loc: 0,
+          isDefault: false,
+        });
+        symbolNodeIds.add(sourceId);
+      }
+
+      // Add callee as symbol node if not already tracked
+      if (!symbolNodeIds.has(targetId)) {
+        symbolNodes.push({
+          id: targetId,
+          name: cs.calleeSymbol,
+          type: "function",
+          file: cs.calleeFile,
+          loc: 0,
+          isDefault: false,
+        });
+        symbolNodeIds.add(targetId);
+      }
+
       if (!callGraphNodeIds.has(sourceId)) {
-        callGraph.addNode(sourceId, { name: cs.callerSymbol, file: cs.callerFile });
+        callGraph.addNode(sourceId, { name: cs.callerSymbol, type: "function", file: cs.callerFile });
         callGraphNodeIds.add(sourceId);
       }
       if (!callGraphNodeIds.has(targetId)) {
-        callGraph.addNode(targetId, { name: cs.calleeSymbol, file: cs.calleeFile });
+        callGraph.addNode(targetId, { name: cs.calleeSymbol, type: "function", file: cs.calleeFile });
         callGraphNodeIds.add(targetId);
       }
 

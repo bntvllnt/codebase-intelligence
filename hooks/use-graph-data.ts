@@ -31,11 +31,12 @@ export function useGraphData(): {
     fetcher,
     { revalidateOnFocus: false, revalidateOnReconnect: false },
   );
-  const { data: groupData } = useSWR<GroupMetrics[]>(
+  const { data: groupResponse } = useSWR<{ groups: GroupMetrics[] }>(
     "/api/groups",
     fetcher,
     { revalidateOnFocus: false, revalidateOnReconnect: false },
   );
+  const groupData = groupResponse?.groups;
   const { data: metaData } = useSWR<{ projectName: string; staleness?: StalenessInfo }>(
     "/api/meta",
     fetcher,

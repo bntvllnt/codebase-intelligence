@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
 import { useGraphData } from "@/hooks/use-graph-data";
+import { useSymbolData } from "@/hooks/use-symbol-data";
 import { useGraphConfig } from "@/hooks/use-graph-config";
-import type { GraphApiNode, GraphApiResponse, ForceApiResponse, GroupMetrics, GraphConfig, ViewType } from "@/lib/types";
+import type { GraphApiNode, GraphApiResponse, ForceApiResponse, GroupMetrics, GraphConfig, ViewType, SymbolGraphResponse, SymbolApiNode } from "@/lib/types";
 
 interface StalenessInfo {
   stale: boolean;
@@ -14,6 +15,7 @@ interface GraphContextValue {
   graphData: GraphApiResponse | undefined;
   forceData: ForceApiResponse | undefined;
   groupData: GroupMetrics[] | undefined;
+  symbolData: SymbolGraphResponse | undefined;
   projectName: string;
   staleness: StalenessInfo | undefined;
   isLoading: boolean;
@@ -24,6 +26,8 @@ interface GraphContextValue {
   setCurrentView: (view: ViewType) => void;
   selectedNode: GraphApiNode | null;
   setSelectedNode: (node: GraphApiNode | null) => void;
+  selectedSymbol: SymbolApiNode | null;
+  setSelectedSymbol: (symbol: SymbolApiNode | null) => void;
   focusNodeId: string | null;
   setFocusNodeId: (id: string | null) => void;
   handleNodeClick: (node: GraphApiNode) => void;
@@ -45,7 +49,15 @@ export function GraphProvider({ children }: { children: React.ReactNode }) {
   const { config, setConfig } = useGraphConfig();
   const [currentView, setCurrentView] = useState<ViewType>("galaxy");
   const [selectedNode, setSelectedNode] = useState<GraphApiNode | null>(null);
+  const [selectedSymbol, setSelectedSymbol] = useState<SymbolApiNode | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const isSymbolView = currentView === "symbols" || currentView === "types";
+  const { symbolData } = useSymbolData(isSymbolView);
+
+  useEffect(() => {
+    if (!isSymbolView) setSelectedSymbol(null);
+    if (isSymbolView) setSelectedNode(null);
+  }, [isSymbolView]);
 
   useEffect(() => {
     if (projectName) {
@@ -85,6 +97,7 @@ export function GraphProvider({ children }: { children: React.ReactNode }) {
         graphData,
         forceData,
         groupData,
+        symbolData,
         projectName,
         staleness,
         isLoading,
@@ -95,6 +108,8 @@ export function GraphProvider({ children }: { children: React.ReactNode }) {
         setCurrentView,
         selectedNode,
         setSelectedNode,
+        selectedSymbol,
+        setSelectedSymbol,
         focusNodeId,
         setFocusNodeId,
         handleNodeClick,

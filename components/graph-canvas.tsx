@@ -16,6 +16,8 @@ import type {
   GraphConfig,
   ForceApiResponse,
   ViewType,
+  SymbolGraphResponse,
+  SymbolApiNode,
 } from "@/lib/types";
 import {
   galaxyView,
@@ -26,6 +28,8 @@ import {
   forcesView,
   churnView,
   coverageView,
+  symbolView,
+  typesView,
   getModuleColor,
 } from "@/lib/views";
 import { cloudGroup } from "@/src/cloud-group";
@@ -55,7 +59,9 @@ export function GraphCanvas({
   focusNodeId,
   forceData,
   circularDeps,
+  symbolData,
   onNodeClick,
+  onSymbolClick,
 }: {
   nodes: GraphApiNode[];
   edges: GraphApiEdge[];
@@ -64,7 +70,9 @@ export function GraphCanvas({
   focusNodeId: string | null;
   forceData: ForceApiResponse | undefined;
   circularDeps: string[][];
+  symbolData: SymbolGraphResponse | undefined;
   onNodeClick: (node: GraphApiNode) => void;
+  onSymbolClick: (symbol: SymbolApiNode) => void;
 }): React.ReactElement {
   const fgRef = useRef<ForceGraph3DInstance | undefined>(undefined);
   const cloudsRef = useRef(new Map<string, CloudEntry>());
@@ -99,10 +107,18 @@ export function GraphCanvas({
         return churnView(nodes, edges, config);
       case "coverage":
         return coverageView(nodes, edges, config);
+      case "symbols":
+        return symbolData
+          ? symbolView(symbolData.symbolNodes, symbolData.callEdges, config)
+          : { nodes: [], links: [] };
+      case "types":
+        return symbolData
+          ? typesView(symbolData.symbolNodes, symbolData.callEdges, config)
+          : { nodes: [], links: [] };
       default:
         return galaxyView(nodes, edges, config);
     }
-  }, [nodes, edges, config, currentView, focusNodeId, forceData, circularDeps, nodeById]);
+  }, [nodes, edges, config, currentView, focusNodeId, forceData, circularDeps, nodeById, symbolData]);
 
   // Build stable node/link objects for ForceGraph3D — store refs for tick handler access
   const fgGraphData = useMemo(() => {
@@ -347,20 +363,48 @@ export function GraphCanvas({
     return () => { window.removeEventListener("search-fly", handleSearchFly); };
   }, []);
 
+  const symbolById = useMemo(
+    () => new Map(symbolData?.symbolNodes.map((s) => [s.id, s]) ?? []),
+    [symbolData],
+  );
+
+  const isSymbolView = currentView === "symbols" || currentView === "types";
+
   const handleNodeClick = useCallback(
     (node: Record<string, unknown>) => {
-      const apiNode = nodeById.get(node.id as string);
-      if (apiNode) onNodeClick(apiNode);
+      const id = node.id as string;
+      if (isSymbolView) {
+        const sym = symbolById.get(id);
+        if (sym) onSymbolClick(sym);
+      } else {
+        const apiNode = nodeById.get(id);
+        if (apiNode) onNodeClick(apiNode);
+      }
     },
-    [nodeById, onNodeClick],
+    [nodeById, symbolById, onNodeClick, onSymbolClick, isSymbolView],
   );
+
+  const showEmptyPlaceholder =
+    isSymbolView && symbolData?.symbolNodes.length === 0;
+
+  if (showEmptyPlaceholder) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center bg-[#0a0a0f]">
+        <div className="text-[#888] text-lg">No symbols found</div>
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="w-screen h-screen" data-cloud-count="0">
       <ForceGraph3D
         ref={fgRef}
         graphData={fgGraphData}
-        nodeLabel={(n: Record<string, unknown>) => `${n.path as string} (${n.loc as number} LOC)`}
+        nodeLabel={(n: Record<string, unknown>) =>
+          isSymbolView
+            ? `${n.label as string} (${n.path as string})`
+            : `${n.path as string} (${n.loc as number} LOC)`
+        }
         nodeColor={(n: Record<string, unknown>) => n.color as string}
         nodeVal={(n: Record<string, unknown>) => n.size as number}
         nodeOpacity={config.nodeOpacity}

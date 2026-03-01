@@ -11,6 +11,8 @@ const VIEWS: Array<{ key: ViewType; label: string }> = [
   { key: "forces", label: "Forces" },
   { key: "churn", label: "Churn" },
   { key: "coverage", label: "Coverage" },
+  { key: "symbols", label: "Symbols" },
+  { key: "types", label: "Types" },
 ];
 
 export function ViewTabs({

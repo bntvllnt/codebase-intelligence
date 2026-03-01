@@ -18,7 +18,13 @@ export interface GraphApiNode {
   deadExports: string[];
   hasTests: boolean;
   testFile: string;
-  functions: Array<{ name: string; loc: number }>;
+  functions: Array<{
+    name: string;
+    loc: number;
+    fanIn?: number;
+    fanOut?: number;
+    pageRank?: number;
+  }>;
 }
 
 export interface GraphApiEdge {
@@ -71,7 +77,44 @@ export type ViewType =
   | "module"
   | "forces"
   | "churn"
-  | "coverage";
+  | "coverage"
+  | "symbols"
+  | "types";
+
+export interface SymbolApiNode {
+  id: string;
+  name: string;
+  type: "function" | "class" | "variable" | "type" | "interface" | "enum";
+  file: string;
+  loc: number;
+  isDefault: boolean;
+  fanIn: number;
+  fanOut: number;
+  pageRank: number;
+  betweenness: number;
+}
+
+export interface CallApiEdge {
+  source: string;
+  target: string;
+  callerSymbol: string;
+  calleeSymbol: string;
+  confidence: "type-resolved" | "text-inferred";
+}
+
+export interface SymbolGraphResponse {
+  symbolNodes: SymbolApiNode[];
+  callEdges: CallApiEdge[];
+  symbolMetrics: Array<{
+    symbolId: string;
+    name: string;
+    file: string;
+    fanIn: number;
+    fanOut: number;
+    pageRank: number;
+    betweenness: number;
+  }>;
+}
 
 export interface GraphConfig {
   nodeOpacity: number;
@@ -118,7 +161,13 @@ export interface RenderNode {
   deadExports: string[];
   hasTests: boolean;
   testFile: string;
-  functions: Array<{ name: string; loc: number }>;
+  functions: Array<{
+    name: string;
+    loc: number;
+    fanIn?: number;
+    fanOut?: number;
+    pageRank?: number;
+  }>;
   color: string;
   size: number;
   x?: number;

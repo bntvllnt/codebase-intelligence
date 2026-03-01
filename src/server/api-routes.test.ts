@@ -210,21 +210,21 @@ describe("GET /api/file/[...path]", () => {
 });
 
 describe("GET /api/groups", () => {
-  it("returns array of group metrics", async () => {
+  it("returns object with groups array", async () => {
     const { GET } = await import("../../app/api/groups/route.js");
     const response = GET();
-    const data = await response.json();
+    const data = await response.json() as { groups: Array<Record<string, unknown>> };
 
-    expect(Array.isArray(data)).toBe(true);
+    expect(Array.isArray(data.groups)).toBe(true);
   });
 
   it("each group has required fields", async () => {
     const { GET } = await import("../../app/api/groups/route.js");
     const response = GET();
-    const data = await response.json();
+    const data = await response.json() as { groups: Array<Record<string, unknown>> };
 
-    if (data.length > 0) {
-      const group = data[0];
+    if (data.groups.length > 0) {
+      const group = data.groups[0];
       expect(group).toHaveProperty("name");
       expect(group).toHaveProperty("files");
       expect(group).toHaveProperty("loc");
@@ -238,10 +238,10 @@ describe("GET /api/groups", () => {
   it("groups are sorted by importance descending", async () => {
     const { GET } = await import("../../app/api/groups/route.js");
     const response = GET();
-    const data = await response.json();
+    const data = await response.json() as { groups: Array<{ importance: number }> };
 
-    for (let i = 1; i < data.length; i++) {
-      expect(data[i - 1].importance).toBeGreaterThanOrEqual(data[i].importance);
+    for (let i = 1; i < data.groups.length; i++) {
+      expect(data.groups[i - 1].importance).toBeGreaterThanOrEqual(data.groups[i].importance);
     }
   });
 });

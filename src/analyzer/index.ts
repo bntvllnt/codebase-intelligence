@@ -157,7 +157,7 @@ const GROUP_COLORS = [
 
 const MAX_LEGEND_GROUPS = 8;
 
-export function computeGroups(
+function computeGroups(
   fileNodes: GraphNode[],
   fileMetrics: Map<string, FileMetrics>,
 ): GroupMetrics[] {

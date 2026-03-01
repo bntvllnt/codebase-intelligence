@@ -46,6 +46,7 @@ export function GET(
     }
 
     const sym = deduped[0];
+    const symbolNode = graph.symbolNodes.find((s) => s.id === sym.symbolId);
 
     const callers = graph.callEdges
       .filter((e) => e.calleeSymbol === symbolName || e.target === sym.symbolId)
@@ -58,8 +59,12 @@ export function GET(
     return NextResponse.json({
       name: sym.name,
       file: sym.file,
+      loc: symbolNode?.loc ?? 0,
+      type: symbolNode?.type ?? "function",
       fanIn: sym.fanIn,
       fanOut: sym.fanOut,
+      pageRank: sym.pageRank,
+      betweenness: sym.betweenness,
       callers,
       callees,
       nextSteps: getHints("symbol_context"),
