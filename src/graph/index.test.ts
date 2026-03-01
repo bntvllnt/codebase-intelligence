@@ -9,6 +9,7 @@ function makeFile(relativePath: string, overrides?: Partial<ParsedFile>): Parsed
     loc: 10,
     exports: [],
     imports: [],
+    callSites: [],
     churn: 0,
     isTestFile: false,
     ...overrides,
@@ -25,7 +26,7 @@ describe("buildGraph", () => {
     expect(fileNodes.map((n) => n.id)).toEqual(["src/a.ts", "src/b.ts"]);
   });
 
-  it("creates function nodes for exported functions and classes", () => {
+  it("creates function and class nodes for exported functions and classes", () => {
     const files = [
       makeFile("src/a.ts", {
         exports: [
@@ -38,9 +39,13 @@ describe("buildGraph", () => {
     const { nodes } = buildGraph(files);
 
     const funcNodes = nodes.filter((n) => n.type === "function");
-    expect(funcNodes).toHaveLength(2);
-    expect(funcNodes.map((n) => n.label)).toEqual(["foo", "Bar"]);
+    expect(funcNodes).toHaveLength(1);
+    expect(funcNodes[0].label).toBe("foo");
     expect(funcNodes[0].parentFile).toBe("src/a.ts");
+
+    const classNodes = nodes.filter((n) => n.type === "class");
+    expect(classNodes).toHaveLength(1);
+    expect(classNodes[0].label).toBe("Bar");
   });
 
   it("creates edges from imports between known files", () => {

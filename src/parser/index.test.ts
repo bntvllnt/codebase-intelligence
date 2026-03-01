@@ -310,6 +310,164 @@ export const bar = foo;
     });
   });
 
+  describe("gitignore filtering", () => {
+    it("skips directories listed in .gitignore", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-gitignore-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, "build"));
+        fs.writeFileSync(path.join(projectDir, "build", "output.ts"), `export const y = 2;\n`);
+        fs.writeFileSync(path.join(projectDir, ".gitignore"), "build\n");
+
+        const files = parseCodebase(projectDir);
+        expect(files).toHaveLength(1);
+        expect(files[0].relativePath).toBe("index.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("skips nested directories matching gitignore patterns", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-gitignore-nested-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, "src", "dist"), { recursive: true });
+        fs.writeFileSync(path.join(projectDir, "src", "dist", "out.ts"), `export const z = 3;\n`);
+        fs.writeFileSync(path.join(projectDir, ".gitignore"), "dist\n");
+
+        const files = parseCodebase(projectDir);
+        expect(files).toHaveLength(1);
+        expect(files[0].relativePath).toBe("index.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("handles trailing slash in gitignore patterns", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-gitignore-slash-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, "coverage"));
+        fs.writeFileSync(path.join(projectDir, "coverage", "report.ts"), `export const r = 1;\n`);
+        fs.writeFileSync(path.join(projectDir, ".gitignore"), "coverage/\n");
+
+        const files = parseCodebase(projectDir);
+        expect(files).toHaveLength(1);
+        expect(files[0].relativePath).toBe("index.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("ignores comments and blank lines in .gitignore", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-gitignore-comments-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, "tmp"));
+        fs.writeFileSync(path.join(projectDir, "tmp", "cache.ts"), `export const c = 1;\n`);
+        fs.writeFileSync(
+          path.join(projectDir, ".gitignore"),
+          "# Build artifacts\n\ntmp\n\n# End\n"
+        );
+
+        const files = parseCodebase(projectDir);
+        expect(files).toHaveLength(1);
+        expect(files[0].relativePath).toBe("index.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("skips .git directory even without .gitignore", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-dotgit-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, ".git", "objects"), { recursive: true });
+        fs.writeFileSync(path.join(projectDir, ".git", "hook.ts"), `export const h = 1;\n`);
+
+        const files = parseCodebase(projectDir);
+        expect(files).toHaveLength(1);
+        expect(files[0].relativePath).toBe("index.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("multiple gitignore patterns filter multiple directories", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-gitignore-multi-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, "dist"));
+        fs.writeFileSync(path.join(projectDir, "dist", "a.ts"), `export const a = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, "coverage"));
+        fs.writeFileSync(path.join(projectDir, "coverage", "b.ts"), `export const b = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, "src"));
+        fs.writeFileSync(path.join(projectDir, "src", "app.ts"), `export const c = 1;\n`);
+        fs.writeFileSync(path.join(projectDir, ".gitignore"), "dist\ncoverage\n");
+
+        const files = parseCodebase(projectDir);
+        const relPaths = files.map((f) => f.relativePath).sort();
+        expect(relPaths).toEqual(["index.ts", "src/app.ts"]);
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("works correctly when no .gitignore exists", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-no-gitignore-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+        fs.mkdirSync(path.join(projectDir, "lib"));
+        fs.writeFileSync(path.join(projectDir, "lib", "utils.ts"), `export const y = 2;\n`);
+
+        const files = parseCodebase(projectDir);
+        expect(files).toHaveLength(2);
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("symlink handling", () => {
+    it("follows symlinks to files", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-symfile-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "real.ts"), `export const x = 1;\n`);
+        fs.symlinkSync(
+          path.join(projectDir, "real.ts"),
+          path.join(projectDir, "linked.ts"),
+          "file"
+        );
+
+        const files = parseCodebase(projectDir);
+        expect(files.length).toBeGreaterThanOrEqual(1);
+        const relPaths = files.map((f) => f.relativePath);
+        expect(relPaths).toContain("real.ts");
+        expect(relPaths).toContain("linked.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("handles broken symlinks without crashing", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-brokensym-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+        fs.symlinkSync(
+          path.join(projectDir, "nonexistent.ts"),
+          path.join(projectDir, "broken.ts"),
+          "file"
+        );
+
+        const files = parseCodebase(projectDir);
+        expect(files).toHaveLength(1);
+        expect(files[0].relativePath).toBe("index.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe("edge cases", () => {
     it("skips .d.ts files", () => {
       const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-dts-"));

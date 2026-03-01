@@ -13,9 +13,12 @@ import type {
   ExtractionCandidate,
   CodebaseGraph,
   GraphNode,
+  SymbolMetrics,
 } from "../types/index.js";
 import { type BuiltGraph, detectCircularDeps } from "../graph/index.js";
 import { cloudGroup } from "../cloud-group.js";
+import { traceProcesses } from "../process/index.js";
+import { detectCommunities } from "../community/index.js";
 
 export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): CodebaseGraph {
   const { graph, nodes, edges } = built;
@@ -116,20 +119,35 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
     }
   }
 
-  return {
+  // Per-symbol fan-in/fan-out from call graph
+  const symbolMetrics = computeSymbolMetrics(built);
+
+  // Build partial graph for process tracing and community detection
+  const partialGraph: CodebaseGraph = {
     nodes,
     edges,
+    callEdges: built.callEdges,
+    symbolNodes: built.symbolNodes,
+    symbolMetrics,
     fileMetrics,
     moduleMetrics,
     groups,
+    processes: [],
+    clusters: [],
     forceAnalysis,
     stats: {
       totalFiles: fileNodes.length,
-      totalFunctions: nodes.filter((n) => n.type === "function").length,
+      totalFunctions: nodes.filter((n) => n.type === "function" || n.type === "class").length,
       totalDependencies: edges.length,
       circularDeps,
     },
   };
+
+  // Process tracing and community detection
+  partialGraph.processes = traceProcesses(partialGraph);
+  partialGraph.clusters = detectCommunities(partialGraph);
+
+  return partialGraph;
 }
 
 const GROUP_COLORS = [
@@ -418,4 +436,61 @@ function computeForceAnalysis(
     extractionCandidates: extractionCandidates.sort((a, b) => b.escapeVelocity - a.escapeVelocity),
     summary: summaryParts.join(". ") + ".",
   };
+}
+
+function computeSymbolMetrics(built: BuiltGraph): Map<string, SymbolMetrics> {
+  const metrics = new Map<string, SymbolMetrics>();
+  const { callGraph, symbolNodes } = built;
+
+  const symbolPageRank = new Map<string, number>();
+  const symbolBetweenness = new Map<string, number>();
+
+  if (callGraph.order > 0) {
+    try {
+      const prScores = pagerank(callGraph, { alpha: 0.85, getEdgeWeight: null });
+      for (const [node, score] of Object.entries(prScores)) {
+        symbolPageRank.set(node, score);
+      }
+    } catch {
+      callGraph.forEachNode((node: string) => { symbolPageRank.set(node, 0); });
+    }
+
+    try {
+      const btScores = betweennessCentrality(callGraph, { normalized: true });
+      for (const [node, score] of Object.entries(btScores)) {
+        symbolBetweenness.set(node, score);
+      }
+    } catch {
+      callGraph.forEachNode((node: string) => { symbolBetweenness.set(node, 0); });
+    }
+  }
+
+  for (const sym of symbolNodes) {
+    const fanIn = callGraph.hasNode(sym.id) ? callGraph.inDegree(sym.id) : 0;
+    const fanOut = callGraph.hasNode(sym.id) ? callGraph.outDegree(sym.id) : 0;
+    metrics.set(sym.id, {
+      symbolId: sym.id,
+      name: sym.name,
+      file: sym.file,
+      fanIn,
+      fanOut,
+      pageRank: symbolPageRank.get(sym.id) ?? 0,
+      betweenness: symbolBetweenness.get(sym.id) ?? 0,
+    });
+  }
+
+  callGraph.forEachNode((nodeId: string, attrs: Record<string, unknown>) => {
+    if (metrics.has(nodeId)) return;
+    metrics.set(nodeId, {
+      symbolId: nodeId,
+      name: attrs.name as string,
+      file: attrs.file as string,
+      fanIn: callGraph.inDegree(nodeId),
+      fanOut: callGraph.outDegree(nodeId),
+      pageRank: symbolPageRank.get(nodeId) ?? 0,
+      betweenness: symbolBetweenness.get(nodeId) ?? 0,
+    });
+  });
+
+  return metrics;
 }

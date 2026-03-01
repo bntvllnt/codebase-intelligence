@@ -4,6 +4,7 @@ export interface ParsedFile {
   loc: number;
   exports: ParsedExport[];
   imports: ParsedImport[];
+  callSites: CallSite[];
   churn: number;
   isTestFile: boolean;
   testFile?: string;
@@ -26,7 +27,7 @@ export interface ParsedImport {
 
 export interface GraphNode {
   id: string;
-  type: "file" | "function";
+  type: "file" | "function" | "class";
   path: string;
   label: string;
   loc: number;
@@ -40,6 +41,43 @@ export interface GraphEdge {
   symbols: string[];
   isTypeOnly: boolean;
   weight: number;
+}
+
+export type CallConfidence = "type-resolved" | "text-inferred";
+
+export interface CallSite {
+  callerFile: string;
+  callerSymbol: string;
+  calleeFile: string;
+  calleeSymbol: string;
+  confidence: CallConfidence;
+}
+
+export interface CallEdge {
+  source: string;
+  target: string;
+  callerSymbol: string;
+  calleeSymbol: string;
+  confidence: CallConfidence;
+}
+
+export interface SymbolNode {
+  id: string;
+  name: string;
+  type: ParsedExport["type"];
+  file: string;
+  loc: number;
+  isDefault: boolean;
+}
+
+export interface SymbolMetrics {
+  symbolId: string;
+  name: string;
+  file: string;
+  fanIn: number;
+  fanOut: number;
+  pageRank: number;
+  betweenness: number;
 }
 
 export interface FileMetrics {
@@ -98,6 +136,13 @@ export interface ExtractionCandidate {
   recommendation: string;
 }
 
+export interface ForceThresholds {
+  cohesion?: number;
+  tension?: number;
+  escape?: number;
+  bridge?: number;
+}
+
 export interface ForceAnalysis {
   moduleCohesion: Array<ModuleMetrics & { verdict: "COHESIVE" | "MODERATE" | "JUNK_DRAWER" }>;
   tensionFiles: TensionFile[];
@@ -116,12 +161,38 @@ export interface GroupMetrics {
   color: string;
 }
 
+export interface ProcessStep {
+  step: number;
+  file: string;
+  symbol: string;
+}
+
+export interface ProcessFlow {
+  name: string;
+  entryPoint: { file: string; symbol: string };
+  steps: ProcessStep[];
+  depth: number;
+  modulesTouched: string[];
+}
+
+export interface Cluster {
+  id: string;
+  name: string;
+  files: string[];
+  cohesion: number;
+}
+
 export interface CodebaseGraph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  callEdges: CallEdge[];
+  symbolNodes: SymbolNode[];
+  symbolMetrics: Map<string, SymbolMetrics>;
   fileMetrics: Map<string, FileMetrics>;
   moduleMetrics: Map<string, ModuleMetrics>;
   groups: GroupMetrics[];
+  processes: ProcessFlow[];
+  clusters: Cluster[];
   forceAnalysis: ForceAnalysis;
   stats: {
     totalFiles: number;

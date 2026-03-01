@@ -7,11 +7,17 @@ async function fetcher<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+interface StalenessInfo {
+  stale: boolean;
+  indexedHash: string;
+}
+
 export function useGraphData(): {
   graphData: GraphApiResponse | undefined;
   forceData: ForceApiResponse | undefined;
   groupData: GroupMetrics[] | undefined;
   projectName: string;
+  staleness: StalenessInfo | undefined;
   isLoading: boolean;
   error: Error | undefined;
 } {
@@ -30,7 +36,7 @@ export function useGraphData(): {
     fetcher,
     { revalidateOnFocus: false, revalidateOnReconnect: false },
   );
-  const { data: metaData } = useSWR<{ projectName: string }>(
+  const { data: metaData } = useSWR<{ projectName: string; staleness?: StalenessInfo }>(
     "/api/meta",
     fetcher,
     { revalidateOnFocus: false, revalidateOnReconnect: false },
@@ -41,6 +47,7 @@ export function useGraphData(): {
     forceData,
     groupData,
     projectName: metaData?.projectName ?? "Codebase Visualizer",
+    staleness: metaData?.staleness,
     isLoading: graphLoading || forceLoading,
     error: graphError ?? forceError,
   };

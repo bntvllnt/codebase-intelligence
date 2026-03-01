@@ -51,6 +51,7 @@
     "clsx": "^2.1.1",
     "commander": "^12.0.0",
     "graphology": "^0.25.4",
+    "graphology-communities-louvain": "^2.0.2",
     "graphology-metrics": "^2.3.0",
     "graphology-shortest-path": "^2.1.0",
     "lucide-react": "^0.574.0",
@@ -89,7 +90,6 @@
     "components",
     "hooks",
     "lib",
-    "public",
-    ".next"
+    "public"
   ]
 }

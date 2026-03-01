@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { GraphProvider, useGraphContext } from "@/components/graph-provider";
 import { GraphCanvas } from "@/components/graph-canvas";
 import { ProjectBar } from "@/components/project-bar";
@@ -8,6 +9,8 @@ import { SearchInput } from "@/components/search-input";
 import { DetailPanel } from "@/components/detail-panel";
 import { SettingsPanel } from "@/components/settings-panel";
 import { Legend } from "@/components/legend";
+import { FileTree } from "@/components/file-tree";
+import { StaleBanner } from "@/components/stale-banner";
 
 function App(): React.ReactElement | null {
   const {
@@ -15,6 +18,7 @@ function App(): React.ReactElement | null {
     forceData,
     groupData,
     projectName,
+    staleness,
     isLoading,
     error,
     config,
@@ -29,6 +33,8 @@ function App(): React.ReactElement | null {
     handleFocus,
     handleSearch,
   } = useGraphContext();
+
+  const [fileTreeOpen, setFileTreeOpen] = useState(false);
 
   if (error) {
     return (
@@ -50,9 +56,16 @@ function App(): React.ReactElement | null {
 
   return (
     <>
+      <StaleBanner staleness={staleness} />
       <ProjectBar projectName={projectName} graphData={graphData} forceData={forceData} />
       <ViewTabs current={currentView} onChange={setCurrentView} />
-      <SearchInput nodes={graphData.nodes} onSearch={handleSearch} />
+      <SearchInput onSearch={handleSearch} />
+      <FileTree
+        nodes={graphData.nodes}
+        onSelect={handleSearch}
+        isOpen={fileTreeOpen}
+        onTogglePanel={() => { setFileTreeOpen((prev) => !prev); }}
+      />
       <GraphCanvas
         nodes={graphData.nodes}
         edges={graphData.edges}

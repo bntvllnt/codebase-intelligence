@@ -2,7 +2,7 @@ import ts from "typescript";
 import path from "path";
 import fs from "fs";
 import { execFileSync } from "child_process";
-import type { ParsedFile, ParsedExport, ParsedImport } from "../types/index.js";
+import type { ParsedFile, ParsedExport, ParsedImport, CallSite } from "../types/index.js";
 
 interface PathAlias {
   prefix: string;
@@ -160,36 +160,49 @@ function parseFile(sourceFile: ts.SourceFile, checker: ts.TypeChecker, rootDir: 
   const loc = sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1;
   const exports = extractExports(sourceFile, checker);
   const imports = extractImports(sourceFile, aliases);
+  const callSites = extractCallSites(sourceFile, checker, rootDir);
 
-  return { path: filePath, relativePath, loc, exports, imports, churn: 0, isTestFile: false };
+  return { path: filePath, relativePath, loc, exports, imports, callSites, churn: 0, isTestFile: false };
 }
 
 function extractExports(sourceFile: ts.SourceFile, checker: ts.TypeChecker): ParsedExport[] {
   const exports: ParsedExport[] = [];
   const symbol = checker.getSymbolAtLocation(sourceFile);
 
-  if (!symbol?.exports) return exports;
+  if (!symbol) return exports;
 
-  symbol.exports.forEach((exportSymbol, name) => {
-    const exportName = name.toString();
-    if (exportName === "__export") return;
+  const resolvedExports = checker.getExportsOfModule(symbol);
+  const seen = new Set<string>();
 
-    const declarations = exportSymbol.getDeclarations();
-    if (!declarations || declarations.length === 0) return;
+  for (const exportSymbol of resolvedExports) {
+    const exportName = exportSymbol.getName();
+    if (seen.has(exportName)) continue;
+    seen.add(exportName);
+
+    const resolved = exportSymbol.flags & ts.SymbolFlags.Alias
+      ? checker.getAliasedSymbol(exportSymbol)
+      : exportSymbol;
+
+    const declarations = resolved.getDeclarations();
+    if (!declarations || declarations.length === 0) continue;
 
     const decl = declarations[0];
+
+    const declSourceFile = decl.getSourceFile();
+    const isLocal = declSourceFile.fileName === sourceFile.fileName;
+
     const exportType = getExportType(decl);
-    const startLine = sourceFile.getLineAndCharacterOfPosition(decl.getStart()).line;
-    const endLine = sourceFile.getLineAndCharacterOfPosition(decl.getEnd()).line;
+    const startLine = declSourceFile.getLineAndCharacterOfPosition(decl.getStart()).line;
+    const endLine = declSourceFile.getLineAndCharacterOfPosition(decl.getEnd()).line;
 
     exports.push({
       name: exportName,
       type: exportType,
-      loc: endLine - startLine + 1,
+      loc: isLocal ? endLine - startLine + 1 : 1,
       isDefault: exportName === "default",
-      complexity: computeComplexity(decl),
+      complexity: isLocal ? computeComplexity(decl) : 0,
     });
-  });
+  }
 
   return exports;
 }
@@ -215,40 +228,156 @@ function extractImports(sourceFile: ts.SourceFile, aliases: PathAlias[]): Parsed
   const imports: ParsedImport[] = [];
 
   ts.forEachChild(sourceFile, (node) => {
-    if (!ts.isImportDeclaration(node)) return;
-    if (!ts.isStringLiteral(node.moduleSpecifier)) return;
+    // Handle import declarations
+    if (ts.isImportDeclaration(node)) {
+      if (!ts.isStringLiteral(node.moduleSpecifier)) return;
 
-    const from = node.moduleSpecifier.text;
+      const from = node.moduleSpecifier.text;
+      const isRelative = from.startsWith(".") || from.startsWith("/");
+      const isAliased = aliases.some((a) => from.startsWith(a.prefix));
+      if (!isRelative && !isAliased) return;
 
-    // Keep relative imports, absolute imports, and path-aliased imports
-    const isRelative = from.startsWith(".") || from.startsWith("/");
-    const isAliased = aliases.some((a) => from.startsWith(a.prefix));
-    if (!isRelative && !isAliased) return;
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      const isTypeOnly = node.importClause?.isTypeOnly ?? false;
+      const symbols: string[] = [];
 
-    // eslint-disable-next-line @typescript-eslint/no-deprecated
-    const isTypeOnly = node.importClause?.isTypeOnly ?? false;
-    const symbols: string[] = [];
-
-    if (node.importClause) {
-      if (node.importClause.name) {
-        symbols.push("default");
-      }
-      const bindings = node.importClause.namedBindings;
-      if (bindings) {
-        if (ts.isNamedImports(bindings)) {
-          for (const element of bindings.elements) {
-            symbols.push(element.name.text);
+      if (node.importClause) {
+        if (node.importClause.name) {
+          symbols.push("default");
+        }
+        const bindings = node.importClause.namedBindings;
+        if (bindings) {
+          if (ts.isNamedImports(bindings)) {
+            for (const element of bindings.elements) {
+              symbols.push(element.name.text);
+            }
+          } else if (ts.isNamespaceImport(bindings)) {
+            symbols.push(`* as ${bindings.name.text}`);
           }
-        } else if (ts.isNamespaceImport(bindings)) {
-          symbols.push(`* as ${bindings.name.text}`);
+        }
+      }
+
+      imports.push({ from, resolvedFrom: "", symbols, isTypeOnly });
+      return;
+    }
+
+    // Handle re-export declarations: export { X } from './y' and export * from './y'
+    if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      const from = node.moduleSpecifier.text;
+      const isRelative = from.startsWith(".") || from.startsWith("/");
+      const isAliased = aliases.some((a) => from.startsWith(a.prefix));
+      if (!isRelative && !isAliased) return;
+
+      const isTypeOnly = node.isTypeOnly;
+      const symbols: string[] = [];
+
+      if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+        for (const element of node.exportClause.elements) {
+          symbols.push(element.name.text);
+        }
+      } else if (!node.exportClause) {
+        symbols.push("*");
+      }
+
+      imports.push({ from, resolvedFrom: "", symbols, isTypeOnly });
+    }
+  });
+
+  return imports;
+}
+
+function extractCallSites(sourceFile: ts.SourceFile, checker: ts.TypeChecker, rootDir: string): CallSite[] {
+  const callSites: CallSite[] = [];
+  const callerFile = path.relative(rootDir, sourceFile.fileName);
+  const seen = new Set<string>();
+
+  function getEnclosingSymbolName(node: ts.Node): string {
+    let current = node.parent;
+    while (!ts.isSourceFile(current)) {
+      if (ts.isFunctionDeclaration(current) && current.name) {
+        return current.name.text;
+      }
+      if (ts.isMethodDeclaration(current) && ts.isIdentifier(current.name)) {
+        const classDecl = current.parent;
+        if (ts.isClassDeclaration(classDecl) && classDecl.name) {
+          return `${classDecl.name.text}.${current.name.text}`;
+        }
+        return current.name.text;
+      }
+      if (ts.isArrowFunction(current) || ts.isFunctionExpression(current)) {
+        const varDecl = current.parent;
+        if (ts.isVariableDeclaration(varDecl) && ts.isIdentifier(varDecl.name)) {
+          return varDecl.name.text;
+        }
+      }
+      if (ts.isConstructorDeclaration(current)) {
+        const classDecl = current.parent;
+        if (ts.isClassDeclaration(classDecl) && classDecl.name) {
+          return `${classDecl.name.text}.constructor`;
+        }
+      }
+      current = current.parent;
+    }
+    return "<module>";
+  }
+
+  function visit(node: ts.Node): void {
+    if (ts.isCallExpression(node)) {
+      const callerSymbol = getEnclosingSymbolName(node);
+      let calleeSymbol = "";
+      let calleeFile = "";
+      let confidence: CallSite["confidence"] = "text-inferred";
+
+      const expr = node.expression;
+      const symbol = checker.getSymbolAtLocation(expr);
+
+      if (symbol) {
+        const resolved = symbol.flags & ts.SymbolFlags.Alias
+          ? checker.getAliasedSymbol(symbol)
+          : symbol;
+        const decls = resolved.getDeclarations();
+
+        if (decls && decls.length > 0) {
+          const decl = decls[0];
+          const declFile = decl.getSourceFile().fileName;
+          const declRelPath = path.relative(rootDir, declFile);
+
+          if (declRelPath !== callerFile && !declRelPath.startsWith("..") && !path.isAbsolute(declRelPath)) {
+            calleeFile = declRelPath;
+            calleeSymbol = resolved.getName();
+
+            if (ts.isMethodDeclaration(decl) && ts.isIdentifier(decl.name)) {
+              const classDecl = decl.parent;
+              if (ts.isClassDeclaration(classDecl) && classDecl.name) {
+                calleeSymbol = `${classDecl.name.text}.${decl.name.text}`;
+              }
+            }
+
+            confidence = "type-resolved";
+          }
+        }
+      }
+
+      if (calleeFile && calleeSymbol) {
+        const key = `${callerSymbol}->${calleeFile}::${calleeSymbol}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          callSites.push({
+            callerFile,
+            callerSymbol,
+            calleeFile,
+            calleeSymbol,
+            confidence,
+          });
         }
       }
     }
 
-    imports.push({ from, resolvedFrom: "", symbols, isTypeOnly });
-  });
+    ts.forEachChild(node, visit);
+  }
 
-  return imports;
+  visit(sourceFile);
+  return callSites;
 }
 
 function resolveImportPaths(files: ParsedFile[], rootDir: string, aliases: PathAlias[]): ParsedFile[] {

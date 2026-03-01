@@ -11,6 +11,7 @@ function makeFile(relativePath: string, overrides?: Partial<ParsedFile>): Parsed
     loc: 10,
     exports: [],
     imports: [],
+    callSites: [],
     churn: 0,
     isTestFile: false,
     ...overrides,

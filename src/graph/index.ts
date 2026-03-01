@@ -1,11 +1,14 @@
 import Graph from "graphology";
 import path from "path";
-import type { ParsedFile, GraphNode, GraphEdge } from "../types/index.js";
+import type { ParsedFile, GraphNode, GraphEdge, CallEdge, SymbolNode } from "../types/index.js";
 
 export interface BuiltGraph {
   graph: Graph;
+  callGraph: Graph;
   nodes: GraphNode[];
   edges: GraphEdge[];
+  callEdges: CallEdge[];
+  symbolNodes: SymbolNode[];
 }
 
 export function buildGraph(files: ParsedFile[]): BuiltGraph {
@@ -35,28 +38,19 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
     });
     nodes.push(node);
 
-    // Add function nodes for exported functions
+    // Add function/class nodes to nodes array (NOT to file graph — avoids orphan dilution of PageRank)
     for (const exp of file.exports) {
       if (exp.type === "function" || exp.type === "class") {
         const funcId = `${file.relativePath}::${exp.name}`;
-        const funcNode: GraphNode = {
+        nodes.push({
           id: funcId,
-          type: "function",
+          type: exp.type,
           path: file.relativePath,
           label: exp.name,
           loc: exp.loc,
           module,
           parentFile: file.relativePath,
-        };
-
-        graph.addNode(funcId, {
-          type: "function",
-          label: exp.name,
-          loc: exp.loc,
-          module,
-          parentFile: file.relativePath,
         });
-        nodes.push(funcNode);
       }
     }
   }
@@ -109,7 +103,61 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
     }
   }
 
-  return { graph, nodes, edges };
+  const callGraph = new Graph({ multi: false, type: "directed" });
+  const callEdges: CallEdge[] = [];
+  const symbolNodes: SymbolNode[] = [];
+  const callGraphNodeIds = new Set<string>();
+
+  // Build symbol nodes from exported functions/classes
+  for (const file of files) {
+    for (const exp of file.exports) {
+      if (exp.type === "function" || exp.type === "class") {
+        const symbolId = `${file.relativePath}::${exp.name}`;
+        symbolNodes.push({
+          id: symbolId,
+          name: exp.name,
+          type: exp.type,
+          file: file.relativePath,
+          loc: exp.loc,
+          isDefault: exp.isDefault,
+        });
+        if (!callGraphNodeIds.has(symbolId)) {
+          callGraph.addNode(symbolId, { name: exp.name, type: exp.type, file: file.relativePath });
+          callGraphNodeIds.add(symbolId);
+        }
+      }
+    }
+  }
+
+  // Build call edges from callSites
+  for (const file of files) {
+    for (const cs of file.callSites) {
+      const sourceId = `${cs.callerFile}::${cs.callerSymbol}`;
+      const targetId = `${cs.calleeFile}::${cs.calleeSymbol}`;
+
+      if (!callGraphNodeIds.has(sourceId)) {
+        callGraph.addNode(sourceId, { name: cs.callerSymbol, file: cs.callerFile });
+        callGraphNodeIds.add(sourceId);
+      }
+      if (!callGraphNodeIds.has(targetId)) {
+        callGraph.addNode(targetId, { name: cs.calleeSymbol, file: cs.calleeFile });
+        callGraphNodeIds.add(targetId);
+      }
+
+      if (!callGraph.hasEdge(sourceId, targetId)) {
+        callGraph.addEdge(sourceId, targetId, { confidence: cs.confidence });
+        callEdges.push({
+          source: sourceId,
+          target: targetId,
+          callerSymbol: cs.callerSymbol,
+          calleeSymbol: cs.calleeSymbol,
+          confidence: cs.confidence,
+        });
+      }
+    }
+  }
+
+  return { graph, callGraph, nodes, edges, callEdges, symbolNodes };
 }
 
 function getModule(relativePath: string): string {

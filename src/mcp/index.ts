@@ -1,14 +1,23 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { execSync } from "node:child_process";
 import type { CodebaseGraph } from "../types/index.js";
+import { getHints } from "./hints.js";
+import { createSearchIndex, search, getSuggestions } from "../search/index.js";
+import type { SearchIndex } from "../search/index.js";
+import { getIndexedHead } from "../server/graph-store.js";
+import { impactAnalysis, renameSymbol } from "../impact/index.js";
 
-export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
-  const server = new McpServer({
-    name: "codebase-visualizer",
-    version: "0.1.0",
-  });
+let cachedSearchIndex: SearchIndex | undefined;
 
+function getSearchIndex(graph: CodebaseGraph): SearchIndex {
+  cachedSearchIndex ??= createSearchIndex(graph);
+  return cachedSearchIndex;
+}
+
+/** Register all MCP tools on a server instance. Shared by stdio and HTTP transports. */
+export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   // Tool 1: codebase_overview
   server.tool(
     "codebase_overview",
@@ -48,6 +57,7 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
           maxDepth,
           circularDeps: graph.stats.circularDeps.length,
         },
+        nextSteps: getHints("codebase_overview"),
       };
 
       return { content: [{ type: "text" as const, text: JSON.stringify(overview, null, 2) }] };
@@ -71,7 +81,7 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
       const node = graph.nodes.find((n) => n.id === filePath && n.type === "file");
       const fileExports = graph.nodes
         .filter((n) => n.parentFile === filePath)
-        .map((n) => ({ name: n.label, type: "function", loc: n.loc }));
+        .map((n) => ({ name: n.label, type: n.type, loc: n.loc }));
 
       const imports = graph.edges
         .filter((e) => e.source === filePath)
@@ -102,6 +112,7 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
           hasTests: metrics.hasTests,
           testFile: metrics.testFile,
         },
+        nextSteps: getHints("file_context"),
       };
 
       return { content: [{ type: "text" as const, text: JSON.stringify(context, null, 2) }] };
@@ -156,7 +167,14 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
       const totalAffected = visited.size - 1;
       const riskLevel = totalAffected > 20 ? "HIGH" : totalAffected > 5 ? "MEDIUM" : "LOW";
 
-      const result = { file: filePath, directDependents, transitiveDependents: transitive, totalAffected, riskLevel };
+      const result = {
+        file: filePath,
+        directDependents,
+        transitiveDependents: transitive,
+        totalAffected,
+        riskLevel,
+        nextSteps: getHints("get_dependents"),
+      };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
@@ -247,7 +265,7 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
           ? `Top ${metric} hotspot: ${topIssue.path} (${topIssue.score.toFixed(2)}). ${topIssue.reason}.`
           : `No significant ${metric} hotspots found.`;
 
-      const result = { metric, hotspots, summary };
+      const result = { metric, hotspots, summary, nextSteps: getHints("find_hotspots") };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
@@ -271,7 +289,6 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
         dependedBy: m.dependedBy,
       }));
 
-      // Cross-module dependency edges
       const crossModuleDeps: Array<{ from: string; to: string; weight: number }> = [];
       const crossMap = new Map<string, number>();
 
@@ -297,6 +314,7 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
           cycle,
           severity: cycle.length > 3 ? "HIGH" : "LOW",
         })),
+        nextSteps: getHints("get_module_structure"),
       };
 
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -319,6 +337,7 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
         bridgeFiles: graph.forceAnalysis.bridgeFiles,
         extractionCandidates: graph.forceAnalysis.extractionCandidates,
         summary: graph.forceAnalysis.summary,
+        nextSteps: getHints("analyze_forces"),
       };
 
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -363,6 +382,7 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
         summary: totalDead > 0
           ? `${totalDead} unused exports across ${sorted.length} files. Consider removing to reduce API surface.`
           : "No dead exports found.",
+        nextSteps: getHints("find_dead_exports"),
       };
 
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
@@ -378,19 +398,320 @@ export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
       const groups = graph.groups;
 
       if (groups.length === 0) {
-        return { content: [{ type: "text" as const, text: "No groups found." }] };
+        return { content: [{ type: "text" as const, text: JSON.stringify({ message: "No groups found.", nextSteps: getHints("get_groups") }) }] };
       }
 
-      const lines = groups.map((g, i) =>
-        `${i + 1}. ${g.name.toUpperCase()} — ${g.files} files, ${g.loc.toLocaleString()} LOC, ` +
-        `importance: ${(g.importance * 100).toFixed(1)}%, coupling: ${g.fanIn + g.fanOut} (in:${g.fanIn} out:${g.fanOut})`,
-      );
+      const result = {
+        groups: groups.map((g, i) => ({
+          rank: i + 1,
+          name: g.name.toUpperCase(),
+          files: g.files,
+          loc: g.loc,
+          importance: `${(g.importance * 100).toFixed(1)}%`,
+          coupling: { total: g.fanIn + g.fanOut, fanIn: g.fanIn, fanOut: g.fanOut },
+        })),
+        nextSteps: getHints("get_groups"),
+      };
 
-      return { content: [{ type: "text" as const, text: lines.join("\n") }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
 
-  // Start stdio transport
+  // Tool 9: symbol_context
+  server.tool(
+    "symbol_context",
+    "Get 360° view of a symbol: callers, callees, metrics, and next-step suggestions",
+    { name: z.string().describe("Symbol name (e.g., 'AuthService', 'getUserById')") },
+    async ({ name: symbolName }) => {
+      const matches = [...graph.symbolMetrics.values()].filter(
+        (m) => m.name === symbolName || m.symbolId.endsWith(`::${symbolName}`)
+      );
+
+      if (matches.length === 0) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Symbol not found: ${symbolName}` }) }],
+          isError: true,
+        };
+      }
+
+      const sym = matches[0];
+      const callers = graph.callEdges
+        .filter((e) => e.calleeSymbol === symbolName || e.target === sym.symbolId)
+        .map((e) => ({ symbol: e.callerSymbol, file: e.source.split("::")[0] }));
+
+      const callees = graph.callEdges
+        .filter((e) => e.callerSymbol === symbolName || e.source === sym.symbolId)
+        .map((e) => ({ symbol: e.calleeSymbol, file: e.target.split("::")[0] }));
+
+      const result = {
+        name: sym.name,
+        file: sym.file,
+        fanIn: sym.fanIn,
+        fanOut: sym.fanOut,
+        callers,
+        callees,
+        nextSteps: getHints("symbol_context"),
+      };
+
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    }
+  );
+
+  // Tool 10: search
+  server.tool(
+    "search",
+    "BM25 full-text search across files and symbols. Returns ranked results grouped by file with symbol locations.",
+    {
+      query: z.string().describe("Search query (supports camelCase, snake_case splitting)"),
+      limit: z.number().optional().describe("Max results (default: 20)"),
+    },
+    async ({ query, limit }) => {
+      const idx = getSearchIndex(graph);
+      const results = search(idx, query, limit ?? 20);
+
+      if (results.length === 0) {
+        const suggestions = getSuggestions(idx, query);
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              query,
+              results: [],
+              suggestions,
+              nextSteps: getHints("search"),
+            }, null, 2),
+          }],
+        };
+      }
+
+      const mapped = results.map((r) => ({
+        file: r.file,
+        score: r.score,
+        symbols: r.symbols.map((s) => ({
+          name: s.name,
+          type: s.type,
+          loc: s.loc,
+          relevance: s.score,
+        })),
+      }));
+
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            query,
+            results: mapped,
+            nextSteps: getHints("search"),
+          }, null, 2),
+        }],
+      };
+    }
+  );
+
+  // Tool 11: detect_changes
+  server.tool(
+    "detect_changes",
+    "Detect changed files from git diff, map to affected symbols and dependents",
+    {
+      scope: z.enum(["staged", "unstaged", "all"]).optional().describe("Git diff scope (default: all)"),
+    },
+    async ({ scope }) => {
+      const diffScope = scope ?? "all";
+      try {
+        let diffCmd: string;
+        switch (diffScope) {
+          case "staged": diffCmd = "git diff --cached --name-only"; break;
+          case "unstaged": diffCmd = "git diff --name-only"; break;
+          default: diffCmd = "git diff HEAD --name-only"; break;
+        }
+
+        const output = execSync(diffCmd, { encoding: "utf-8", timeout: 5000 }).trim();
+        const changedFiles = output ? output.split("\n").filter((f) => f.length > 0) : [];
+
+        const changedSymbols: Array<{ file: string; symbols: string[] }> = [];
+        const affectedFiles: string[] = [];
+
+        for (const file of changedFiles) {
+          const fileSymbols = [...graph.symbolMetrics.values()]
+            .filter((m) => m.file === file || file.endsWith(m.file))
+            .map((m) => m.name);
+          if (fileSymbols.length > 0) {
+            changedSymbols.push({ file, symbols: fileSymbols });
+          }
+
+          const dependents = graph.edges
+            .filter((e) => e.target === file || file.endsWith(e.target))
+            .map((e) => e.source);
+          affectedFiles.push(...dependents);
+        }
+
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              scope: diffScope,
+              changedFiles,
+              changedSymbols,
+              affectedFiles: [...new Set(affectedFiles)],
+              nextSteps: getHints("detect_changes"),
+            }, null, 2),
+          }],
+        };
+      } catch {
+        return {
+          content: [{
+            type: "text" as const,
+            text: JSON.stringify({
+              error: "Git not available or not in a git repository",
+              scope: diffScope,
+              nextSteps: ["Ensure you are in a git repository"],
+            }),
+          }],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  // Tool 12: impact_analysis
+  server.tool(
+    "impact_analysis",
+    "Analyze the blast radius of changing a symbol. Returns depth-grouped affected callers with risk labels.",
+    {
+      symbol: z.string().describe("Symbol name or qualified name (e.g., 'getUserById' or 'UserService.getUserById')"),
+    },
+    async ({ symbol }) => {
+      const result = impactAnalysis(graph, symbol);
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({ ...result, nextSteps: getHints("impact_analysis") }, null, 2),
+        }],
+      };
+    }
+  );
+
+  // Tool 13: rename_symbol
+  server.tool(
+    "rename_symbol",
+    "Find all references to a symbol for renaming. Returns file locations with confidence levels.",
+    {
+      oldName: z.string().describe("Current symbol name"),
+      newName: z.string().describe("New symbol name"),
+      dryRun: z.boolean().optional().describe("If true, only report references without renaming (default: true)"),
+    },
+    async ({ oldName, newName, dryRun }) => {
+      const result = renameSymbol(graph, oldName, newName, dryRun ?? true);
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({ ...result, nextSteps: getHints("rename_symbol") }, null, 2),
+        }],
+      };
+    }
+  );
+
+  // MCP Prompts
+  server.prompt(
+    "detect_impact",
+    "Analyze the impact of changing a symbol — who calls it, what breaks, what needs testing",
+    { symbol: z.string().describe("Symbol to analyze") },
+    ({ symbol }) => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: `Analyze the impact of changing the symbol "${symbol}" in this codebase.\n\nUse the impact_analysis tool with symbol="${symbol}" to get depth-grouped affected callers.\nThen use file_context on the most impacted files to understand coupling.\nFinally, summarize:\n1. What will definitely break (depth 1)\n2. What will likely need changes (depth 2)\n3. What may need testing (depth 3+)\n4. Recommended order to update files`,
+        },
+      }],
+    })
+  );
+
+  server.prompt(
+    "generate_map",
+    "Generate a mental map of the codebase structure for onboarding",
+    {},
+    () => ({
+      messages: [{
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: "Generate a visual mental map of this codebase.\n\nUse codebase_overview to get the high-level structure.\nThen use get_module_structure to understand cross-module dependencies.\nUse find_hotspots with metric='pagerank' to identify key files.\nFinally, produce an ASCII diagram showing:\n1. Module boundaries and their responsibilities\n2. Key data flows between modules\n3. Critical hotspot files marked with [!]\n4. Entry points marked with [>>]",
+        },
+      }],
+    })
+  );
+
+  // MCP Resources
+  server.resource(
+    "clusters",
+    "codebase://clusters",
+    { description: "Community-detected clusters of related files" },
+    async () => ({
+      contents: [{
+        uri: "codebase://clusters",
+        text: JSON.stringify(graph.clusters, null, 2),
+        mimeType: "application/json",
+      }],
+    })
+  );
+
+  server.resource(
+    "processes",
+    "codebase://processes",
+    { description: "Execution flow traces from entry points through call graph" },
+    async () => ({
+      contents: [{
+        uri: "codebase://processes",
+        text: JSON.stringify(graph.processes, null, 2),
+        mimeType: "application/json",
+      }],
+    })
+  );
+
+  server.resource(
+    "setup",
+    "codebase://setup",
+    { description: "Onboarding guide for AI agents connecting to this codebase" },
+    async () => {
+      const indexedHead = getIndexedHead();
+      const setup = {
+        project: "codebase-visualizer",
+        totalFiles: graph.stats.totalFiles,
+        totalFunctions: graph.stats.totalFunctions,
+        modules: [...graph.moduleMetrics.keys()],
+        availableTools: [
+          "codebase_overview", "file_context", "get_dependents", "find_hotspots",
+          "get_module_structure", "analyze_forces", "find_dead_exports", "get_groups",
+          "symbol_context", "search", "detect_changes", "impact_analysis", "rename_symbol",
+        ],
+        indexedHead,
+        gettingStarted: [
+          "Call codebase_overview for a high-level map",
+          "Use search to find specific files or symbols",
+          "Use symbol_context to understand function call chains",
+          "Use detect_changes to see what's changed since last index",
+        ],
+      };
+      return {
+        contents: [{
+          uri: "codebase://setup",
+          text: JSON.stringify(setup, null, 2),
+          mimeType: "application/json",
+        }],
+      };
+    }
+  );
+}
+
+export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
+  const server = new McpServer({
+    name: "codebase-visualizer",
+    version: "0.1.0",
+  });
+
+  registerTools(server, graph);
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
