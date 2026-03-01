@@ -153,9 +153,11 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
 const GROUP_COLORS = [
   "#2563eb", "#dc2626", "#16a34a", "#9333ea", "#ea580c",
   "#0891b2", "#ca8a04", "#e11d48", "#4f46e5", "#059669",
+  "#7c3aed", "#db2777", "#0d9488", "#d97706", "#6366f1",
+  "#be123c", "#15803d", "#a855f7", "#f97316", "#0284c7",
 ];
 
-const MAX_LEGEND_GROUPS = 8;
+const MAX_LEGEND_GROUPS = Infinity;
 
 function computeGroups(
   fileNodes: GraphNode[],

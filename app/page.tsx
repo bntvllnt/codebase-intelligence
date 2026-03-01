@@ -36,6 +36,8 @@ function App(): React.ReactElement | null {
     handleNavigate,
     handleFocus,
     handleSearch,
+    selectedGroups,
+    toggleGroup,
   } = useGraphContext();
 
   const [fileTreeOpen, setFileTreeOpen] = useState(false);
@@ -79,6 +81,7 @@ function App(): React.ReactElement | null {
         forceData={forceData}
         circularDeps={graphData.stats.circularDeps}
         symbolData={symbolData}
+        selectedGroups={selectedGroups}
         onNodeClick={handleNodeClick}
         onSymbolClick={setSelectedSymbol}
       />
@@ -94,7 +97,7 @@ function App(): React.ReactElement | null {
         callEdges={symbolData?.callEdges ?? []}
         onClose={() => { setSelectedSymbol(null); }}
       />
-      <Legend view={currentView} groups={groupData} showClouds={config.showModuleBoxes} />
+      <Legend view={currentView} groups={groupData} showClouds={config.showModuleBoxes} selectedGroups={selectedGroups} onToggleGroup={toggleGroup} />
       <SettingsPanel config={config} onChange={setConfig} />
     </>
   );

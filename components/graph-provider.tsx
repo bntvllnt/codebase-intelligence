@@ -30,6 +30,8 @@ interface GraphContextValue {
   setSelectedSymbol: (symbol: SymbolApiNode | null) => void;
   focusNodeId: string | null;
   setFocusNodeId: (id: string | null) => void;
+  selectedGroups: Set<string>;
+  toggleGroup: (name: string) => void;
   handleNodeClick: (node: GraphApiNode) => void;
   handleNavigate: (nodeId: string) => void;
   handleFocus: (nodeId: string) => void;
@@ -51,6 +53,7 @@ export function GraphProvider({ children }: { children: React.ReactNode }) {
   const [selectedNode, setSelectedNode] = useState<GraphApiNode | null>(null);
   const [selectedSymbol, setSelectedSymbol] = useState<SymbolApiNode | null>(null);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set());
   const isSymbolView = currentView === "symbols" || currentView === "types";
   const { symbolData } = useSymbolData(isSymbolView);
 
@@ -64,6 +67,15 @@ export function GraphProvider({ children }: { children: React.ReactNode }) {
       document.title = `${projectName} — Codebase Visualizer`;
     }
   }, [projectName]);
+
+  const toggleGroup = useCallback((name: string) => {
+    setSelectedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
 
   const handleNodeClick = useCallback((node: GraphApiNode) => {
     setSelectedNode(node);
@@ -112,6 +124,8 @@ export function GraphProvider({ children }: { children: React.ReactNode }) {
         setSelectedSymbol,
         focusNodeId,
         setFocusNodeId,
+        selectedGroups,
+        toggleGroup,
         handleNodeClick,
         handleNavigate,
         handleFocus,

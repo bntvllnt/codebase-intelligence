@@ -261,10 +261,17 @@ describe("cloudGroup", () => {
     expect(cloudGroup("apps/web/")).toBe("web");
   });
 
-  it("returns first segment for non-source dirs", () => {
-    expect(cloudGroup("convex/agents/")).toBe("convex");
-    expect(cloudGroup("e2e/tests/")).toBe("e2e");
+  it("uses two-level grouping for non-source dirs with subdirs", () => {
+    expect(cloudGroup("convex/agents/")).toBe("convex/agents");
+    expect(cloudGroup("convex/auth/")).toBe("convex/auth");
+    expect(cloudGroup("e2e/tests/")).toBe("e2e/tests");
     expect(cloudGroup("scripts/")).toBe("scripts");
+  });
+
+  it("uses two-level grouping for deep source-dir paths", () => {
+    expect(cloudGroup("src/app/(dashboard)/")).toBe("app/(dashboard)");
+    expect(cloudGroup("src/components/ui/")).toBe("components/ui");
+    expect(cloudGroup("app/api/graph/")).toBe("api/graph");
   });
 
   it("returns root for empty or dot paths", () => {
@@ -341,13 +348,13 @@ describe("computeGroups", () => {
     expect(result.groups).toEqual([]);
   });
 
-  it("caps at 8 groups max", () => {
-    const files = Array.from({ length: 12 }, (_, i) =>
+  it("returns all groups without cap", () => {
+    const files = Array.from({ length: 25 }, (_, i) =>
       makeFile(`dir${i}/file.ts`, { loc: 10 }),
     );
     const built = buildGraph(files);
     const result = analyzeGraph(built, files);
-    expect(result.groups.length).toBeLessThanOrEqual(8);
+    expect(result.groups.length).toBe(25);
   });
 
   it("includes fanIn and fanOut per group", () => {

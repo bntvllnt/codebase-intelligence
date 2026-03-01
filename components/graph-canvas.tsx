@@ -60,6 +60,7 @@ export function GraphCanvas({
   forceData,
   circularDeps,
   symbolData,
+  selectedGroups,
   onNodeClick,
   onSymbolClick,
 }: {
@@ -71,6 +72,7 @@ export function GraphCanvas({
   forceData: ForceApiResponse | undefined;
   circularDeps: string[][];
   symbolData: SymbolGraphResponse | undefined;
+  selectedGroups: Set<string>;
   onNodeClick: (node: GraphApiNode) => void;
   onSymbolClick: (symbol: SymbolApiNode) => void;
 }): React.ReactElement {
@@ -212,7 +214,7 @@ export function GraphCanvas({
 
       // Dynamic minimum: small projects need fewer files per cloud
       const totalNodes = fgNodes.length;
-      const minFiles = totalNodes > 100 ? 5 : totalNodes > 20 ? 4 : 3;
+      const minFiles = totalNodes > 100 ? 3 : totalNodes > 20 ? 2 : 2;
 
       const active = new Set<string>();
       groups.forEach((moduleNodes, mod) => {
@@ -405,10 +407,27 @@ export function GraphCanvas({
             ? `${n.label as string} (${n.path as string})`
             : `${n.path as string} (${n.loc as number} LOC)`
         }
-        nodeColor={(n: Record<string, unknown>) => n.color as string}
-        nodeVal={(n: Record<string, unknown>) => n.size as number}
+        nodeColor={(n: Record<string, unknown>) => {
+          if (selectedGroups.size === 0) return n.color as string;
+          const mod = (n.module as string) || "";
+          return selectedGroups.has(cloudGroup(mod)) ? (n.color as string) : "#1a1a24";
+        }}
+        nodeVal={(n: Record<string, unknown>) => {
+          if (selectedGroups.size === 0) return n.size as number;
+          const mod = (n.module as string) || "";
+          return selectedGroups.has(cloudGroup(mod)) ? (n.size as number) : 0.3;
+        }}
         nodeOpacity={config.nodeOpacity}
-        linkColor={(l: Record<string, unknown>) => l.color as string}
+        linkColor={(l: Record<string, unknown>) => {
+          if (selectedGroups.size === 0) return l.color as string;
+          const src = l.source as Record<string, unknown> | string;
+          const tgt = l.target as Record<string, unknown> | string;
+          const srcMod = typeof src === "object" ? (src.module as string) || "" : "";
+          const tgtMod = typeof tgt === "object" ? (tgt.module as string) || "" : "";
+          const srcIn = selectedGroups.has(cloudGroup(srcMod));
+          const tgtIn = selectedGroups.has(cloudGroup(tgtMod));
+          return srcIn && tgtIn ? (l.color as string) : "rgba(30,30,40,0.1)";
+        }}
         linkWidth={(l: Record<string, unknown>) => l.width as number}
         linkOpacity={config.linkOpacity}
         backgroundColor="#0a0a0f"
