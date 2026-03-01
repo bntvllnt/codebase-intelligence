@@ -1,5 +1,16 @@
 #!/usr/bin/env node
 
+let serverRunning = false;
+
+process.on("SIGTERM", () => {
+  if (serverRunning) return;
+  process.exit(0);
+});
+
+process.on("SIGINT", () => {
+  process.exit(0);
+});
+
 process.on("uncaughtException", (err) => {
   process.stderr.write(`Fatal: ${err.stack ?? err.message}\n`);
   process.exit(1);
@@ -185,7 +196,7 @@ async function runServer(
 
     function attempt(currentPort: number): void {
       attempts++;
-      server.listen(currentPort, () => { resolve(); });
+      server.listen(currentPort, "0.0.0.0", () => { resolve(); });
       server.on("error", (err: NodeJS.ErrnoException) => {
         if (err.code === "EADDRINUSE" && attempts < maxAttempts) {
           console.warn(`Port ${currentPort} in use, trying ${currentPort + 1}...`);
@@ -199,6 +210,7 @@ async function runServer(
     attempt(port);
   });
 
+  serverRunning = true;
   const actualPort = (server.address() as { port: number }).port;
   console.log(`3D map ready at http://localhost:${actualPort}`);
 }
