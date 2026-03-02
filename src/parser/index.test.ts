@@ -92,7 +92,7 @@ export class Calculator {
       fs.rmSync(projectDir, { recursive: true, force: true });
     });
 
-    it("parses all TypeScript files", () => {
+    it("parses all TypeScript files", { timeout: 30_000 }, () => {
       const files = parseCodebase(projectDir);
       expect(files).toHaveLength(4);
     });

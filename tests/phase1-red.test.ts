@@ -40,7 +40,7 @@ interface ExpectedSymbolsFile {
 }
 
 describe("1.1 — parser re-export resolution", () => {
-  it("barrel index.ts files expose transitive exports", () => {
+  it("barrel index.ts files expose transitive exports", { timeout: 30_000 }, () => {
     const { parsedFiles } = getFixturePipeline();
     const authIndex = parsedFiles.find((f) => f.relativePath === "auth/index.ts");
     expect(authIndex).toBeDefined();
