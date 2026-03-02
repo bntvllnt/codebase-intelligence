@@ -1,6 +1,6 @@
 {
-  "name": "codebase-visualizer",
-  "version": "1.0.0",
+  "name": "@bntvllnt/codebase-visualizer",
+  "version": "1.0.1",
   "description": "3D interactive codebase visualization with MCP integration for LLM-assisted code understanding",
   "type": "module",
   "main": "dist/cli.js",
@@ -9,7 +9,6 @@
   },
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "preinstall": "npx only-allow pnpm",
     "build": "tsc -p tsconfig.build.json && next build",
     "build:cli": "tsc -p tsconfig.build.json",
     "dev": "tsx src/cli.ts",
@@ -20,7 +19,8 @@
     "lint": "eslint src/ app/ components/ hooks/ lib/",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .next",
-    "publish:npm": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && npm publish --access public"
+    "publish:npm": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && npm publish --access public --registry https://registry.npmjs.org",
+    "publish:github": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && npm publish --registry https://npm.pkg.github.com"
   },
   "keywords": [
     "codebase",
