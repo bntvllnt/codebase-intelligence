@@ -62,26 +62,50 @@ npm run test        # vitest
 
 All four must pass before shipping. Run in order: lint -> typecheck -> build -> test.
 
-## npm Publishing (Local Only)
+## Release Protocol
 
-- npm publish is manual/local (no GitHub Action publish workflow).
-- Use this command:
+### Version Bumping
+
+| Change Type | Bump | Example |
+|-------------|------|---------|
+| New MCP tools, new views, new metrics | minor | 1.0.1 → 1.1.0 |
+| Bug fixes, description changes, doc sync | patch | 1.1.0 → 1.1.1 |
+| Breaking: removed tool, changed tool params | major | 1.1.0 → 2.0.0 |
+
+### Release Flow
+
+```
+1. All quality gates pass (lint → typecheck → build → test)
+2. Bump version in package.json
+3. Commit: "chore(release): bump to vX.Y.Z"
+4. Tag: git tag vX.Y.Z
+5. Push: git push origin main --tags
+6. Publish: pnpm publish:npm
+```
+
+### Commands
 
 ```bash
+# Bump version (edit package.json, then:)
+git add package.json && git commit -m "chore(release): bump to vX.Y.Z"
+git tag vX.Y.Z
+git push origin main --tags
+
+# Publish to npm (runs lint → typecheck → build → test → publish)
 pnpm publish:npm
 ```
 
-What it does:
+### Prerequisites
+- `npm login` completed on your machine
+- npm account/package permissions set
+- if npm 2FA is enabled, provide OTP during publish
+
+### What `pnpm publish:npm` does
 1. lint
 2. typecheck
 3. build
 4. test
 5. `npm publish --access public`
-
-Prerequisites:
-- `npm login` completed on your machine
-- npm account/package permissions set
-- if npm 2FA is enabled, provide OTP during publish
 
 ### ESLint Rules
 - Strict type-checked config (`strictTypeChecked`)

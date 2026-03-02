@@ -1,6 +1,6 @@
 {
   "name": "codebase-visualizer",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "3D interactive codebase visualization with MCP integration for LLM-assisted code understanding",
   "type": "module",
   "main": "dist/cli.js",
