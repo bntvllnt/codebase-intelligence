@@ -1,0 +1,40 @@
+{
+  "_description": "Ground truth: every expected file-to-file import edge in the fixture codebase",
+  "edges": [
+    { "source": "src/users/user-repository.ts", "target": "src/users/user-types.ts", "symbols": ["User", "CreateUserInput"], "isTypeOnly": true },
+    { "source": "src/users/user-repository.ts", "target": "src/utils/logger.ts", "symbols": ["log"], "isTypeOnly": false },
+    { "source": "src/users/user-service.ts", "target": "src/users/user-types.ts", "symbols": ["User", "CreateUserInput"], "isTypeOnly": true },
+    { "source": "src/users/user-service.ts", "target": "src/users/user-repository.ts", "symbols": ["getUserById", "createUser", "getAllUsers"], "isTypeOnly": false },
+    { "source": "src/users/user-service.ts", "target": "src/utils/logger.ts", "symbols": ["log"], "isTypeOnly": false },
+    { "source": "src/users/user-service.ts", "target": "src/utils/validators.ts", "symbols": ["validateEmail", "validateNotEmpty"], "isTypeOnly": false },
+    { "source": "src/users/index.ts", "target": "src/users/user-service.ts", "symbols": ["UserService"], "isTypeOnly": false },
+    { "source": "src/users/index.ts", "target": "src/users/user-repository.ts", "symbols": ["getUserById", "createUser", "getAllUsers", "deleteUser"], "isTypeOnly": false },
+    { "source": "src/users/index.ts", "target": "src/users/user-types.ts", "symbols": ["User", "UserRole", "CreateUserInput"], "isTypeOnly": true },
+    { "source": "src/auth/auth-service.ts", "target": "src/users/user-service.ts", "symbols": ["UserService"], "isTypeOnly": false },
+    { "source": "src/auth/auth-service.ts", "target": "src/utils/logger.ts", "symbols": ["log", "logError"], "isTypeOnly": false },
+    { "source": "src/auth/auth-service.ts", "target": "src/utils/validators.ts", "symbols": ["validateNotEmpty"], "isTypeOnly": false },
+    { "source": "src/auth/auth-service.ts", "target": "src/users/user-types.ts", "symbols": ["User"], "isTypeOnly": true },
+    { "source": "src/auth/auth-middleware.ts", "target": "src/auth/auth-service.ts", "symbols": ["AuthService"], "isTypeOnly": false },
+    { "source": "src/auth/auth-middleware.ts", "target": "src/utils/logger.ts", "symbols": ["log", "logError"], "isTypeOnly": false },
+    { "source": "src/auth/auth-middleware.ts", "target": "src/users/user-types.ts", "symbols": ["User"], "isTypeOnly": true },
+    { "source": "src/auth/index.ts", "target": "src/auth/auth-service.ts", "symbols": ["AuthService", "AuthResult", "Session"], "isTypeOnly": false },
+    { "source": "src/auth/index.ts", "target": "src/auth/auth-middleware.ts", "symbols": ["authenticate", "requireAuth", "RequestContext"], "isTypeOnly": false },
+    { "source": "src/api/routes.ts", "target": "src/auth/auth-service.ts", "symbols": ["AuthService"], "isTypeOnly": false },
+    { "source": "src/api/routes.ts", "target": "src/users/user-service.ts", "symbols": ["UserService"], "isTypeOnly": false },
+    { "source": "src/api/routes.ts", "target": "src/auth/auth-middleware.ts", "symbols": ["authenticate", "RequestContext"], "isTypeOnly": false },
+    { "source": "src/api/routes.ts", "target": "src/utils/logger.ts", "symbols": ["log"], "isTypeOnly": false },
+    { "source": "src/api/middleware.ts", "target": "src/auth/auth-middleware.ts", "symbols": ["authenticate", "requireAuth", "RequestContext"], "isTypeOnly": false },
+    { "source": "src/api/middleware.ts", "target": "src/utils/logger.ts", "symbols": ["log"], "isTypeOnly": false },
+    { "source": "src/index.ts", "target": "src/auth/index.ts", "symbols": ["AuthService", "AuthResult", "Session", "RequestContext"], "isTypeOnly": false },
+    { "source": "src/index.ts", "target": "src/users/index.ts", "symbols": ["UserService", "User", "UserRole", "CreateUserInput"], "isTypeOnly": false },
+    { "source": "src/index.ts", "target": "src/api/routes.ts", "symbols": ["handleLogin", "handleGetUsers", "handleGetUser"], "isTypeOnly": false },
+    { "source": "src/index.ts", "target": "src/utils/logger.ts", "symbols": ["log", "logError", "setLogLevel"], "isTypeOnly": false },
+    { "source": "src/index.ts", "target": "src/config/settings.ts", "symbols": ["APP_NAME", "MAX_LOGIN_ATTEMPTS"], "isTypeOnly": false },
+    { "source": "src/index.ts", "target": "src/config/constants.ts", "symbols": ["API_VERSION", "MAX_PAGE_SIZE", "DEFAULT_PAGINATION", "PaginationOptions", "SortOrder"], "isTypeOnly": false },
+    { "source": "src/__tests__/auth-service.test.ts", "target": "src/auth/auth-service.ts", "symbols": ["AuthService"], "isTypeOnly": false }
+  ],
+  "stats": {
+    "totalEdges": 31,
+    "totalFiles": 16
+  }
+}

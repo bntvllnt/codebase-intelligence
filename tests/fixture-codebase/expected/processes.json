@@ -1,0 +1,85 @@
+{
+  "_description": "Ground truth: expected execution flows traced from entry points through call graph. Each process starts from a file with no inbound call edges (entry point) and follows the call chain.",
+  "processes": [
+    {
+      "name": "handleLogin",
+      "entryPoint": { "file": "src/api/routes.ts", "symbol": "handleLogin" },
+      "steps": [
+        { "step": 0, "file": "src/api/routes.ts", "symbol": "handleLogin" },
+        { "step": 1, "file": "src/utils/logger.ts", "symbol": "log" },
+        { "step": 1, "file": "src/auth/auth-service.ts", "symbol": "AuthService.login" },
+        { "step": 2, "file": "src/utils/validators.ts", "symbol": "validateNotEmpty" },
+        { "step": 2, "file": "src/users/user-service.ts", "symbol": "UserService.listUsers" },
+        { "step": 2, "file": "src/utils/logger.ts", "symbol": "logError" },
+        { "step": 3, "file": "src/users/user-repository.ts", "symbol": "getAllUsers" }
+      ],
+      "depth": 3,
+      "modulesTouched": ["api", "auth", "users", "utils"]
+    },
+    {
+      "name": "handleGetUsers",
+      "entryPoint": { "file": "src/api/routes.ts", "symbol": "handleGetUsers" },
+      "steps": [
+        { "step": 0, "file": "src/api/routes.ts", "symbol": "handleGetUsers" },
+        { "step": 1, "file": "src/utils/logger.ts", "symbol": "log" },
+        { "step": 1, "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+        { "step": 1, "file": "src/users/user-service.ts", "symbol": "UserService.listUsers" },
+        { "step": 2, "file": "src/auth/auth-service.ts", "symbol": "AuthService.validate" },
+        { "step": 2, "file": "src/utils/logger.ts", "symbol": "logError" },
+        { "step": 2, "file": "src/users/user-repository.ts", "symbol": "getAllUsers" },
+        { "step": 3, "file": "src/users/user-service.ts", "symbol": "UserService.getUserById" },
+        { "step": 4, "file": "src/users/user-repository.ts", "symbol": "getUserById" }
+      ],
+      "depth": 4,
+      "modulesTouched": ["api", "auth", "users", "utils"]
+    },
+    {
+      "name": "handleGetUser",
+      "entryPoint": { "file": "src/api/routes.ts", "symbol": "handleGetUser" },
+      "steps": [
+        { "step": 0, "file": "src/api/routes.ts", "symbol": "handleGetUser" },
+        { "step": 1, "file": "src/utils/logger.ts", "symbol": "log" },
+        { "step": 1, "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+        { "step": 1, "file": "src/users/user-service.ts", "symbol": "UserService.getUserById" },
+        { "step": 2, "file": "src/auth/auth-service.ts", "symbol": "AuthService.validate" },
+        { "step": 2, "file": "src/users/user-repository.ts", "symbol": "getUserById" }
+      ],
+      "depth": 2,
+      "modulesTouched": ["api", "auth", "users", "utils"]
+    },
+    {
+      "name": "withAuth",
+      "entryPoint": { "file": "src/api/middleware.ts", "symbol": "withAuth" },
+      "steps": [
+        { "step": 0, "file": "src/api/middleware.ts", "symbol": "withAuth" },
+        { "step": 1, "file": "src/utils/logger.ts", "symbol": "log" },
+        { "step": 1, "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+        { "step": 1, "file": "src/auth/auth-middleware.ts", "symbol": "requireAuth" },
+        { "step": 2, "file": "src/auth/auth-service.ts", "symbol": "AuthService.validate" },
+        { "step": 3, "file": "src/users/user-service.ts", "symbol": "UserService.getUserById" },
+        { "step": 4, "file": "src/users/user-repository.ts", "symbol": "getUserById" }
+      ],
+      "depth": 4,
+      "modulesTouched": ["api", "auth", "users", "utils"]
+    },
+    {
+      "name": "withLogging",
+      "entryPoint": { "file": "src/api/middleware.ts", "symbol": "withLogging" },
+      "steps": [
+        { "step": 0, "file": "src/api/middleware.ts", "symbol": "withLogging" },
+        { "step": 1, "file": "src/utils/logger.ts", "symbol": "log" }
+      ],
+      "depth": 1,
+      "modulesTouched": ["api", "utils"]
+    }
+  ],
+  "stats": {
+    "totalProcesses": 5,
+    "entryPoints": [
+      { "file": "src/api/routes.ts", "processes": 3 },
+      { "file": "src/api/middleware.ts", "processes": 2 }
+    ],
+    "maxDepth": 4,
+    "averageDepth": 2.8
+  }
+}

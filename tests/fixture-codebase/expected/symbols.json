@@ -1,0 +1,77 @@
+{
+  "_description": "Ground truth: every expected exported symbol in the fixture codebase",
+  "symbols": [
+    { "name": "User", "type": "interface", "file": "src/users/user-types.ts" },
+    { "name": "UserRole", "type": "type", "file": "src/users/user-types.ts" },
+    { "name": "CreateUserInput", "type": "interface", "file": "src/users/user-types.ts" },
+
+    { "name": "getUserById", "type": "function", "file": "src/users/user-repository.ts" },
+    { "name": "getAllUsers", "type": "function", "file": "src/users/user-repository.ts" },
+    { "name": "createUser", "type": "function", "file": "src/users/user-repository.ts" },
+    { "name": "deleteUser", "type": "function", "file": "src/users/user-repository.ts" },
+
+    { "name": "UserService", "type": "class", "file": "src/users/user-service.ts" },
+
+    { "name": "LogLevel", "type": "type", "file": "src/utils/logger.ts" },
+    { "name": "setLogLevel", "type": "function", "file": "src/utils/logger.ts" },
+    { "name": "log", "type": "function", "file": "src/utils/logger.ts", "isDefault": true },
+    { "name": "logError", "type": "function", "file": "src/utils/logger.ts" },
+
+    { "name": "validateEmail", "type": "function", "file": "src/utils/validators.ts" },
+    { "name": "validateNotEmpty", "type": "function", "file": "src/utils/validators.ts" },
+    { "name": "validateMinLength", "type": "function", "file": "src/utils/validators.ts" },
+    { "name": "createValidator", "type": "function", "file": "src/utils/validators.ts" },
+
+    { "name": "formatDate", "type": "function", "file": "src/utils/helpers.ts" },
+    { "name": "truncate", "type": "function", "file": "src/utils/helpers.ts" },
+
+    { "name": "AuthResult", "type": "interface", "file": "src/auth/auth-service.ts" },
+    { "name": "Session", "type": "interface", "file": "src/auth/auth-service.ts" },
+    { "name": "AuthService", "type": "class", "file": "src/auth/auth-service.ts" },
+
+    { "name": "RequestContext", "type": "interface", "file": "src/auth/auth-middleware.ts" },
+    { "name": "authenticate", "type": "function", "file": "src/auth/auth-middleware.ts" },
+    { "name": "requireAuth", "type": "function", "file": "src/auth/auth-middleware.ts" },
+
+    { "name": "handleLogin", "type": "function", "file": "src/api/routes.ts" },
+    { "name": "handleGetUsers", "type": "function", "file": "src/api/routes.ts" },
+    { "name": "handleGetUser", "type": "function", "file": "src/api/routes.ts" },
+
+    { "name": "withAuth", "type": "function", "file": "src/api/middleware.ts" },
+    { "name": "withLogging", "type": "function", "file": "src/api/middleware.ts" },
+
+    { "name": "APP_NAME", "type": "variable", "file": "src/config/settings.ts" },
+    { "name": "MAX_LOGIN_ATTEMPTS", "type": "variable", "file": "src/config/settings.ts" },
+    { "name": "SESSION_TIMEOUT_MS", "type": "variable", "file": "src/config/settings.ts" },
+    { "name": "getDefaultPort", "type": "function", "file": "src/config/settings.ts" },
+    { "name": "getEnvironment", "type": "function", "file": "src/config/settings.ts" },
+    { "name": "DEPRECATED_FLAG", "type": "variable", "file": "src/config/settings.ts" },
+
+    { "name": "API_VERSION", "type": "variable", "file": "src/config/constants.ts" },
+    { "name": "MAX_PAGE_SIZE", "type": "variable", "file": "src/config/constants.ts" },
+    { "name": "SortOrder", "type": "type", "file": "src/config/constants.ts" },
+    { "name": "PaginationOptions", "type": "interface", "file": "src/config/constants.ts" },
+    { "name": "DEFAULT_PAGINATION", "type": "variable", "file": "src/config/constants.ts" }
+  ],
+  "stats": {
+    "totalSymbols": 40,
+    "byType": {
+      "function": 18,
+      "class": 2,
+      "interface": 6,
+      "type": 3,
+      "variable": 8
+    },
+    "deadExports": [
+      { "name": "SESSION_TIMEOUT_MS", "file": "src/config/settings.ts" },
+      { "name": "getDefaultPort", "file": "src/config/settings.ts" },
+      { "name": "getEnvironment", "file": "src/config/settings.ts" },
+      { "name": "DEPRECATED_FLAG", "file": "src/config/settings.ts" },
+      { "name": "validateMinLength", "file": "src/utils/validators.ts" },
+      { "name": "createValidator", "file": "src/utils/validators.ts" },
+      { "name": "formatDate", "file": "src/utils/helpers.ts" },
+      { "name": "truncate", "file": "src/utils/helpers.ts" },
+      { "name": "deleteUser", "file": "src/users/user-repository.ts" }
+    ]
+  }
+}

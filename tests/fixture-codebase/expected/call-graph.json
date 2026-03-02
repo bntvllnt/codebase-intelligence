@@ -1,0 +1,198 @@
+{
+  "_description": "Ground truth: every expected cross-file call edge in the fixture codebase. Intra-file calls excluded. Confidence: type-resolved = checker resolved the symbol, text-inferred = regex fallback.",
+  "edges": [
+    {
+      "caller": { "file": "src/users/user-repository.ts", "symbol": "getUserById" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-repository.ts", "symbol": "getAllUsers" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-repository.ts", "symbol": "createUser" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-repository.ts", "symbol": "deleteUser" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-service.ts", "symbol": "UserService.getUserById" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-service.ts", "symbol": "UserService.getUserById" },
+      "callee": { "file": "src/users/user-repository.ts", "symbol": "getUserById" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-service.ts", "symbol": "UserService.createUser" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-service.ts", "symbol": "UserService.createUser" },
+      "callee": { "file": "src/utils/validators.ts", "symbol": "validateEmail" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-service.ts", "symbol": "UserService.createUser" },
+      "callee": { "file": "src/users/user-repository.ts", "symbol": "createUser" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-service.ts", "symbol": "UserService.listUsers" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-service.ts", "symbol": "UserService.listUsers" },
+      "callee": { "file": "src/users/user-repository.ts", "symbol": "getAllUsers" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/users/user-service.ts", "symbol": "UserService.listUsers" },
+      "callee": { "file": "src/utils/validators.ts", "symbol": "validateNotEmpty" },
+      "confidence": "text-inferred",
+      "_note": "Passed as callback to .filter() — checker may not resolve function reference in callback position"
+    },
+    {
+      "caller": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.login" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.login" },
+      "callee": { "file": "src/utils/validators.ts", "symbol": "validateNotEmpty" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.login" },
+      "callee": { "file": "src/users/user-service.ts", "symbol": "UserService.listUsers" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.login" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "logError" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.validate" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.validate" },
+      "callee": { "file": "src/users/user-service.ts", "symbol": "UserService.getUserById" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.logout" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "logError" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+      "callee": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.validate" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/auth/auth-middleware.ts", "symbol": "requireAuth" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/routes.ts", "symbol": "handleLogin" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/routes.ts", "symbol": "handleLogin" },
+      "callee": { "file": "src/auth/auth-service.ts", "symbol": "AuthService.login" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/routes.ts", "symbol": "handleGetUsers" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/routes.ts", "symbol": "handleGetUsers" },
+      "callee": { "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/routes.ts", "symbol": "handleGetUsers" },
+      "callee": { "file": "src/users/user-service.ts", "symbol": "UserService.listUsers" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/routes.ts", "symbol": "handleGetUser" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/routes.ts", "symbol": "handleGetUser" },
+      "callee": { "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/routes.ts", "symbol": "handleGetUser" },
+      "callee": { "file": "src/users/user-service.ts", "symbol": "UserService.getUserById" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/middleware.ts", "symbol": "withAuth" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/middleware.ts", "symbol": "withAuth" },
+      "callee": { "file": "src/auth/auth-middleware.ts", "symbol": "authenticate" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/middleware.ts", "symbol": "withAuth" },
+      "callee": { "file": "src/auth/auth-middleware.ts", "symbol": "requireAuth" },
+      "confidence": "type-resolved"
+    },
+    {
+      "caller": { "file": "src/api/middleware.ts", "symbol": "withLogging" },
+      "callee": { "file": "src/utils/logger.ts", "symbol": "log" },
+      "confidence": "type-resolved"
+    }
+  ],
+  "stats": {
+    "totalCallEdges": 35,
+    "byConfidence": {
+      "type-resolved": 34,
+      "text-inferred": 1
+    },
+    "highFanIn": [
+      { "symbol": "log", "file": "src/utils/logger.ts", "fanIn": 16 },
+      { "symbol": "logError", "file": "src/utils/logger.ts", "fanIn": 2 },
+      { "symbol": "authenticate", "file": "src/auth/auth-middleware.ts", "fanIn": 3 },
+      { "symbol": "validateNotEmpty", "file": "src/utils/validators.ts", "fanIn": 2 }
+    ],
+    "entryPoints": [
+      "src/api/routes.ts",
+      "src/api/middleware.ts"
+    ]
+  }
+}
