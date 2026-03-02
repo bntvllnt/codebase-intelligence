@@ -127,6 +127,7 @@ export interface GraphConfig {
   distance: number;
   showModuleBoxes: boolean;
   boxOpacity: number;
+  clusterStrength: number;
 }
 
 export const DEFAULT_CONFIG: GraphConfig = {
@@ -140,6 +141,7 @@ export const DEFAULT_CONFIG: GraphConfig = {
   distance: 120,
   showModuleBoxes: true,
   boxOpacity: 0.4,
+  clusterStrength: 0.3,
 };
 
 export interface RenderNode {

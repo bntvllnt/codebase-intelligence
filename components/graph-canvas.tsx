@@ -33,6 +33,7 @@ import {
   getModuleColor,
 } from "@/lib/views";
 import { cloudGroup } from "@/src/cloud-group";
+import { createClusterForce } from "@/lib/cluster-force";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ForceGraph3D = dynamic(() => import("react-force-graph-3d") as any, {
@@ -155,6 +156,17 @@ export function GraphCanvas({
     fg.d3ReheatSimulation();
   }, [config.charge, config.distance]);
 
+  // Cluster force — update strength when slider changes (registration happens in handleEngineTick)
+  useEffect(() => {
+    const fg = fgRef.current;
+    if (!fg) return;
+    const cluster = fg.d3Force("cluster");
+    if (cluster && typeof cluster.strength === "function") {
+      cluster.strength(config.clusterStrength);
+      fg.d3ReheatSimulation();
+    }
+  }, [config.clusterStrength]);
+
   // Module clouds — stable tick handler using refs
   const clearClouds = useCallback((fg: ForceGraph3DInstance) => {
     if (cloudsRef.current.size === 0) return;
@@ -180,6 +192,20 @@ export function GraphCanvas({
     const fg = fgRef.current;
     if (!fg) return;
     const cfg = configRef.current;
+
+    // Register cluster force on first tick (fgRef is guaranteed live here)
+    if (!fg.d3Force("cluster")) {
+      const cluster = createClusterForce(
+        (node) => {
+          const mod = (node.module as string | undefined)?.startsWith(".worktrees/")
+            ? undefined
+            : (node.module as string) || undefined;
+          return mod ? cloudGroup(mod) : undefined;
+        },
+        cfg.clusterStrength,
+      );
+      fg.d3Force("cluster", cluster);
+    }
 
     if (!cfg.showModuleBoxes) {
       if (cloudsRef.current.size > 0) clearClouds(fg);
@@ -250,12 +276,12 @@ export function GraphCanvas({
           existing.label.position.set(cx, maxY + pad + 8, cz);
           existing.label.material.opacity = zoomFade;
           const labelScale = Math.max(rx, ry, rz) * 1.2;
-          existing.label.scale.set(labelScale, labelScale * 0.15, 1);
+          existing.label.scale.set(labelScale, labelScale * 0.1875, 1);
         } else {
           const color = getModuleColor(mod);
 
           // Solid cloud with Phong shading — responds to scene lights
-          const geo = new THREE.SphereGeometry(2, 24, 16);
+          const geo = new THREE.BoxGeometry(2, 2, 2);
           const mat = new THREE.MeshPhongMaterial({
             color,
             transparent: true,
@@ -272,8 +298,7 @@ export function GraphCanvas({
           mesh.renderOrder = -1;
           scene.add(mesh);
 
-          // Wireframe overlay for 3D depth cues
-          const wireGeo = new THREE.SphereGeometry(2, 12, 8);
+          // Wireframe overlay for 3D depth cues — EdgesGeometry for clean 12-edge box outline
           const wireMat = new THREE.LineBasicMaterial({
             color,
             transparent: true,
@@ -281,7 +306,7 @@ export function GraphCanvas({
             depthWrite: false,
           });
           const wireframe = new THREE.LineSegments(
-            new THREE.WireframeGeometry(wireGeo),
+            new THREE.EdgesGeometry(geo),
             wireMat,
           );
           wireframe.position.set(cx, cy, cz);
@@ -308,7 +333,7 @@ export function GraphCanvas({
           const spriteMat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, opacity: zoomFade });
           const label = new THREE.Sprite(spriteMat);
           const labelScale = Math.max(rx, ry, rz) * 1.2;
-          label.scale.set(labelScale, labelScale * 0.15, 1);
+          label.scale.set(labelScale, labelScale * 0.1875, 1);
           label.position.set(cx, maxY + pad + 8, cz);
           scene.add(label);
 

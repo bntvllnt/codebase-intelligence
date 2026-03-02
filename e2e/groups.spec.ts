@@ -101,6 +101,22 @@ test.describe("Group Selection", () => {
     expect(attrs).toEqual(expect.arrayContaining(["services", "models", "utils", "src", "types"]));
   });
 
+  test("cluster strength slider exists and is adjustable", async ({ page }) => {
+    const slider = page.locator("input[type='range']").last();
+    await expect(slider).toBeVisible();
+
+    // The settings panel should show "Cluster Strength" label
+    await expect(page.getByText("Cluster Strength")).toBeVisible();
+
+    // Adjust the slider value
+    await slider.fill("0.8");
+    await expect(slider).toHaveValue("0.8");
+
+    // Set to 0 (off)
+    await slider.fill("0");
+    await expect(slider).toHaveValue("0");
+  });
+
   test("groups only visible when Module Clouds checkbox is checked", async ({ page }) => {
     // Groups should be visible initially (checkbox is checked by default)
     await expect(page.getByText("Groups", { exact: false })).toBeVisible();

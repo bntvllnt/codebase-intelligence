@@ -78,6 +78,7 @@ export function SettingsPanel({
         <span className="text-[#e0e0e0]">Module Clouds</span>
       </label>
       <Slider label="Cloud Opacity" value={config.boxOpacity} min={0.05} max={0.8} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => { onChange("boxOpacity", v); }} />
+      <Slider label="Cluster Strength" value={config.clusterStrength} min={0} max={1} step={0.05} format={(v) => v.toFixed(2)} onChange={(v) => { onChange("clusterStrength", v); }} />
 
       <div className="text-[10px] text-[#2563eb] uppercase mt-4 mb-2 tracking-wider">Physics</div>
       <Slider label="Repulsion" value={config.charge} min={-200} max={-5} step={5} format={(v) => String(Math.round(v))} onChange={(v) => { onChange("charge", v); }} />
