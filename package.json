@@ -1,5 +1,5 @@
 {
-  "name": "@bntvllnt/codebase-visualizer",
+  "name": "codebase-visualizer",
   "version": "1.0.1",
   "description": "3D interactive codebase visualization with MCP integration for LLM-assisted code understanding",
   "type": "module",
@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist .next",
     "publish:npm": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && npm publish --access public --registry https://registry.npmjs.org",
-    "publish:github": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && npm publish --registry https://npm.pkg.github.com"
+    "publish:github": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && scripts/publish-github.sh"
   },
   "keywords": [
     "codebase",

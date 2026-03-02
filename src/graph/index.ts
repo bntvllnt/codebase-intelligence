@@ -121,6 +121,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           file: file.relativePath,
           loc: exp.loc,
           isDefault: exp.isDefault,
+          complexity: exp.complexity,
         });
         if (!callGraphNodeIds.has(symbolId)) {
           callGraph.addNode(symbolId, { name: exp.name, type: exp.type, file: file.relativePath });
@@ -152,6 +153,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           file: cs.callerFile,
           loc: 0,
           isDefault: false,
+          complexity: 0,
         });
         symbolNodeIds.add(sourceId);
       }
@@ -165,6 +167,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           file: cs.calleeFile,
           loc: 0,
           isDefault: false,
+          complexity: 0,
         });
         symbolNodeIds.add(targetId);
       }

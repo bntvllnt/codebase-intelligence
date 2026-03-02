@@ -48,9 +48,14 @@ That's it. Opens a 3D map at `http://localhost:3333`.
 
 - **8 interactive 3D views** — Galaxy, Dependency Flow, Hotspot, Focus, Module, Forces, Churn, Coverage
 - **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
+- **Symbol-level analysis** — call graph with callers/callees, symbol PageRank, per-symbol impact analysis
+- **BM25 search** — find files and symbols by keyword with ranked results
+- **Process tracing** — detect entry points and trace execution flows through the call graph
+- **Community detection** — Louvain algorithm discovers natural file groupings beyond directory structure
 - **3D module clouds** — transparent spheres group files by directory with Phong shading and zoom-based fade
-- **MCP server** — 8 tools for LLM-assisted code understanding (Claude Code, Cursor, VS Code)
-- **REST API** — 9 endpoints for programmatic access
+- **MCP server** — 15 tools + 2 prompts + 3 resources for LLM-assisted code understanding (Claude Code, Cursor, VS Code)
+- **HTTP MCP transport** — Streamable HTTP in browser mode at `POST /api/mcp`
+- **REST API** — 13 endpoints for programmatic access
 - **Search** — find any file and fly the camera to it
 - **Detail panel** — click any node for full metrics
 - **Configurable** — node size, link color, physics, cloud opacity
@@ -134,12 +139,19 @@ Add to `.cursor/mcp.json` or `.vscode/mcp.json`:
 |------|--------------|
 | `codebase_overview` | High-level architecture: modules, entry points, key metrics |
 | `file_context` | Everything about one file: exports, imports, dependents, metrics |
-| `get_dependents` | Blast radius: what breaks if you change this file |
-| `find_hotspots` | Ranked problem files by any metric |
+| `get_dependents` | File-level blast radius: what breaks if you change this file |
+| `find_hotspots` | Ranked files by any metric (coupling, churn, complexity, etc.) |
 | `get_module_structure` | Module map with cross-deps, cohesion, circular deps |
-| `analyze_forces` | Centrifuge analysis: tension, bridges, extraction candidates |
+| `analyze_forces` | Module health: tension files, bridges, extraction candidates |
 | `find_dead_exports` | Unused exports that can be safely removed |
 | `get_groups` | Top-level directory groups with aggregate metrics |
+| `symbol_context` | Callers, callees, importance metrics for any function or class |
+| `search` | Find files and symbols by keyword with ranked results |
+| `detect_changes` | Git diff with risk metrics per changed file |
+| `impact_analysis` | Symbol-level blast radius with depth-grouped risk labels |
+| `rename_symbol` | Find all references to a symbol (read-only, for rename planning) |
+| `get_processes` | Trace execution flows from entry points through the call graph |
+| `get_clusters` | Community-detected clusters of related files |
 
 ## Browser Views
 
@@ -187,15 +199,19 @@ Bottom-left legend shows view-specific color coding. When clouds are enabled, ad
 
 | Endpoint | Returns |
 |----------|---------|
-| `GET /api/graph` | All nodes + edges + stats |
+| `GET /api/graph` | All file nodes + edges + stats |
+| `GET /api/symbol-graph` | All symbol nodes + call edges + symbol metrics |
 | `GET /api/groups` | Group metrics sorted by importance |
 | `GET /api/forces` | Force analysis (cohesion, tension, bridges) |
 | `GET /api/modules` | Module-level metrics |
 | `GET /api/hotspots?metric=coupling&limit=10` | Ranked hotspot files |
-| `GET /api/file/<path>` | Single file details + metrics |
-| `GET /api/meta` | Project name |
+| `GET /api/file/<path>` | Single file details + symbol metrics |
+| `GET /api/symbols/<name>` | Symbol detail with callers/callees + PageRank |
+| `GET /api/search?q=auth&limit=20` | BM25 search results |
+| `GET /api/processes` | Entry point traces + execution flows |
+| `GET /api/meta` | Project name + staleness info |
 | `GET /api/ping` | Health check |
-| `POST /api/mcp` | MCP tool invocation (web mode) |
+| `POST /api/mcp` | MCP tool invocation (Streamable HTTP transport) |
 
 ## Architecture
 
@@ -224,7 +240,7 @@ codebase-visualizer <path>
 
 - TypeScript only (no JS CommonJS, Python, Go, etc.)
 - Static analysis only (no runtime/dynamic imports)
-- File + exported function granularity (no internal function calls)
+- Call graph confidence varies: type-resolved calls are reliable, text-inferred calls are best-effort
 - Client-side 3D requires WebGL
 
 ## Release

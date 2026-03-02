@@ -65,6 +65,16 @@ const TOOL_HINTS: Record<string, string[]> = {
     "Use file_context on referenced files to check for indirect usages",
     "Use detect_changes after renaming to verify all references updated",
   ],
+  get_processes: [
+    "Use symbol_context on an entry point symbol for detailed callers/callees",
+    "Use file_context on files in the process steps for metrics",
+    "Use get_module_structure to see how process crosses module boundaries",
+  ],
+  get_clusters: [
+    "Use file_context on files within a cluster for detailed metrics",
+    "Use get_module_structure to compare clusters against directory structure",
+    "Use analyze_forces to check if cluster boundaries reveal tension",
+  ],
 };
 
 export function getHints(toolName: string): string[] {

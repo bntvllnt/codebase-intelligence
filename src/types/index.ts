@@ -68,6 +68,7 @@ export interface SymbolNode {
   file: string;
   loc: number;
   isDefault: boolean;
+  complexity: number;
 }
 
 export interface SymbolMetrics {
