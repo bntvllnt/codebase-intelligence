@@ -8,3 +8,4 @@ next-env.d.ts
 .mcp.json
 .worktrees/
 test-results/
+scripts/
