@@ -12,7 +12,11 @@ process.on("uncaughtException", (err) => {
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
+import { createRequire } from "module";
 import { Command } from "commander";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../package.json") as { version: string };
 import { parseCodebase } from "./parser/index.js";
 import { buildGraph } from "./graph/index.js";
 import { analyzeGraph } from "./analyzer/index.js";
@@ -50,7 +54,7 @@ interface CliOptions {
 program
   .name("codebase-intelligence")
   .description("Codebase analysis engine with MCP integration for LLM-assisted code understanding")
-  .version("1.1.0")
+  .version(pkg.version)
   .argument("<path>", "Path to the TypeScript codebase to analyze")
   .option("--mcp", "Start as MCP stdio server (accepted for backward compatibility)")
   .option("--index", "Persist graph index to .code-visualizer/")
