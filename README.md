@@ -103,16 +103,39 @@ Starts a stdio MCP server. No browser, no HTTP.
 
 ## MCP Integration
 
-### Claude Code
+### Claude Code (one-liner)
 
-Add to `~/.claude/settings.json`:
+```bash
+claude mcp add -s user -t stdio codebase-visualizer -- npx -y codebase-visualizer@latest . --mcp
+```
+
+Done. Available in all projects. Verify with `/mcp` inside Claude Code.
+
+To scope to a single project instead:
+
+```bash
+claude mcp add -s project -t stdio codebase-visualizer -- npx -y codebase-visualizer@latest ./src --mcp
+```
+
+### Claude Code (plugin)
+
+```bash
+git clone https://github.com/bntvllnt/claude-plugins.git
+claude --plugin-dir ./claude-plugins/plugins/codebase-visualizer
+```
+
+### Claude Code (manual)
+
+Add to `.mcp.json` in your project root:
 
 ```json
 {
   "mcpServers": {
     "codebase-visualizer": {
+      "type": "stdio",
       "command": "npx",
-      "args": ["codebase-visualizer", "--mcp", "./src"]
+      "args": ["-y", "codebase-visualizer@latest", "./src", "--mcp"],
+      "env": {}
     }
   }
 }
@@ -127,7 +150,7 @@ Add to `.cursor/mcp.json` or `.vscode/mcp.json`:
   "servers": {
     "codebase-visualizer": {
       "command": "npx",
-      "args": ["codebase-visualizer", "--mcp", "./src"]
+      "args": ["-y", "codebase-visualizer@latest", "./src", "--mcp"]
     }
   }
 }

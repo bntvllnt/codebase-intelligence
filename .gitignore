@@ -5,3 +5,6 @@ dist/
 .env
 next-env.d.ts
 .npmrc
+.mcp.json
+.worktrees/
+test-results/
