@@ -7,7 +7,7 @@ import os from "os";
 
 beforeAll(() => {
   const { codebaseGraph } = getFixturePipeline();
-  setGraph(codebaseGraph, "fixture-test");
+  setGraph(codebaseGraph);
 });
 
 describe("3.1 — persistence round-trip", () => {
@@ -33,26 +33,6 @@ describe("3.1 — persistence round-trip", () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-  });
-});
-
-describe("3.2 — staleness detection", () => {
-  it("detects stale index when HEAD differs from indexed commit", async () => {
-    const { getStaleness, setIndexedHead } = await import("../src/server/graph-store.js");
-
-    setIndexedHead("old-hash-123");
-    const staleness = getStaleness("new-hash-456");
-
-    expect(staleness.stale).toBe(true);
-  });
-
-  it("reports not stale when HEAD matches indexed commit", async () => {
-    const { getStaleness, setIndexedHead } = await import("../src/server/graph-store.js");
-
-    setIndexedHead("same-hash");
-    const staleness = getStaleness("same-hash");
-
-    expect(staleness.stale).toBe(false);
   });
 });
 
@@ -183,58 +163,3 @@ describe("3.8 — detect_changes without git", () => {
   it.todo("detect_changes returns clear error when git unavailable");
 });
 
-describe("3.9 — MCP resources", () => {
-  it("resources are registered on server", async () => {
-    const { createHttpMcpServer } = await import("../src/mcp/transport.js");
-    const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
-    const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
-    const { codebaseGraph } = getFixturePipeline();
-
-    const port = 9878;
-    const httpServer = await createHttpMcpServer(codebaseGraph, port);
-
-    try {
-      const client = new Client({ name: "test-client", version: "1.0.0" });
-      const transport = new StreamableHTTPClientTransport(
-        new URL(`http://127.0.0.1:${port}/mcp`),
-      );
-      await client.connect(transport);
-
-      const { resources } = await client.listResources();
-      expect(resources.length).toBeGreaterThanOrEqual(3);
-
-      const resourceUris = resources.map((r) => r.uri);
-      expect(resourceUris).toContain("codebase://clusters");
-      expect(resourceUris).toContain("codebase://processes");
-      expect(resourceUris).toContain("codebase://setup");
-
-      await client.close();
-    } finally {
-      await new Promise<void>((resolve) => {
-        httpServer.close(() => { resolve(); });
-      });
-    }
-  });
-});
-
-describe("3.10 — GET /api/changes", () => {
-  it.todo("GET /api/changes?scope=staged returns changed symbols");
-});
-
-describe("3.18 — GET /api/processes", () => {
-  it("returns process list from analyzer", async () => {
-    const { GET } = await import("../app/api/processes/route.js");
-    expect(GET).toBeDefined();
-
-    const response = GET();
-    expect(response.status).toBe(200);
-
-    const data = (await response.json()) as {
-      processes: Array<{ name: string; steps: unknown[] }>;
-    };
-    expect(data.processes).toBeDefined();
-    expect(data.processes.length).toBeGreaterThanOrEqual(3);
-    expect(data.processes[0]).toHaveProperty("name");
-    expect(data.processes[0]).toHaveProperty("steps");
-  });
-});

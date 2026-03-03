@@ -4,7 +4,7 @@ import { setGraph } from "../src/server/graph-store.js";
 
 beforeAll(() => {
   const { codebaseGraph } = getFixturePipeline();
-  setGraph(codebaseGraph, "fixture-test");
+  setGraph(codebaseGraph);
 });
 
 describe("2.1 — BM25 search ranks correctly", () => {
@@ -72,40 +72,6 @@ describe("2.2 — BM25 empty results return suggestions", () => {
 
 describe("2.3 — search MCP tool", () => {
   it.todo("search tool returns file-grouped results with symbol locations and nextSteps");
-});
-
-describe("2.5 — GET /api/search route", () => {
-  it("returns search results for query", async () => {
-    const { GET } = await import("../app/api/search/route.js");
-    expect(GET).toBeDefined();
-
-    const request = new Request("http://localhost/api/search?q=auth");
-    const response = await GET(request);
-    expect(response.status).toBe(200);
-
-    const data = (await response.json()) as {
-      query: string;
-      results: Array<{ file: string; symbols: unknown[] }>;
-    };
-    expect(data.query).toBe("auth");
-    expect(data.results.length).toBeGreaterThan(0);
-    expect(data.results[0]).toHaveProperty("file");
-    expect(data.results[0]).toHaveProperty("symbols");
-  });
-
-  it("returns empty results with suggestions for no-match query", async () => {
-    const { GET } = await import("../app/api/search/route.js");
-    const request = new Request("http://localhost/api/search?q=nonexistent_xyz_123");
-    const response = await GET(request);
-    expect(response.status).toBe(200);
-
-    const data = (await response.json()) as {
-      results: unknown[];
-      suggestions: string[];
-    };
-    expect(data.results).toHaveLength(0);
-    expect(data.suggestions).toBeDefined();
-  });
 });
 
 describe("2.6 — existing tools include nextSteps", () => {

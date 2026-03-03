@@ -1,12 +1,5 @@
 #!/usr/bin/env node
 
-let serverRunning = false;
-
-process.on("SIGTERM", () => {
-  if (serverRunning) return;
-  process.exit(0);
-});
-
 process.on("SIGINT", () => {
   process.exit(0);
 });
@@ -19,18 +12,14 @@ process.on("uncaughtException", (err) => {
 import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
-import { fileURLToPath } from "url";
-import { createServer } from "http";
 import { Command } from "commander";
 import { parseCodebase } from "./parser/index.js";
 import { buildGraph } from "./graph/index.js";
 import { analyzeGraph } from "./analyzer/index.js";
 import { startMcpServer } from "./mcp/index.js";
-import { setGraph, setIndexedHead } from "./server/graph-store.js";
+import { setIndexedHead } from "./server/graph-store.js";
 import { exportGraph, importGraph } from "./persistence/index.js";
-import type { CodebaseGraph } from "./types/index.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const INDEX_DIR_NAME = ".code-visualizer";
 const program = new Command();
 
@@ -52,7 +41,6 @@ function getHeadHash(targetPath: string): string {
 
 interface CliOptions {
   mcp?: boolean;
-  port: string;
   index?: boolean;
   force?: boolean;
   status?: boolean;
@@ -61,11 +49,10 @@ interface CliOptions {
 
 program
   .name("codebase-intelligence")
-  .description("3D interactive codebase visualization with MCP integration")
-  .version("1.0.0")
-  .argument("<path>", "Path to the codebase directory to visualize")
-  .option("--mcp", "Start as MCP stdio server (no browser, no HTTP)")
-  .option("--port <number>", "Web server port (browser mode only)", "3333")
+  .description("Codebase analysis engine with MCP integration for LLM-assisted code understanding")
+  .version("1.1.0")
+  .argument("<path>", "Path to the TypeScript codebase to analyze")
+  .option("--mcp", "Start as MCP stdio server (accepted for backward compatibility)")
   .option("--index", "Persist graph index to .code-visualizer/")
   .option("--force", "Re-index even if HEAD unchanged")
   .option("--status", "Print index status and exit")
@@ -112,7 +99,7 @@ program
           console.log(`Using cached index (HEAD: ${headHash.slice(0, 7)})`);
           const codebaseGraph = cached.graph;
           setIndexedHead(cached.headHash);
-          await runServer(targetPath, codebaseGraph, options);
+          await startMcpServer(codebaseGraph);
           return;
         }
       }
@@ -141,7 +128,7 @@ program
         console.log(`Index saved to ${indexDir}`);
       }
 
-      await runServer(targetPath, codebaseGraph, options);
+      await startMcpServer(codebaseGraph);
     } catch (error) {
       if (error instanceof Error) {
         console.error(error.message);
@@ -151,68 +138,5 @@ program
       process.exit(1);
     }
   });
-
-async function runServer(
-  targetPath: string,
-  codebaseGraph: CodebaseGraph,
-  options: CliOptions,
-): Promise<void> {
-  if (options.mcp) {
-    await startMcpServer(codebaseGraph);
-    return;
-  }
-
-  const port = parseInt(options.port, 10);
-  let projectName = path.basename(path.resolve(targetPath));
-  try {
-    const pkg = JSON.parse(fs.readFileSync(path.resolve(targetPath, "package.json"), "utf-8")) as { name?: string };
-    if (pkg.name) projectName = pkg.name;
-  } catch { /* no package.json — use directory name */ }
-
-  setGraph(codebaseGraph, projectName);
-
-  const projectDir = path.resolve(__dirname, "..");
-  const isDev = import.meta.url.endsWith(".ts");
-  const next = (await import("next")).default;
-  const app = next({ dev: isDev, dir: projectDir });
-  const handle = app.getRequestHandler();
-
-  await app.prepare();
-
-  const server = createServer((req, res) => {
-    handle(req, res).catch((err: unknown) => {
-      const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`Request error: ${req.url} — ${msg}\n`);
-      if (!res.headersSent) {
-        res.statusCode = 500;
-        res.end("Internal Server Error");
-      }
-    });
-  });
-
-  await new Promise<void>((resolve, reject) => {
-    let attempts = 0;
-    const maxAttempts = 5;
-
-    function attempt(currentPort: number): void {
-      attempts++;
-      server.listen(currentPort, "0.0.0.0", () => { resolve(); });
-      server.on("error", (err: NodeJS.ErrnoException) => {
-        if (err.code === "EADDRINUSE" && attempts < maxAttempts) {
-          console.warn(`Port ${currentPort} in use, trying ${currentPort + 1}...`);
-          attempt(currentPort + 1);
-        } else {
-          reject(err);
-        }
-      });
-    }
-
-    attempt(port);
-  });
-
-  serverRunning = true;
-  const actualPort = (server.address() as { port: number }).port;
-  console.log(`3D map ready at http://localhost:${actualPort}`);
-}
 
 program.parse();

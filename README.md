@@ -2,9 +2,9 @@
 
 # codebase-intelligence
 
-**3D interactive codebase visualization for TypeScript projects.**
+**Codebase analysis engine for TypeScript projects.**
 
-Parse your codebase, build a dependency graph, compute architectural metrics, and explore it all in an interactive 3D map. Also works as an MCP server for LLM-assisted code understanding.
+Parse your codebase, build a dependency graph, compute architectural metrics, and query it all via MCP for LLM-assisted code understanding.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node-%3E%3D18-brightgreen)](https://nodejs.org)
@@ -14,20 +14,21 @@ Parse your codebase, build a dependency graph, compute architectural metrics, an
 
 ---
 
-## Screenshots
-
-| Galaxy View | Module View | Forces View |
-|:-----------:|:-----------:|:-----------:|
-| ![Galaxy](docs/screenshot-galaxy.png) | ![Module](docs/screenshot-module.png) | ![Forces](docs/screenshot-forces.png) |
-| 3D force graph, module clouds, group legend | File clusters by directory, labeled clouds | Centrifuge: tension, bridges, candidates |
-
 ## Quick Start
 
+### Claude Code (one-liner)
+
 ```bash
-npx codebase-intelligence ./src
+claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest .
 ```
 
-That's it. Opens a 3D map at `http://localhost:3333`.
+Done. Available in all projects. Verify with `/mcp` inside Claude Code.
+
+To scope to a single project instead:
+
+```bash
+claude mcp add -s project -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest ./src
+```
 
 ## Table of Contents
 
@@ -35,9 +36,7 @@ That's it. Opens a 3D map at `http://localhost:3333`.
 - [Installation](#installation)
 - [Usage](#usage)
 - [MCP Integration](#mcp-integration)
-- [Browser Views](#browser-views)
 - [Metrics](#metrics)
-- [REST API](#rest-api)
 - [Architecture](#architecture)
 - [Requirements](#requirements)
 - [Limitations](#limitations)
@@ -46,19 +45,15 @@ That's it. Opens a 3D map at `http://localhost:3333`.
 
 ## Features
 
-- **8 interactive 3D views** — Galaxy, Dependency Flow, Hotspot, Focus, Module, Forces, Churn, Coverage
+- **15 MCP tools** — codebase overview, file context, hotspots, module structure, force analysis, dead exports, symbol context, search, impact analysis, rename planning, process tracing, community detection, and more
+- **2 MCP prompts** — detect_impact, generate_map
+- **3 MCP resources** — clusters, processes, setup guide
 - **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
 - **Symbol-level analysis** — call graph with callers/callees, symbol PageRank, per-symbol impact analysis
 - **BM25 search** — find files and symbols by keyword with ranked results
 - **Process tracing** — detect entry points and trace execution flows through the call graph
 - **Community detection** — Louvain algorithm discovers natural file groupings beyond directory structure
-- **3D module clouds** — transparent spheres group files by directory with Phong shading and zoom-based fade
-- **MCP server** — 15 tools + 2 prompts + 3 resources for LLM-assisted code understanding (Claude Code, Cursor, VS Code)
-- **HTTP MCP transport** — Streamable HTTP in browser mode at `POST /api/mcp`
-- **REST API** — 13 endpoints for programmatic access
-- **Search** — find any file and fly the camera to it
-- **Detail panel** — click any node for full metrics
-- **Configurable** — node size, link color, physics, cloud opacity
+- **Graph persistence** — cache parsed graphs to `.code-visualizer/` for instant startup
 
 ## Installation
 
@@ -77,52 +72,23 @@ codebase-intelligence ./src
 
 ## Usage
 
-### Browser Mode (default)
-
 ```bash
 npx codebase-intelligence ./src
 # => Parsed 142 files, 387 functions, 612 dependencies
-# => 3D map ready at http://localhost:3333
+# => MCP stdio server started
 ```
-
-### MCP Mode
-
-```bash
-npx codebase-intelligence --mcp ./src
-```
-
-Starts a stdio MCP server. No browser, no HTTP.
 
 ### Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
 | `<path>` | Path to TypeScript codebase | required |
-| `--mcp` | MCP stdio mode | off |
-| `--port <n>` | Web server port | `3333` |
+| `--index` | Persist graph index to `.code-visualizer/` | off |
+| `--force` | Re-index even if HEAD unchanged | off |
+| `--status` | Print index status and exit | - |
+| `--clean` | Remove `.code-visualizer/` index and exit | - |
 
 ## MCP Integration
-
-### Claude Code (one-liner)
-
-```bash
-claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest . --mcp
-```
-
-Done. Available in all projects. Verify with `/mcp` inside Claude Code.
-
-To scope to a single project instead:
-
-```bash
-claude mcp add -s project -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest ./src --mcp
-```
-
-### Claude Code (plugin)
-
-```bash
-git clone https://github.com/bntvllnt/claude-plugins.git
-claude --plugin-dir ./claude-plugins/plugins/codebase-intelligence
-```
 
 ### Claude Code (manual)
 
@@ -134,7 +100,7 @@ Add to `.mcp.json` in your project root:
     "codebase-intelligence": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "codebase-intelligence@latest", "./src", "--mcp"],
+      "args": ["-y", "codebase-intelligence@latest", "./src"],
       "env": {}
     }
   }
@@ -150,7 +116,7 @@ Add to `.cursor/mcp.json` or `.vscode/mcp.json`:
   "servers": {
     "codebase-intelligence": {
       "command": "npx",
-      "args": ["-y", "codebase-intelligence@latest", "./src", "--mcp"]
+      "args": ["-y", "codebase-intelligence@latest", "./src"]
     }
   }
 }
@@ -176,32 +142,6 @@ Add to `.cursor/mcp.json` or `.vscode/mcp.json`:
 | `get_processes` | Trace execution flows from entry points through the call graph |
 | `get_clusters` | Community-detected clusters of related files |
 
-## Browser Views
-
-| View | What it shows |
-|------|---------------|
-| **Galaxy** | 3D force-directed graph. Color = module, size = PageRank |
-| **Dep Flow** | DAG layout (top-to-bottom). Circular deps in red |
-| **Hotspot** | Health heatmap: green (healthy) to red (high coupling) |
-| **Focus** | Click a node to see its 2-hop neighborhood |
-| **Module** | Files cluster by directory. Cross-module edges in yellow |
-| **Forces** | Centrifuge: tension (yellow), bridges (cyan), extraction (green) |
-| **Churn** | Git commit frequency heatmap |
-| **Coverage** | Test coverage: green = tested, red = untested |
-
-### Module Clouds
-
-Transparent 3D spheres group files by top-level directory:
-
-- Phong shading + wireframe for depth perception
-- Zoom-based opacity fade
-- Smart grouping: `src/components/ui/` becomes "components"
-- Toggle via Settings > "Module Clouds"
-
-### Group Legend
-
-Bottom-left legend shows view-specific color coding. When clouds are enabled, adds color swatch + group name + file count + importance % for up to 8 groups sorted by PageRank.
-
 ## Metrics
 
 | Metric | What it reveals |
@@ -218,24 +158,6 @@ Bottom-left legend shows view-specific color coding. When clouds are enabled, ad
 | **Dead Exports** | Unused exports (safe to remove) |
 | **Test Coverage** | Whether a test file exists for each source file |
 
-## REST API
-
-| Endpoint | Returns |
-|----------|---------|
-| `GET /api/graph` | All file nodes + edges + stats |
-| `GET /api/symbol-graph` | All symbol nodes + call edges + symbol metrics |
-| `GET /api/groups` | Group metrics sorted by importance |
-| `GET /api/forces` | Force analysis (cohesion, tension, bridges) |
-| `GET /api/modules` | Module-level metrics |
-| `GET /api/hotspots?metric=coupling&limit=10` | Ranked hotspot files |
-| `GET /api/file/<path>` | Single file details + symbol metrics |
-| `GET /api/symbols/<name>` | Symbol detail with callers/callees + PageRank |
-| `GET /api/search?q=auth&limit=20` | BM25 search results |
-| `GET /api/processes` | Entry point traces + execution flows |
-| `GET /api/meta` | Project name + staleness info |
-| `GET /api/ping` | Health check |
-| `POST /api/mcp` | MCP tool invocation (Streamable HTTP transport) |
-
 ## Architecture
 
 ```
@@ -243,16 +165,16 @@ codebase-intelligence <path>
         |
         v
    +---------+     +---------+     +----------+     +---------+
-   | Parser  | --> | Graph   | --> | Analyzer | --> | Server  |
-   | TS AST  |     | grapho- |     | metrics  |     | Next.js |
-   |         |     | logy    |     |          |     | or MCP  |
+   | Parser  | --> | Graph   | --> | Analyzer | --> |   MCP   |
+   | TS AST  |     | grapho- |     | metrics  |     |  stdio  |
+   |         |     | logy    |     |          |     |         |
    +---------+     +---------+     +----------+     +---------+
 ```
 
 1. **Parser** — extracts files, functions, and imports via the TypeScript Compiler API. Resolves path aliases, respects `.gitignore`, detects test associations.
 2. **Graph** — builds nodes and edges with [graphology](https://graphology.github.io/). Detects circular deps via iterative DFS.
 3. **Analyzer** — computes all 11 metrics plus group-level aggregations.
-4. **Server** — serves the 3D visualization via [Next.js](https://nextjs.org/) + [3d-force-graph](https://github.com/vasturiano/3d-force-graph), or exposes queries via MCP stdio.
+4. **MCP** — exposes 15 tools, 2 prompts, and 3 resources via stdio for LLM agents.
 
 ## Requirements
 
@@ -264,7 +186,6 @@ codebase-intelligence <path>
 - TypeScript only (no JS CommonJS, Python, Go, etc.)
 - Static analysis only (no runtime/dynamic imports)
 - Call graph confidence varies: type-resolved calls are reliable, text-inferred calls are best-effort
-- Client-side 3D requires WebGL
 
 ## Release
 
@@ -280,19 +201,14 @@ Publishing is automated and **only happens on `v*` tags**.
 - `CI` workflow runs on every PR and push to `main`:
   - lint → typecheck → build → test
 
-### Create a release (auto bump + PR + auto tag)
+### Create a release
 
-1. Open GitHub Actions → `Release PR`.
-2. Click **Run workflow** on `main`.
-3. Select bump type: `patch` | `minor` | `major`.
-4. Merge the generated release PR.
+1. Bump `package.json` version.
+2. Commit: `chore(release): bump to vX.Y.Z`
+3. Tag: `git tag vX.Y.Z`
+4. Push: `git push origin main --tags`
 
-`Release PR` will:
-- run lint → typecheck → build → test
-- bump `package.json` version
-- open a release PR assigned to the workflow runner
-
-After merge, `Tag Release` creates and pushes `vX.Y.Z`, which triggers `Publish to npm`.
+The `v*` tag triggers the `CI` workflow's **publish** job, which runs `npm publish --access public --provenance`.
 
 ## Contributing
 

@@ -7,7 +7,7 @@ import { setGraph } from "../src/server/graph-store.js";
 
 beforeAll(() => {
   const { codebaseGraph } = getFixturePipeline();
-  setGraph(codebaseGraph, "fixture-test");
+  setGraph(codebaseGraph);
 });
 
 describe("6.1 — CLI persistence commands", () => {
