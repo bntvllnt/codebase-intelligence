@@ -1,5 +1,5 @@
 ---
-title: Codebase Visualizer V1
+title: Codebase Intelligence V1
 status: shipped
 shipped: 2026-02-18
 created: 2026-02-17
@@ -7,7 +7,7 @@ estimate: 10h
 tier: standard
 ---
 
-# Codebase Visualizer V1
+# Codebase Intelligence V1
 
 ## Context
 
@@ -23,7 +23,7 @@ Developers waste hours understanding unfamiliar codebases by reading files one-b
 | `src/server/` | CREATE | Express web server — serves 3D UI + REST API for graph data |
 | `src/mcp/` | CREATE | MCP server — exposes graph queries as MCP tools for LLMs |
 | `src/renderer/` | CREATE | Client-side 3D visualization — 3d-force-graph + Three.js |
-| `src/cli.ts` | CREATE | CLI entry point — `npx codebase-visualizer ./src` |
+| `src/cli.ts` | CREATE | CLI entry point — `npx codebase-intelligence ./src` |
 | `package.json` | CREATE | Package config, bin entry, dependencies |
 | `tsconfig.json` | CREATE | TypeScript config |
 | `vitest.config.ts` | CREATE | Test runner config |
@@ -48,7 +48,7 @@ ACTOR: Developer exploring an unfamiliar TypeScript codebase
 GOAL: Visually understand codebase structure, find important files/functions, identify bottlenecks
 PRECONDITION: Node.js installed, target codebase exists on disk
 
-1. User runs `npx codebase-visualizer ./src` (or `npx codebase-visualizer --mcp ./src` for LLM mode)
+1. User runs `npx codebase-intelligence ./src` (or `npx codebase-intelligence --mcp ./src` for LLM mode)
    -> System parses all `.ts`/`.tsx` files in `./src`
    -> System extracts files, exported functions, imports, dependencies
    -> User sees terminal: "Parsed 142 files, 387 functions, 612 dependencies"
@@ -85,15 +85,15 @@ PRECONDITION: Node.js installed, target codebase exists on disk
 
    Claude Code (~/.claude/settings.json):
    ```json
-   { "mcpServers": { "codebase-visualizer": {
-       "command": "npx", "args": ["codebase-visualizer", "--mcp", "./src"]
+   { "mcpServers": { "codebase-intelligence": {
+       "command": "npx", "args": ["codebase-intelligence", "--mcp", "./src"]
    }}}
    ```
 
    Cursor / VS Code (mcp.json):
    ```json
-   { "servers": { "codebase-visualizer": {
-       "command": "npx", "args": ["codebase-visualizer", "--mcp", "./src"]
+   { "servers": { "codebase-intelligence": {
+       "command": "npx", "args": ["codebase-intelligence", "--mcp", "./src"]
    }}}
    ```
 
@@ -107,9 +107,9 @@ POSTCONDITION: User has mental model of codebase architecture, knows key files a
 ### CLI Modes
 
 ```
-npx codebase-visualizer <path>          # Browser mode (default) — opens 3D visualization
-npx codebase-visualizer --mcp <path>    # MCP mode — stdio server for LLM integration
-npx codebase-visualizer --help          # Usage info
+npx codebase-intelligence <path>          # Browser mode (default) — opens 3D visualization
+npx codebase-intelligence --mcp <path>    # MCP mode — stdio server for LLM integration
+npx codebase-intelligence --help          # Usage info
 
 Options:
   --mcp              Start as MCP stdio server (no browser, no HTTP)
@@ -122,14 +122,14 @@ Options:
 
 E1. Invalid path
    Trigger: User provides non-existent directory
-   1. User runs `npx codebase-visualizer ./nonexistent`
+   1. User runs `npx codebase-intelligence ./nonexistent`
       -> System checks path exists
       -> User sees error: "Directory not found: ./nonexistent"
    Recovery: User corrects path and re-runs
 
 E2. Empty codebase (no TS files)
    Trigger: Directory has no `.ts`/`.tsx` files
-   1. User runs `npx codebase-visualizer ./assets`
+   1. User runs `npx codebase-intelligence ./assets`
       -> System finds 0 parseable files
       -> User sees error: "No TypeScript files found in ./assets"
    Recovery: User points to correct directory
@@ -162,7 +162,7 @@ EC6. No exported functions in a file: still show file node, mark as "leaf"
 ### Must Have (BLOCKING - all must pass to ship)
 
 **Parser + Graph:**
-- [ ] AC-1: GIVEN a TypeScript project directory WHEN user runs `npx codebase-visualizer ./src` THEN system parses all `.ts`/`.tsx` files and outputs count of files, functions, and dependencies
+- [ ] AC-1: GIVEN a TypeScript project directory WHEN user runs `npx codebase-intelligence ./src` THEN system parses all `.ts`/`.tsx` files and outputs count of files, functions, and dependencies
 - [ ] AC-2: GIVEN parsed codebase WHEN graph is built THEN every import relationship between files creates an edge in the graph
 
 **Web Server + Views:**

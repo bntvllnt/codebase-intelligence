@@ -1,11 +1,11 @@
 {
-  "name": "codebase-visualizer",
+  "name": "codebase-intelligence",
   "version": "1.1.0",
   "description": "3D interactive codebase visualization with MCP integration for LLM-assisted code understanding",
   "type": "module",
   "main": "dist/cli.js",
   "bin": {
-    "codebase-visualizer": "dist/cli.js"
+    "codebase-intelligence": "dist/cli.js"
   },
   "packageManager": "pnpm@10.28.2",
   "scripts": {
@@ -38,12 +38,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/bntvllnt/codebase-visualizer.git"
+    "url": "git+https://github.com/bntvllnt/codebase-intelligence.git"
   },
   "bugs": {
-    "url": "https://github.com/bntvllnt/codebase-visualizer/issues"
+    "url": "https://github.com/bntvllnt/codebase-intelligence/issues"
   },
-  "homepage": "https://github.com/bntvllnt/codebase-visualizer#readme",
+  "homepage": "https://github.com/bntvllnt/codebase-intelligence#readme",
   "dependencies": {
     "3d-force-graph": "^1.79.1",
     "@modelcontextprotocol/sdk": "^1.0.0",

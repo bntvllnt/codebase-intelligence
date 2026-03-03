@@ -47,7 +47,7 @@ export function useGraphData(): {
     graphData,
     forceData,
     groupData,
-    projectName: metaData?.projectName ?? "Codebase Visualizer",
+    projectName: metaData?.projectName ?? "Codebase Intelligence",
     staleness: metaData?.staleness,
     isLoading: graphLoading || forceLoading,
     error: graphError ?? forceError,

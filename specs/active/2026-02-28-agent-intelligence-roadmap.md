@@ -11,7 +11,7 @@ semver: 2.0.0 (Phase 1 re-export fix is breaking metric change)
 
 ## Context
 
-codebase-visualizer has strong 3D visualization + file-level metrics but weak agent tooling. GitNexus proves that precomputed symbol-level intelligence (call graphs, process tracing, community detection, search) makes coding agents 5-10x more effective. Goal: surpass GitNexus on both fronts — richer UI for humans AND more complete MCP tools for AI agents.
+codebase-intelligence has strong 3D visualization + file-level metrics but weak agent tooling. GitNexus proves that precomputed symbol-level intelligence (call graphs, process tracing, community detection, search) makes coding agents 5-10x more effective. Goal: surpass GitNexus on both fronts — richer UI for humans AND more complete MCP tools for AI agents.
 
 Current state: 8 MCP tools (file-level), 8 UI views (3D), 74 tests.
 Target state: 13+ MCP tools (symbol-level), 6 MCP resources, 2 MCP prompts, enhanced UI views, persistent JSON index in `.code-visualizer/`. No embedded AI chat — MCP is the interface; external agents (Claude Code, Codex, OpenCode, Cursor) connect via stdio + HTTP/SSE transports.

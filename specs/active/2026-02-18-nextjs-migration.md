@@ -10,7 +10,7 @@ tier: standard
 
 ## Context
 
-Migrate codebase-visualizer from Express+vanilla HTML to Next.js App Router with Tailwind CSS and shadcn/ui. Full rewrite of the 3D rendering layer (3d-force-graph CDN → react-force-graph-3d npm), Express API routes → Next.js Route Handlers, MCP tools → Next.js API integration. Pipeline code (parser/graph/analyzer) stays untouched.
+Migrate codebase-intelligence from Express+vanilla HTML to Next.js App Router with Tailwind CSS and shadcn/ui. Full rewrite of the 3D rendering layer (3d-force-graph CDN → react-force-graph-3d npm), Express API routes → Next.js Route Handlers, MCP tools → Next.js API integration. Pipeline code (parser/graph/analyzer) stays untouched.
 
 ## Codebase Impact (MANDATORY)
 
@@ -67,9 +67,9 @@ Migrate codebase-visualizer from Express+vanilla HTML to Next.js App Router with
 
 ACTOR: Developer analyzing a TypeScript codebase
 GOAL: Visualize codebase structure in an interactive 3D graph with modern UI
-PRECONDITION: TypeScript project exists, codebase-visualizer installed
+PRECONDITION: TypeScript project exists, codebase-intelligence installed
 
-1. User runs `codebase-visualizer ./src`
+1. User runs `codebase-intelligence ./src`
    -> System parses codebase, builds graph, starts Next.js server
    -> User sees "Server ready at http://localhost:3333" + browser opens
 
@@ -93,7 +93,7 @@ PRECONDITION: TypeScript project exists, codebase-visualizer installed
    -> System live-updates graph rendering
    -> User sees immediate visual feedback
 
-7. User runs `codebase-visualizer ./src --mcp`
+7. User runs `codebase-intelligence ./src --mcp`
    -> System starts MCP stdio server (unchanged behavior)
    -> LLM tools work as before
 
@@ -133,7 +133,7 @@ EC3. No git history: Churn metrics show 0, churn view still renders with uniform
 
 ### Must Have (BLOCKING)
 
-- [ ] AC-1: GIVEN a TS project WHEN user runs `codebase-visualizer ./src` THEN Next.js server starts and browser opens with 3D graph
+- [ ] AC-1: GIVEN a TS project WHEN user runs `codebase-intelligence ./src` THEN Next.js server starts and browser opens with 3D graph
 - [ ] AC-2: GIVEN the app is loaded WHEN user clicks each of the 8 view tabs THEN graph re-renders with correct view-specific styling (colors, sizes, layout)
 - [ ] AC-3: GIVEN a graph is rendered WHEN user clicks a node THEN shadcn-styled detail panel shows with all file metrics
 - [ ] AC-4: GIVEN the settings panel WHEN user adjusts any slider/checkbox THEN graph updates in real-time
@@ -268,7 +268,7 @@ Confirmed — spec solves the right problem. The current vanilla HTML approach w
 ### Open Items
 
 - [risk] react-force-graph-3d scene access for module clouds -> explore (spike before full implementation)
-- [question] Should CLI `codebase-visualizer ./src` run `next dev` or `next start` (pre-built)? -> question
+- [question] Should CLI `codebase-intelligence ./src` run `next dev` or `next start` (pre-built)? -> question
 - [improvement] Consider keeping Express as fallback for environments where Next.js is too heavy -> no action (out of scope)
 
 ## Notes

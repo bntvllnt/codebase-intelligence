@@ -774,7 +774,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     async () => {
       const indexedHead = getIndexedHead();
       const setup = {
-        project: "codebase-visualizer",
+        project: "codebase-intelligence",
         totalFiles: graph.stats.totalFiles,
         totalFunctions: graph.stats.totalFunctions,
         modules: [...graph.moduleMetrics.keys()],
@@ -805,7 +805,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
 
 export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
   const server = new McpServer({
-    name: "codebase-visualizer",
+    name: "codebase-intelligence",
     version: "0.1.0",
   });
 

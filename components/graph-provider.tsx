@@ -64,7 +64,7 @@ export function GraphProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (projectName) {
-      document.title = `${projectName} — Codebase Visualizer`;
+      document.title = `${projectName} — Codebase Intelligence`;
     }
   }, [projectName]);
 

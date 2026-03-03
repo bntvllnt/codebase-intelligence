@@ -67,7 +67,7 @@ POSTCONDITION: User/LLM has actionable data on file health from both structural 
 
 ### Primary Journey B: LLM KB
 
-ACTOR: LLM (Claude) helping build codebase-visualizer
+ACTOR: LLM (Claude) helping build codebase-intelligence
 GOAL: Understand architecture, metrics, patterns to assist development
 PRECONDITION: docs/ folder exists in repo
 

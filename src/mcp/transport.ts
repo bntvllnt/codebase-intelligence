@@ -10,7 +10,7 @@ export async function createHttpMcpServer(graph: CodebaseGraph, port: number): P
     if (req.url === "/mcp" && (req.method === "POST" || req.method === "GET" || req.method === "DELETE")) {
       void (async () => {
         const server = new McpServer({
-          name: "codebase-visualizer-http",
+          name: "codebase-intelligence-http",
           version: "0.1.0",
         });
         registerTools(server, graph);

@@ -1,6 +1,6 @@
 <div align="center">
 
-# codebase-visualizer
+# codebase-intelligence
 
 **3D interactive codebase visualization for TypeScript projects.**
 
@@ -24,7 +24,7 @@ Parse your codebase, build a dependency graph, compute architectural metrics, an
 ## Quick Start
 
 ```bash
-npx codebase-visualizer ./src
+npx codebase-intelligence ./src
 ```
 
 That's it. Opens a 3D map at `http://localhost:3333`.
@@ -65,14 +65,14 @@ That's it. Opens a 3D map at `http://localhost:3333`.
 Run directly with npx (no install needed):
 
 ```bash
-npx codebase-visualizer ./src
+npx codebase-intelligence ./src
 ```
 
 Or install globally:
 
 ```bash
-npm install -g codebase-visualizer
-codebase-visualizer ./src
+npm install -g codebase-intelligence
+codebase-intelligence ./src
 ```
 
 ## Usage
@@ -80,7 +80,7 @@ codebase-visualizer ./src
 ### Browser Mode (default)
 
 ```bash
-npx codebase-visualizer ./src
+npx codebase-intelligence ./src
 # => Parsed 142 files, 387 functions, 612 dependencies
 # => 3D map ready at http://localhost:3333
 ```
@@ -88,7 +88,7 @@ npx codebase-visualizer ./src
 ### MCP Mode
 
 ```bash
-npx codebase-visualizer --mcp ./src
+npx codebase-intelligence --mcp ./src
 ```
 
 Starts a stdio MCP server. No browser, no HTTP.
@@ -106,7 +106,7 @@ Starts a stdio MCP server. No browser, no HTTP.
 ### Claude Code (one-liner)
 
 ```bash
-claude mcp add -s user -t stdio codebase-visualizer -- npx -y codebase-visualizer@latest . --mcp
+claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest . --mcp
 ```
 
 Done. Available in all projects. Verify with `/mcp` inside Claude Code.
@@ -114,14 +114,14 @@ Done. Available in all projects. Verify with `/mcp` inside Claude Code.
 To scope to a single project instead:
 
 ```bash
-claude mcp add -s project -t stdio codebase-visualizer -- npx -y codebase-visualizer@latest ./src --mcp
+claude mcp add -s project -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest ./src --mcp
 ```
 
 ### Claude Code (plugin)
 
 ```bash
 git clone https://github.com/bntvllnt/claude-plugins.git
-claude --plugin-dir ./claude-plugins/plugins/codebase-visualizer
+claude --plugin-dir ./claude-plugins/plugins/codebase-intelligence
 ```
 
 ### Claude Code (manual)
@@ -131,10 +131,10 @@ Add to `.mcp.json` in your project root:
 ```json
 {
   "mcpServers": {
-    "codebase-visualizer": {
+    "codebase-intelligence": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "codebase-visualizer@latest", "./src", "--mcp"],
+      "args": ["-y", "codebase-intelligence@latest", "./src", "--mcp"],
       "env": {}
     }
   }
@@ -148,9 +148,9 @@ Add to `.cursor/mcp.json` or `.vscode/mcp.json`:
 ```json
 {
   "servers": {
-    "codebase-visualizer": {
+    "codebase-intelligence": {
       "command": "npx",
-      "args": ["-y", "codebase-visualizer@latest", "./src", "--mcp"]
+      "args": ["-y", "codebase-intelligence@latest", "./src", "--mcp"]
     }
   }
 }
@@ -239,7 +239,7 @@ Bottom-left legend shows view-specific color coding. When clouds are enabled, ad
 ## Architecture
 
 ```
-codebase-visualizer <path>
+codebase-intelligence <path>
         |
         v
    +---------+     +---------+     +----------+     +---------+
@@ -299,8 +299,8 @@ After merge, `Tag Release` creates and pushes `vX.Y.Z`, which triggers `Publish 
 Contributions are welcome. Please open an issue first to discuss what you'd like to change.
 
 ```bash
-git clone https://github.com/bntvllnt/codebase-visualizer.git
-cd codebase-visualizer
+git clone https://github.com/bntvllnt/codebase-intelligence.git
+cd codebase-intelligence
 pnpm install
 pnpm dev          # tsx watch mode
 pnpm test         # vitest

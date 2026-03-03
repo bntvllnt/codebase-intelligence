@@ -111,7 +111,7 @@ EC3. Zero cluster strength: Equivalent to current behavior — no grouping force
 - [x] Error states handled (jitter prevention via distanceMin=5)
 - [x] No hardcoded secrets or credentials
 - [x] Cloud cleanup/disposal still works (no memory leaks from new geometry)
-- [x] Visual verification on both small (codebase-visualizer, 19 files) and large (the-forge, 500+ files) projects
+- [x] Visual verification on both small (codebase-intelligence, 19 files) and large (the-forge, 500+ files) projects
 
 ### Advisory
 
@@ -144,7 +144,7 @@ EC3. Zero cluster strength: Equivalent to current behavior — no grouping force
 |------------|-------------|-----------------|---------|
 | `d3-force-clustering` works with react-force-graph-3d | Same author, docs say "compatible with d3-force-3d" | Kill criteria triggered — used custom force instead | RESOLVED (custom `createClusterForce` works, extracted to `lib/cluster-force.ts`) |
 | Box geometry improves group visibility over sphere | Visual verification: boxes have clear edges, labels sit above | Boxes can clip when groups are close | VALID (visually confirmed on both small and large projects) |
-| Default strength 0.3 produces good results | Visible clustering on codebase-visualizer (19 files) | Inter-group links may dominate on dense graphs | VALID (slider allows tuning; 0.3 is a safe default) |
+| Default strength 0.3 produces good results | Visible clustering on codebase-intelligence (19 files) | Inter-group links may dominate on dense graphs | VALID (slider allows tuning; 0.3 is a safe default) |
 | distanceMin=5 prevents oscillation | Nodes within 5 units of centroid skip force | Centroid shifts each tick — boundary jitter possible | RISKY (mitigated by velocity decay; not observed in practice) |
 | WireframeGeometry produces clean box outline | — | WireframeGeometry triangulates → diagonal lines | FIXED (switched to EdgesGeometry for clean 12-edge box) |
 | Label aspect ratio 0.15 matches canvas | — | Canvas 512×96 = 0.1875 ratio, not 0.15 | FIXED (updated to 0.1875) |

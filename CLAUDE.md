@@ -1,4 +1,4 @@
-# Codebase Visualizer - Claude Code Rules
+# Codebase Intelligence - Claude Code Rules
 
 ## Project Overview
 

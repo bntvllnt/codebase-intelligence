@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Codebase Visualizer",
-  description: "3D interactive codebase visualization",
+  title: "Codebase Intelligence",
+  description: "3D interactive codebase intelligence",
 };
 
 export default function RootLayout({

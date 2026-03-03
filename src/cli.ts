@@ -60,7 +60,7 @@ interface CliOptions {
 }
 
 program
-  .name("codebase-visualizer")
+  .name("codebase-intelligence")
   .description("3D interactive codebase visualization with MCP integration")
   .version("1.0.0")
   .argument("<path>", "Path to the codebase directory to visualize")
