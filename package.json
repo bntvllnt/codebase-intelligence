@@ -1,7 +1,7 @@
 {
   "name": "codebase-intelligence",
   "version": "1.1.0",
-  "description": "3D interactive codebase visualization with MCP integration for LLM-assisted code understanding",
+  "description": "Codebase analysis engine with MCP integration for LLM-assisted code understanding",
   "type": "module",
   "main": "dist/cli.js",
   "bin": {
@@ -9,30 +9,25 @@
   },
   "packageManager": "pnpm@10.28.2",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && next build",
-    "build:cli": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "lint": "eslint src/ app/ components/ hooks/ lib/",
+    "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist .next",
-    "publish:npm": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && npm publish --access public --registry https://registry.npmjs.org",
-    "publish:github": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && scripts/publish-github.sh"
+    "clean": "rm -rf dist",
+    "publish:npm": "pnpm lint && pnpm typecheck && pnpm build && pnpm test && npm publish --access public --registry https://registry.npmjs.org"
   },
   "keywords": [
     "codebase",
-    "visualizer",
-    "3d",
-    "code-map",
+    "code-analysis",
     "dependency-graph",
     "mcp",
     "typescript",
     "architecture",
-    "code-analysis",
-    "force-directed-graph"
+    "metrics",
+    "static-analysis"
   ],
   "author": "bntvllnt",
   "license": "MIT",
@@ -45,38 +40,19 @@
   },
   "homepage": "https://github.com/bntvllnt/codebase-intelligence#readme",
   "dependencies": {
-    "3d-force-graph": "^1.79.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "commander": "^12.0.0",
     "graphology": "^0.25.4",
     "graphology-communities-louvain": "^2.0.2",
     "graphology-metrics": "^2.3.0",
     "graphology-shortest-path": "^2.1.0",
-    "lucide-react": "^0.574.0",
-    "next": "^16.1.6",
-    "open": "^11.0.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "react-force-graph-3d": "^1.29.1",
-    "swr": "^2.4.0",
-    "tailwind-merge": "^3.4.1",
-    "three": "^0.183.0",
     "typescript": "^5.7.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.58.2",
-    "@tailwindcss/postcss": "^4.2.0",
     "@types/node": "^22.0.0",
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.182.0",
     "eslint": "^10.0.0",
-    "playwright": "^1.58.2",
-    "tailwindcss": "^4.2.0",
     "tsx": "^4.21.0",
     "typescript-eslint": "^8.56.0",
     "vitest": "^3.0.0"
@@ -85,11 +61,6 @@
     "node": ">=18"
   },
   "files": [
-    "dist",
-    "app",
-    "components",
-    "hooks",
-    "lib",
-    "public"
+    "dist"
   ]
 }

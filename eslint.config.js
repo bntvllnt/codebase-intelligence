@@ -56,7 +56,7 @@ export default tseslint.config(
   },
   // Test files: relax unsafe rules
   {
-    files: ["src/**/*.test.ts"],
+    files: ["src/**/*.test.ts", "tests/**/*.test.ts"],
     rules: {
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-member-access": "off",
@@ -64,27 +64,7 @@ export default tseslint.config(
       "@typescript-eslint/no-unsafe-argument": "off",
     },
   },
-  // React/Next.js client components: relax some rules
   {
-    files: ["app/**/*.tsx", "components/**/*.tsx", "hooks/**/*.ts"],
-    rules: {
-      "@typescript-eslint/explicit-function-return-type": "off",
-      "@typescript-eslint/no-unsafe-assignment": "off",
-      "@typescript-eslint/no-unsafe-member-access": "off",
-      "@typescript-eslint/no-unsafe-call": "off",
-      "@typescript-eslint/no-unsafe-return": "off",
-      "@typescript-eslint/no-unsafe-argument": "off",
-      "@typescript-eslint/no-require-imports": "off",
-    },
-  },
-  // Next.js API routes
-  {
-    files: ["app/api/**/*.ts"],
-    rules: {
-      "@typescript-eslint/explicit-function-return-type": "off",
-    },
-  },
-  {
-    ignores: ["dist/**", "public/**", ".next/**", "*.config.*", "vitest.config.ts", "postcss.config.mjs"],
+    ignores: ["dist/**", "*.config.*", "vitest.config.ts"],
   }
 );

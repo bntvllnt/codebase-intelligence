@@ -4,7 +4,7 @@ import { setGraph } from "../src/server/graph-store.js";
 
 beforeAll(() => {
   const { codebaseGraph } = getFixturePipeline();
-  setGraph(codebaseGraph, "fixture-test");
+  setGraph(codebaseGraph);
 });
 
 describe("4.1 — impact_analysis depth-grouped results", () => {
@@ -97,64 +97,3 @@ describe("4.6 — get_dependents deprecation notice", () => {
   });
 });
 
-describe("4.7 — MCP prompts", () => {
-  it("detect_impact prompt is registered", async () => {
-    const { createHttpMcpServer } = await import("../src/mcp/transport.js");
-    const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
-    const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
-    const { codebaseGraph } = getFixturePipeline();
-
-    const port = 9879;
-    const httpServer = await createHttpMcpServer(codebaseGraph, port);
-
-    try {
-      const client = new Client({ name: "test-client", version: "1.0.0" });
-      const transport = new StreamableHTTPClientTransport(
-        new URL(`http://127.0.0.1:${port}/mcp`),
-      );
-      await client.connect(transport);
-
-      const { prompts } = await client.listPrompts();
-      const promptNames = prompts.map((p) => p.name);
-      expect(promptNames).toContain("detect_impact");
-      expect(promptNames).toContain("generate_map");
-
-      await client.close();
-    } finally {
-      await new Promise<void>((resolve) => {
-        httpServer.close(() => { resolve(); });
-      });
-    }
-  });
-});
-
-describe("4.8 — impact_analysis MCP tool", () => {
-  it("impact_analysis tool is registered and returns results", async () => {
-    const { createHttpMcpServer } = await import("../src/mcp/transport.js");
-    const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
-    const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js");
-    const { codebaseGraph } = getFixturePipeline();
-
-    const port = 9880;
-    const httpServer = await createHttpMcpServer(codebaseGraph, port);
-
-    try {
-      const client = new Client({ name: "test-client", version: "1.0.0" });
-      const transport = new StreamableHTTPClientTransport(
-        new URL(`http://127.0.0.1:${port}/mcp`),
-      );
-      await client.connect(transport);
-
-      const { tools } = await client.listTools();
-      const toolNames = tools.map((t) => t.name);
-      expect(toolNames).toContain("impact_analysis");
-      expect(toolNames).toContain("rename_symbol");
-
-      await client.close();
-    } finally {
-      await new Promise<void>((resolve) => {
-        httpServer.close(() => { resolve(); });
-      });
-    }
-  });
-});

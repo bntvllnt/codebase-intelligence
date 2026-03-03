@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-15 tools available via `--mcp` mode (stdio) or HTTP transport (`POST /api/mcp`).
+15 tools available via MCP stdio.
 
 ## 1. codebase_overview
 
