@@ -19,7 +19,7 @@ Parse your codebase, build a dependency graph, compute architectural metrics, an
 ### Claude Code (one-liner)
 
 ```bash
-claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest . --mcp
+claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest .
 ```
 
 Done. Available in all projects. Verify with `/mcp` inside Claude Code.
@@ -27,7 +27,7 @@ Done. Available in all projects. Verify with `/mcp` inside Claude Code.
 To scope to a single project instead:
 
 ```bash
-claude mcp add -s project -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest ./src --mcp
+claude mcp add -s project -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest ./src
 ```
 
 ## Table of Contents
@@ -90,13 +90,6 @@ npx codebase-intelligence ./src
 
 ## MCP Integration
 
-### Claude Code (plugin)
-
-```bash
-git clone https://github.com/bntvllnt/claude-plugins.git
-claude --plugin-dir ./claude-plugins/plugins/codebase-intelligence
-```
-
 ### Claude Code (manual)
 
 Add to `.mcp.json` in your project root:
@@ -107,7 +100,7 @@ Add to `.mcp.json` in your project root:
     "codebase-intelligence": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "codebase-intelligence@latest", "./src", "--mcp"],
+      "args": ["-y", "codebase-intelligence@latest", "./src"],
       "env": {}
     }
   }
@@ -123,7 +116,7 @@ Add to `.cursor/mcp.json` or `.vscode/mcp.json`:
   "servers": {
     "codebase-intelligence": {
       "command": "npx",
-      "args": ["-y", "codebase-intelligence@latest", "./src", "--mcp"]
+      "args": ["-y", "codebase-intelligence@latest", "./src"]
     }
   }
 }
@@ -208,19 +201,14 @@ Publishing is automated and **only happens on `v*` tags**.
 - `CI` workflow runs on every PR and push to `main`:
   - lint → typecheck → build → test
 
-### Create a release (auto bump + PR + auto tag)
+### Create a release
 
-1. Open GitHub Actions → `Release PR`.
-2. Click **Run workflow** on `main`.
-3. Select bump type: `patch` | `minor` | `major`.
-4. Merge the generated release PR.
+1. Bump `package.json` version.
+2. Commit: `chore(release): bump to vX.Y.Z`
+3. Tag: `git tag vX.Y.Z`
+4. Push: `git push origin main --tags`
 
-`Release PR` will:
-- run lint → typecheck → build → test
-- bump `package.json` version
-- open a release PR assigned to the workflow runner
-
-After merge, `Tag Release` creates and pushes `vX.Y.Z`, which triggers `Publish to npm`.
+The `v*` tag triggers the `CI` workflow's **publish** job, which runs `npm publish --access public --provenance`.
 
 ## Contributing
 
