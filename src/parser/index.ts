@@ -342,7 +342,7 @@ function extractCallSites(sourceFile: ts.SourceFile, checker: ts.TypeChecker, ro
           const declFile = decl.getSourceFile().fileName;
           const declRelPath = path.relative(rootDir, declFile);
 
-          if (declRelPath !== callerFile && !declRelPath.startsWith("..") && !path.isAbsolute(declRelPath)) {
+          if (!declRelPath.startsWith("..") && !path.isAbsolute(declRelPath)) {
             calleeFile = declRelPath;
             calleeSymbol = resolved.getName();
 

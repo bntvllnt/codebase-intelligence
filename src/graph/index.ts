@@ -76,6 +76,19 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           isTypeOnly: imp.isTypeOnly,
           weight: imp.symbols.length || 1,
         });
+      } else {
+        // Merge symbols from duplicate import into existing edge
+        const existing = edges.find((e) => e.source === file.relativePath && e.target === target);
+        if (existing) {
+          const merged = [...new Set([...existing.symbols, ...imp.symbols])];
+          existing.symbols = merged;
+          existing.weight = merged.length || 1;
+          existing.isTypeOnly = existing.isTypeOnly && imp.isTypeOnly;
+          // Sync graphology edge attributes
+          graph.setEdgeAttribute(file.relativePath, target, "symbols", merged);
+          graph.setEdgeAttribute(file.relativePath, target, "weight", merged.length || 1);
+          graph.setEdgeAttribute(file.relativePath, target, "isTypeOnly", existing.isTypeOnly);
+        }
       }
     }
   }
