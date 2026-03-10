@@ -40,6 +40,19 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
     consumedSymbols.set(edge.target, existing);
   }
 
+  // Also count symbols consumed via call graph (includes same-file calls)
+  for (const callEdge of built.callEdges) {
+    const sepIdx = callEdge.target.indexOf("::");
+    if (sepIdx === -1) continue;
+    const targetFile = callEdge.target.substring(0, sepIdx);
+    // Normalize: class method "AuthService.validate" → class name "AuthService"
+    const rawSymbol = callEdge.calleeSymbol;
+    const consumedName = rawSymbol.includes(".") ? rawSymbol.split(".")[0] : rawSymbol;
+    const existing = consumedSymbols.get(targetFile) ?? new Set<string>();
+    existing.add(consumedName);
+    consumedSymbols.set(targetFile, existing);
+  }
+
   // Core metrics
   const pageRanks = computePageRank(graph);
   const betweennessScores = computeBetweenness(graph);
