@@ -1,2 +1,3 @@
 2026-02-18 | shipped | 3d-code-mapper-v1 | 10h→2h | 1d | 3D codebase visualizer with 6 views, 6 MCP tools, 75 tests
 2026-03-02 | shipped | mcp-parity-readme-sync | 3h→2h | 1d | 100% MCP-REST parity: +2 tools, enhanced 3 tools, 15 tool descriptions, README sync, 21 new tests
+2026-03-11 | shipped | fix-dead-export-false-positives | 2h→1.5h | 1d | Fix 33% false positive rate: merge duplicate imports, include same-file calls, call graph consumption. 8 regression tests.
