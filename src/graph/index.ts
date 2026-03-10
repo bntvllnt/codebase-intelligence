@@ -79,16 +79,19 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
       } else {
         // Merge symbols from duplicate import into existing edge
         const existing = edges.find((e) => e.source === file.relativePath && e.target === target);
-        if (existing) {
-          const merged = [...new Set([...existing.symbols, ...imp.symbols])];
-          existing.symbols = merged;
-          existing.weight = merged.length || 1;
-          existing.isTypeOnly = existing.isTypeOnly && imp.isTypeOnly;
-          // Sync graphology edge attributes
-          graph.setEdgeAttribute(file.relativePath, target, "symbols", merged);
-          graph.setEdgeAttribute(file.relativePath, target, "weight", merged.length || 1);
-          graph.setEdgeAttribute(file.relativePath, target, "isTypeOnly", existing.isTypeOnly);
+        if (!existing) {
+          throw new Error(`Invariant violation: edge ${file.relativePath} → ${target} exists in graph but missing from edges[]`);
         }
+        const merged = [...new Set([...existing.symbols, ...imp.symbols])];
+        const mergedWeight = merged.length || 1;
+        const mergedIsTypeOnly = existing.isTypeOnly && imp.isTypeOnly;
+        existing.symbols = merged;
+        existing.weight = mergedWeight;
+        existing.isTypeOnly = mergedIsTypeOnly;
+        // Sync graphology edge attributes
+        graph.setEdgeAttribute(file.relativePath, target, "symbols", merged);
+        graph.setEdgeAttribute(file.relativePath, target, "weight", mergedWeight);
+        graph.setEdgeAttribute(file.relativePath, target, "isTypeOnly", mergedIsTypeOnly);
       }
     }
   }

@@ -327,6 +327,8 @@ describe("dead export detection", () => {
 
     const dead = result.fileMetrics.get("module.ts")?.deadExports;
     expect(dead).not.toContain("helper");
+    // main is exported but never called by anyone — should be dead
+    expect(dead).toContain("main");
   });
 
   it("class method calls mark the class as consumed", () => {
@@ -344,6 +346,23 @@ describe("dead export detection", () => {
 
     const dead = result.fileMetrics.get("service.ts")?.deadExports;
     expect(dead).not.toContain("AuthService");
+  });
+
+  it("class consumed via call graph only (no import edge)", () => {
+    const files = [
+      makeFile("service.ts", {
+        exports: [exp("MyClass", "class")],
+      }),
+      makeFile("caller.ts", {
+        // No import edge — only a call site references the class
+        callSites: [callSite("caller.ts", "init", "service.ts", "MyClass.create")],
+      }),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const dead = result.fileMetrics.get("service.ts")?.deadExports;
+    expect(dead).not.toContain("MyClass");
   });
 
   it("mixed dead and alive exports only flags dead ones", () => {
@@ -393,8 +412,12 @@ describe("dead export detection", () => {
 
     // graphology edge attrs should match
     const graphSymbols = built.graph.getEdgeAttribute("source.ts", "target.ts", "symbols") as string[];
+    const graphWeight = built.graph.getEdgeAttribute("source.ts", "target.ts", "weight") as number;
+    const graphIsTypeOnly = built.graph.getEdgeAttribute("source.ts", "target.ts", "isTypeOnly") as boolean;
     expect(graphSymbols).toContain("valFn");
     expect(graphSymbols).toContain("TypeB");
+    expect(graphWeight).toBe(2);
+    expect(graphIsTypeOnly).toBe(false);
   });
 });
 
