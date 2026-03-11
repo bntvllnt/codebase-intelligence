@@ -46,6 +46,7 @@
     "graphology-communities-louvain": "^2.0.2",
     "graphology-metrics": "^2.3.0",
     "graphology-shortest-path": "^2.1.0",
+    "picocolors": "^1.1.1",
     "typescript": "^5.7.0",
     "zod": "^3.23.0"
   },
@@ -62,6 +63,10 @@
     "node": ">=18"
   },
   "files": [
-    "dist"
+    "dist",
+    "docs",
+    "AGENTS.md",
+    "llms.txt",
+    "llms-full.txt"
   ]
 }

@@ -1,67 +1,26 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { execSync } from "node:child_process";
 import type { CodebaseGraph } from "../types/index.js";
 import { getHints } from "./hints.js";
-import { createSearchIndex, search, getSuggestions } from "../search/index.js";
-import type { SearchIndex } from "../search/index.js";
 import { getIndexedHead } from "../server/graph-store.js";
-import { impactAnalysis, renameSymbol } from "../impact/index.js";
-
-let cachedSearchIndex: SearchIndex | undefined;
-
-function getSearchIndex(graph: CodebaseGraph): SearchIndex {
-  cachedSearchIndex ??= createSearchIndex(graph);
-  return cachedSearchIndex;
-}
-
-function normalizeFilePath(filePath: string): string {
-  let normalized = filePath.replace(/\\/g, "/");
-  normalized = normalized.replace(/^(src|lib|app)\//, "");
-  return normalized;
-}
-
-function resolveFilePath(normalizedPath: string, graph: CodebaseGraph): string | undefined {
-  if (graph.fileMetrics.has(normalizedPath)) return normalizedPath;
-  return undefined;
-}
-
-function suggestSimilarPaths(queryPath: string, graph: CodebaseGraph): string[] {
-  const allPaths = [...graph.fileMetrics.keys()];
-  const queryLower = queryPath.toLowerCase();
-  const queryBasename = queryPath.split("/").pop() ?? queryPath;
-  const queryBasenameLower = queryBasename.toLowerCase();
-
-  const scored = allPaths.map((p) => {
-    const pLower = p.toLowerCase();
-    const pBasename = (p.split("/").pop() ?? p).toLowerCase();
-    let score = 0;
-    if (pLower.includes(queryLower)) score += 10;
-    if (pBasename === queryBasenameLower) score += 5;
-    if (pLower.includes(queryBasenameLower)) score += 3;
-
-    const shorter = queryLower.length < pLower.length ? queryLower : pLower;
-    const longer = queryLower.length < pLower.length ? pLower : queryLower;
-    let commonPrefix = 0;
-    for (let i = 0; i < shorter.length; i++) {
-      if (shorter[i] === longer[i]) commonPrefix++;
-      else break;
-    }
-    score += commonPrefix * 0.1;
-
-    return { path: p, score };
-  });
-
-  const matches = scored
-    .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
-    .map((s) => s.path);
-
-  if (matches.length > 0) return matches;
-  return allPaths.slice(0, 3);
-}
+import {
+  computeOverview,
+  computeFileContext,
+  computeHotspots,
+  computeSearch,
+  computeChanges,
+  computeDependents,
+  computeModuleStructure,
+  computeForces,
+  computeDeadExports,
+  computeGroups,
+  computeSymbolContext,
+  computeProcesses,
+  computeClusters,
+  impactAnalysis,
+  renameSymbol,
+} from "../core/index.js";
 
 /** Register all MCP tools on a server instance. Shared by stdio and HTTP transports. */
 export function registerTools(server: McpServer, graph: CodebaseGraph): void {
@@ -71,39 +30,8 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     "Get a high-level overview of the codebase: total files, modules, top-depended files, and key metrics. Use when: first exploring a codebase, 'what does this project look like'. Not for: module details (use get_module_structure) or data flow (use analyze_forces)",
     { depth: z.number().optional().describe("Module depth (default: 1)") },
     async (_params) => {
-      const modules = [...graph.moduleMetrics.values()].map((m) => ({
-        path: m.path,
-        files: m.files,
-        loc: m.loc,
-        avgCoupling: m.cohesion < 0.4 ? "HIGH" : m.cohesion < 0.7 ? "MEDIUM" : "LOW",
-        cohesion: m.cohesion,
-      }));
-
-      const topDepended = [...graph.fileMetrics.entries()]
-        .sort(([, a], [, b]) => b.fanIn - a.fanIn)
-        .slice(0, 5)
-        .map(([path, m]) => `${path} (${m.fanIn} dependents)`);
-
-      const maxDepth = Math.max(
-        ...graph.nodes
-          .filter((n) => n.type === "file")
-          .map((n) => n.path.split("/").length)
-      );
-
       const overview = {
-        totalFiles: graph.stats.totalFiles,
-        totalFunctions: graph.stats.totalFunctions,
-        totalDependencies: graph.stats.totalDependencies,
-        modules: modules.sort((a, b) => b.files - a.files),
-        topDependedFiles: topDepended,
-        metrics: {
-          avgLOC: Math.round(
-            graph.nodes.filter((n) => n.type === "file").reduce((sum, n) => sum + n.loc, 0) /
-              graph.stats.totalFiles
-          ),
-          maxDepth,
-          circularDeps: graph.stats.circularDeps.length,
-        },
+        ...computeOverview(graph),
         nextSteps: getHints("codebase_overview"),
       };
 
@@ -117,68 +45,15 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     "Get detailed context for a specific file: exports, imports, dependents, and all metrics. Use when: 'tell me about this file', understanding a file before modifying it. Not for: symbol-level detail (use symbol_context)",
     { filePath: z.string().describe("Relative path to the file") },
     async ({ filePath: rawFilePath }) => {
-      const normalizedPath = normalizeFilePath(rawFilePath);
-      const filePath = resolveFilePath(normalizedPath, graph);
-      if (!filePath) {
-        const suggestions = suggestSimilarPaths(normalizedPath, graph);
+      const result = computeFileContext(graph, rawFilePath);
+      if ("error" in result) {
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({
-            error: `File not found in graph: ${normalizedPath}`,
-            suggestions,
-          }) }],
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
           isError: true,
         };
       }
 
-      const metrics = graph.fileMetrics.get(filePath);
-      if (!metrics) {
-        const suggestions = suggestSimilarPaths(normalizedPath, graph);
-        return {
-          content: [{ type: "text" as const, text: JSON.stringify({
-            error: `File not found in graph: ${normalizedPath}`,
-            suggestions,
-          }) }],
-          isError: true,
-        };
-      }
-
-      const node = graph.nodes.find((n) => n.id === filePath && n.type === "file");
-      const fileExports = graph.nodes
-        .filter((n) => n.parentFile === filePath)
-        .map((n) => ({ name: n.label, type: n.type, loc: n.loc }));
-
-      const imports = graph.edges
-        .filter((e) => e.source === filePath)
-        .map((e) => ({ from: e.target, symbols: e.symbols, isTypeOnly: e.isTypeOnly, weight: e.weight }));
-
-      const dependents = graph.edges
-        .filter((e) => e.target === filePath)
-        .map((e) => ({ path: e.source, symbols: e.symbols, isTypeOnly: e.isTypeOnly, weight: e.weight }));
-
-      const context = {
-        path: filePath,
-        loc: node?.loc ?? 0,
-        exports: fileExports,
-        imports,
-        dependents,
-        metrics: {
-          pageRank: Math.round(metrics.pageRank * 1000) / 1000,
-          betweenness: Math.round(metrics.betweenness * 100) / 100,
-          fanIn: metrics.fanIn,
-          fanOut: metrics.fanOut,
-          coupling: Math.round(metrics.coupling * 100) / 100,
-          tension: metrics.tension,
-          isBridge: metrics.isBridge,
-          churn: metrics.churn,
-          cyclomaticComplexity: metrics.cyclomaticComplexity,
-          blastRadius: metrics.blastRadius,
-          deadExports: metrics.deadExports,
-          hasTests: metrics.hasTests,
-          testFile: metrics.testFile,
-        },
-        nextSteps: getHints("file_context"),
-      };
-
+      const context = { ...result, nextSteps: getHints("file_context") };
       return { content: [{ type: "text" as const, text: JSON.stringify(context, null, 2) }] };
     }
   );
@@ -192,54 +67,16 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       depth: z.number().optional().describe("Max traversal depth (default: 2)"),
     },
     async ({ filePath, depth }) => {
-      if (!graph.fileMetrics.has(filePath)) {
+      const result = computeDependents(graph, filePath, depth);
+      if ("error" in result) {
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ error: `File not found in graph: ${filePath}` }) }],
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
           isError: true,
         };
       }
-
-      const maxDepth = depth ?? 2;
-      const directDependents = graph.edges
-        .filter((e) => e.target === filePath)
-        .map((e) => ({ path: e.source, symbols: e.symbols }));
-
-      const transitive: Array<{ path: string; throughPath: string[]; depth: number }> = [];
-      const visited = new Set<string>([filePath]);
-
-      function bfs(current: string[], currentDepth: number, pathSoFar: string[]): void {
-        if (currentDepth > maxDepth) return;
-        const next: string[] = [];
-
-        for (const node of current) {
-          const deps = graph.edges.filter((e) => e.target === node).map((e) => e.source);
-          for (const dep of deps) {
-            if (visited.has(dep)) continue;
-            visited.add(dep);
-            if (currentDepth > 1) {
-              transitive.push({ path: dep, throughPath: [...pathSoFar, node], depth: currentDepth });
-            }
-            next.push(dep);
-          }
-        }
-
-        if (next.length > 0) bfs(next, currentDepth + 1, [...pathSoFar, ...current]);
-      }
-
-      bfs([filePath], 1, []);
-
-      const totalAffected = visited.size - 1;
-      const riskLevel = totalAffected > 20 ? "HIGH" : totalAffected > 5 ? "MEDIUM" : "LOW";
-
-      const result = {
-        file: filePath,
-        directDependents,
-        transitiveDependents: transitive,
-        totalAffected,
-        riskLevel,
-        nextSteps: getHints("get_dependents"),
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({ ...result, nextSteps: getHints("get_dependents") }, null, 2) }],
       };
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
 
@@ -254,85 +91,10 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       limit: z.number().optional().describe("Number of results (default: 10)"),
     },
     async ({ metric, limit }) => {
-      const maxResults = limit ?? 10;
-
-      type ScoredFile = { path: string; score: number; reason: string };
-      const scored: ScoredFile[] = [];
-
-      if (metric === "escape_velocity") {
-        for (const mod of graph.moduleMetrics.values()) {
-          scored.push({
-            path: mod.path,
-            score: mod.escapeVelocity,
-            reason: `${mod.dependedBy.length} modules depend on it, ${mod.externalDeps} external deps`,
-          });
-        }
-      } else {
-        const filterTestFiles = metric === "coverage" || metric === "coupling";
-        for (const [filePath, metrics] of graph.fileMetrics) {
-          if (filterTestFiles && metrics.isTestFile) continue;
-
-          let score: number;
-          let reason: string;
-
-          switch (metric) {
-            case "coupling":
-              score = metrics.coupling;
-              reason = `fan-in: ${metrics.fanIn}, fan-out: ${metrics.fanOut}`;
-              break;
-            case "pagerank":
-              score = metrics.pageRank;
-              reason = `${metrics.fanIn} dependents`;
-              break;
-            case "fan_in":
-              score = metrics.fanIn;
-              reason = `${metrics.fanIn} files import this`;
-              break;
-            case "fan_out":
-              score = metrics.fanOut;
-              reason = `imports ${metrics.fanOut} files`;
-              break;
-            case "betweenness":
-              score = metrics.betweenness;
-              reason = metrics.isBridge ? "bridge between clusters" : "on many shortest paths";
-              break;
-            case "tension":
-              score = metrics.tension;
-              reason = score > 0 ? "pulled by multiple modules" : "no tension";
-              break;
-            case "churn":
-              score = metrics.churn;
-              reason = `${metrics.churn} commits touching this file`;
-              break;
-            case "complexity":
-              score = metrics.cyclomaticComplexity;
-              reason = `avg cyclomatic complexity: ${metrics.cyclomaticComplexity.toFixed(1)}`;
-              break;
-            case "blast_radius":
-              score = metrics.blastRadius;
-              reason = `${metrics.blastRadius} transitive dependents affected if changed`;
-              break;
-            case "coverage":
-              score = metrics.hasTests ? 0 : 1;
-              reason = metrics.hasTests ? `tested (${metrics.testFile})` : "no test file found";
-              break;
-            default:
-              score = 0;
-              reason = "";
-          }
-
-          scored.push({ path: filePath, score, reason });
-        }
-      }
-
-      const hotspots = scored.sort((a, b) => b.score - a.score).slice(0, maxResults);
-      const topIssue = hotspots[0];
-      const summary =
-        hotspots.length > 0
-          ? `Top ${metric} hotspot: ${topIssue.path} (${topIssue.score.toFixed(2)}). ${topIssue.reason}.`
-          : `No significant ${metric} hotspots found.`;
-
-      const result = { metric, hotspots, summary, nextSteps: getHints("find_hotspots") };
+      const result = {
+        ...computeHotspots(graph, metric, limit),
+        nextSteps: getHints("find_hotspots"),
+      };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
@@ -343,47 +105,10 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     "Get module/directory structure with cross-module dependencies, cohesion scores, and circular deps. Use when: 'how are modules organized', 'what depends on what module'. Not for: emergent clusters (use get_clusters) or file-level metrics (use find_hotspots)",
     { depth: z.number().optional().describe("Module depth (default: 2)") },
     async (_params) => {
-      const modules = [...graph.moduleMetrics.values()].map((m) => ({
-        path: m.path,
-        files: m.files,
-        loc: m.loc,
-        exports: m.exports,
-        internalDeps: m.internalDeps,
-        externalDeps: m.externalDeps,
-        cohesion: m.cohesion,
-        escapeVelocity: m.escapeVelocity,
-        dependsOn: m.dependsOn,
-        dependedBy: m.dependedBy,
-      }));
-
-      const crossModuleDeps: Array<{ from: string; to: string; weight: number }> = [];
-      const crossMap = new Map<string, number>();
-
-      for (const edge of graph.edges) {
-        const sourceNode = graph.nodes.find((n) => n.id === edge.source);
-        const targetNode = graph.nodes.find((n) => n.id === edge.target);
-        if (!sourceNode || !targetNode) continue;
-        if (sourceNode.module === targetNode.module) continue;
-
-        const key = `${sourceNode.module}->${targetNode.module}`;
-        crossMap.set(key, (crossMap.get(key) ?? 0) + 1);
-      }
-
-      for (const [key, weight] of crossMap) {
-        const [from, to] = key.split("->");
-        crossModuleDeps.push({ from, to, weight });
-      }
-
       const result = {
-        modules: modules.sort((a, b) => b.files - a.files),
-        crossModuleDeps: crossModuleDeps.sort((a, b) => b.weight - a.weight),
-        circularDeps: graph.stats.circularDeps.map((cycle) => ({
-          cycle,
-          severity: cycle.length > 3 ? "HIGH" : "LOW",
-        })),
+        ...computeModuleStructure(graph),
         nextSteps: getHints("get_module_structure"),
       };
-
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
@@ -398,29 +123,10 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       escapeThreshold: z.number().optional().describe("Min escape velocity to flag (default: 0.5)"),
     },
     async ({ cohesionThreshold, tensionThreshold, escapeThreshold }) => {
-      const cohesionMin = cohesionThreshold ?? 0.6;
-      const tensionMin = tensionThreshold ?? 0.3;
-      const escapeMin = escapeThreshold ?? 0.5;
-
-      type CohesionVerdict = "COHESIVE" | "MODERATE" | "JUNK_DRAWER" | "LEAF";
-      const moduleCohesion = graph.forceAnalysis.moduleCohesion.map((m) => {
-        if (m.verdict === "LEAF") return { ...m, verdict: "LEAF" as CohesionVerdict };
-        const verdict: CohesionVerdict = m.cohesion >= cohesionMin ? "COHESIVE" : m.cohesion >= cohesionMin * 0.67 ? "MODERATE" : "JUNK_DRAWER";
-        return { ...m, verdict };
-      });
-
-      const tensionFiles = graph.forceAnalysis.tensionFiles.filter((t) => t.tension > tensionMin);
-      const extractionCandidates = graph.forceAnalysis.extractionCandidates.filter((e) => e.escapeVelocity >= escapeMin);
-
       const result = {
-        moduleCohesion,
-        tensionFiles,
-        bridgeFiles: graph.forceAnalysis.bridgeFiles,
-        extractionCandidates,
-        summary: graph.forceAnalysis.summary,
+        ...computeForces(graph, cohesionThreshold, tensionThreshold, escapeThreshold),
         nextSteps: getHints("analyze_forces"),
       };
-
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
@@ -434,38 +140,10 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       limit: z.number().optional().describe("Max results (default: 20)"),
     },
     async ({ module, limit }) => {
-      const maxResults = limit ?? 20;
-      const deadFiles: Array<{ path: string; module: string; deadExports: string[]; totalExports: number }> = [];
-
-      for (const [filePath, metrics] of graph.fileMetrics) {
-        if (metrics.deadExports.length === 0) continue;
-        const node = graph.nodes.find((n) => n.id === filePath);
-        if (!node) continue;
-        if (module && node.module !== module) continue;
-
-        const totalExports = graph.nodes.filter((n) => n.parentFile === filePath).length;
-        deadFiles.push({
-          path: filePath,
-          module: node.module,
-          deadExports: metrics.deadExports,
-          totalExports,
-        });
-      }
-
-      const sorted = deadFiles
-        .sort((a, b) => b.deadExports.length - a.deadExports.length)
-        .slice(0, maxResults);
-
-      const totalDead = sorted.reduce((sum, f) => sum + f.deadExports.length, 0);
       const result = {
-        totalDeadExports: totalDead,
-        files: sorted,
-        summary: totalDead > 0
-          ? `${totalDead} unused exports across ${sorted.length} files. Consider removing to reduce API surface.`
-          : "No dead exports found.",
+        ...computeDeadExports(graph, module, limit),
         nextSteps: getHints("find_dead_exports"),
       };
-
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
@@ -476,24 +154,11 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     "Get top-level directory groups with aggregate metrics: files, LOC, importance (PageRank), coupling. Use when: 'what are the main areas of this codebase', high-level grouping overview. Not for: detailed module metrics (use get_module_structure)",
     {},
     async () => {
-      const groups = graph.groups;
-
-      if (groups.length === 0) {
+      const computed = computeGroups(graph);
+      if (computed.groups.length === 0) {
         return { content: [{ type: "text" as const, text: JSON.stringify({ message: "No groups found.", nextSteps: getHints("get_groups") }) }] };
       }
-
-      const result = {
-        groups: groups.map((g, i) => ({
-          rank: i + 1,
-          name: g.name.toUpperCase(),
-          files: g.files,
-          loc: g.loc,
-          importance: `${(g.importance * 100).toFixed(1)}%`,
-          coupling: { total: g.fanIn + g.fanOut, fanIn: g.fanIn, fanOut: g.fanOut },
-        })),
-        nextSteps: getHints("get_groups"),
-      };
-
+      const result = { ...computed, nextSteps: getHints("get_groups") };
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     },
   );
@@ -504,44 +169,16 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     "Find all callers and callees of a function, class, or method with importance metrics. Use when: 'who calls X', 'trace this function', 'what depends on this symbol'. Not for: text search (use search) or file-level dependencies (use get_dependents)",
     { name: z.string().describe("Symbol name (e.g., 'AuthService', 'getUserById')") },
     async ({ name: symbolName }) => {
-      const matches = [...graph.symbolMetrics.values()].filter(
-        (m) => m.name === symbolName || m.symbolId.endsWith(`::${symbolName}`)
-      );
-
-      if (matches.length === 0) {
+      const result = computeSymbolContext(graph, symbolName);
+      if ("error" in result) {
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ error: `Symbol not found: ${symbolName}` }) }],
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
           isError: true,
         };
       }
-
-      const sym = matches[0];
-      const symNode = graph.symbolNodes.find((n) => n.id === sym.symbolId);
-      const callers = graph.callEdges
-        .filter((e) => e.calleeSymbol === symbolName || e.target === sym.symbolId)
-        .map((e) => ({ symbol: e.callerSymbol, file: e.source.split("::")[0], confidence: e.confidence }));
-
-      const callees = graph.callEdges
-        .filter((e) => e.callerSymbol === symbolName || e.source === sym.symbolId)
-        .map((e) => ({ symbol: e.calleeSymbol, file: e.target.split("::")[0], confidence: e.confidence }));
-
-      const result = {
-        name: sym.name,
-        file: sym.file,
-        type: symNode?.type ?? "function",
-        loc: symNode?.loc ?? 0,
-        isDefault: symNode?.isDefault ?? false,
-        complexity: symNode?.complexity ?? 0,
-        fanIn: sym.fanIn,
-        fanOut: sym.fanOut,
-        pageRank: Math.round(sym.pageRank * 10000) / 10000,
-        betweenness: Math.round(sym.betweenness * 10000) / 10000,
-        callers,
-        callees,
-        nextSteps: getHints("symbol_context"),
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({ ...result, nextSteps: getHints("symbol_context") }, null, 2) }],
       };
-
-      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
 
@@ -554,43 +191,14 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       limit: z.number().optional().describe("Max results (default: 20)"),
     },
     async ({ query, limit }) => {
-      const idx = getSearchIndex(graph);
-      const results = search(idx, query, limit ?? 20);
-
-      if (results.length === 0) {
-        const suggestions = getSuggestions(idx, query);
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              query,
-              results: [],
-              suggestions,
-              nextSteps: getHints("search"),
-            }, null, 2),
-          }],
-        };
-      }
-
-      const mapped = results.map((r) => ({
-        file: r.file,
-        score: r.score,
-        symbols: r.symbols.map((s) => ({
-          name: s.name,
-          type: s.type,
-          loc: s.loc,
-          relevance: s.score,
-        })),
-      }));
-
+      const result = {
+        ...computeSearch(graph, query, limit),
+        nextSteps: getHints("search"),
+      };
       return {
         content: [{
           type: "text" as const,
-          text: JSON.stringify({
-            query,
-            results: mapped,
-            nextSteps: getHints("search"),
-          }, null, 2),
+          text: JSON.stringify(result, null, 2),
         }],
       };
     }
@@ -604,73 +212,28 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       scope: z.enum(["staged", "unstaged", "all"]).optional().describe("Git diff scope (default: all)"),
     },
     async ({ scope }) => {
-      const diffScope = scope ?? "all";
-      try {
-        let diffCmd: string;
-        switch (diffScope) {
-          case "staged": diffCmd = "git diff --cached --name-only"; break;
-          case "unstaged": diffCmd = "git diff --name-only"; break;
-          default: diffCmd = "git diff HEAD --name-only"; break;
-        }
-
-        const output = execSync(diffCmd, { encoding: "utf-8", timeout: 5000 }).trim();
-        const changedFiles = output ? output.split("\n").filter((f) => f.length > 0) : [];
-
-        const changedSymbols: Array<{ file: string; symbols: string[] }> = [];
-        const affectedFiles: string[] = [];
-        const fileRiskMetrics: Array<{ file: string; blastRadius: number; complexity: number; churn: number }> = [];
-
-        for (const file of changedFiles) {
-          const fileSymbols = [...graph.symbolMetrics.values()]
-            .filter((m) => m.file === file || file.endsWith(m.file))
-            .map((m) => m.name);
-          if (fileSymbols.length > 0) {
-            changedSymbols.push({ file, symbols: fileSymbols });
-          }
-
-          const dependents = graph.edges
-            .filter((e) => e.target === file || file.endsWith(e.target))
-            .map((e) => e.source);
-          affectedFiles.push(...dependents);
-
-          const matchKey = [...graph.fileMetrics.keys()].find((k) => k === file || file.endsWith(k));
-          const metrics = matchKey ? graph.fileMetrics.get(matchKey) : undefined;
-          if (metrics) {
-            fileRiskMetrics.push({
-              file,
-              blastRadius: metrics.blastRadius,
-              complexity: metrics.cyclomaticComplexity,
-              churn: metrics.churn,
-            });
-          }
-        }
-
+      const result = computeChanges(graph, scope);
+      if ("error" in result) {
         return {
           content: [{
             type: "text" as const,
             text: JSON.stringify({
-              scope: diffScope,
-              changedFiles,
-              changedSymbols,
-              affectedFiles: [...new Set(affectedFiles)],
-              fileRiskMetrics,
-              nextSteps: getHints("detect_changes"),
-            }, null, 2),
-          }],
-        };
-      } catch {
-        return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              error: "Git not available or not in a git repository",
-              scope: diffScope,
+              ...result,
               nextSteps: ["Ensure you are in a git repository"],
             }),
           }],
           isError: true,
         };
       }
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            ...result,
+            nextSteps: getHints("detect_changes"),
+          }, null, 2),
+        }],
+      };
     }
   );
 
@@ -727,29 +290,10 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       limit: z.number().optional().describe("Max processes to return (default: all)"),
     },
     async ({ entryPoint, limit }) => {
-      let processes = graph.processes;
-      if (entryPoint) {
-        processes = processes.filter((p) =>
-          p.entryPoint.symbol === entryPoint ||
-          p.name.toLowerCase().includes(entryPoint.toLowerCase())
-        );
-      }
-      if (limit) {
-        processes = processes.slice(0, limit);
-      }
-
       const result = {
-        processes: processes.map((p) => ({
-          name: p.name,
-          entryPoint: p.entryPoint,
-          steps: p.steps,
-          depth: p.depth,
-          modulesTouched: p.modulesTouched,
-        })),
-        totalProcesses: graph.processes.length,
+        ...computeProcesses(graph, entryPoint, limit),
         nextSteps: getHints("get_processes"),
       };
-
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );
@@ -762,23 +306,10 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       minFiles: z.number().optional().describe("Filter clusters with at least N files (default: 0)"),
     },
     async ({ minFiles }) => {
-      let clusters = graph.clusters;
-      if (minFiles) {
-        clusters = clusters.filter((c) => c.files.length >= minFiles);
-      }
-
       const result = {
-        clusters: clusters.map((c) => ({
-          id: c.id,
-          name: c.name,
-          files: c.files,
-          fileCount: c.files.length,
-          cohesion: c.cohesion,
-        })),
-        totalClusters: graph.clusters.length,
+        ...computeClusters(graph, minFiles),
         nextSteps: getHints("get_clusters"),
       };
-
       return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
     }
   );

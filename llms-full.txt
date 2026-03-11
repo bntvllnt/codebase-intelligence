@@ -1,0 +1,386 @@
+# Codebase Intelligence — Full Documentation
+
+> TypeScript codebase analysis engine — dependency graphs, architectural metrics, MCP + CLI interfaces.
+
+---
+
+# Architecture
+
+## Pipeline
+
+```
+CLI (commander)
+  |
+  v
+Parser (TS Compiler API)
+  | extracts: files, exports, imports, LOC, complexity, churn, test mapping
+  v
+Graph Builder (graphology)
+  | creates: nodes (file + function), edges (imports with symbols/weights)
+  | detects: circular dependencies (iterative DFS)
+  v
+Analyzer
+  | computes: PageRank, betweenness, coupling, tension, cohesion
+  | computes: churn, complexity, blast radius, dead exports, test coverage
+  | produces: ForceAnalysis (tension files, bridges, extraction candidates)
+  v
+MCP (stdio) + CLI
+  | MCP: 15 tools, 2 prompts, 3 resources for LLM agents
+  | CLI: 5 commands with formatted + JSON output for humans/CI
+```
+
+## Module Map
+
+```
+src/
+  types/index.ts       <- ALL interfaces (single source of truth)
+  parser/index.ts      <- TS AST extraction + git churn + test detection
+  graph/index.ts       <- graphology graph + circular dep detection
+  analyzer/index.ts    <- All metric computation
+  core/index.ts        <- Shared result computation (MCP + CLI)
+  mcp/index.ts         <- 15 MCP tools for LLM integration
+  mcp/hints.ts         <- Next-step hints for MCP tool responses
+  impact/index.ts      <- Symbol-level impact analysis + rename planning
+  search/index.ts      <- BM25 search engine
+  process/index.ts     <- Entry point detection + call chain tracing
+  community/index.ts   <- Louvain clustering
+  persistence/index.ts <- Graph export/import to .code-visualizer/
+  server/graph-store.ts <- Global graph state (shared by CLI + MCP)
+  cli.ts               <- Entry point, CLI commands + MCP fallback
+```
+
+## Data Flow
+
+```
+parseCodebase(rootDir)
+  -> ParsedFile[] (with churn, complexity, test mapping)
+
+buildGraph(parsedFiles)
+  -> BuiltGraph { graph: Graph, nodes: GraphNode[], edges: GraphEdge[] }
+
+analyzeGraph(builtGraph, parsedFiles)
+  -> CodebaseGraph {
+       nodes, edges, symbolNodes, callEdges, symbolMetrics,
+       fileMetrics, moduleMetrics, forceAnalysis, stats,
+       groups, processes, clusters
+     }
+```
+
+## Key Design Decisions
+
+- **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
+- **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
+- **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports.
+- **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.
+- **Auto-caching**: CLI commands always cache the graph index to `.code-visualizer/`. MCP mode requires `--index` to persist.
+
+---
+
+# Data Model
+
+All types defined in `src/types/index.ts`.
+
+## Parser Output
+
+```typescript
+ParsedFile {
+  path: string            // Absolute filesystem path
+  relativePath: string    // Relative to root (used as graph node ID)
+  loc: number             // Lines of code
+  exports: ParsedExport[] // Named exports
+  imports: ParsedImport[] // Relative imports (external skipped)
+  churn: number           // Git commit count (0 if non-git)
+  isTestFile: boolean     // Matches *.test.ts / *.spec.ts / __tests__/
+  testFile?: string       // Path to matching test file (for source files)
+}
+
+ParsedExport {
+  name: string            // Export name ("default" for default exports)
+  type: "function" | "class" | "variable" | "type" | "interface" | "enum"
+  loc: number             // Lines of code for this export
+  isDefault: boolean
+  complexity: number      // Cyclomatic complexity (branch count, min 1)
+}
+
+ParsedImport {
+  from: string            // Raw import path
+  resolvedFrom: string    // Resolved relative path (after .js->.ts mapping)
+  symbols: string[]       // Imported names (["default"] for default import)
+  isTypeOnly: boolean     // import type { X }
+}
+```
+
+## Graph Structure
+
+```typescript
+GraphNode {
+  id: string              // = relativePath for files, parentFile+name for functions
+  type: "file" | "function"
+  path: string            // Display path
+  label: string           // File basename or function name
+  loc: number
+  module: string          // Top-level directory
+  parentFile?: string     // For function nodes: which file owns this
+}
+
+GraphEdge {
+  source: string          // Importer file ID
+  target: string          // Imported file ID
+  symbols: string[]       // What's imported
+  isTypeOnly: boolean     // Type-only import
+  weight: number          // Edge weight (default 1)
+}
+```
+
+## Computed Metrics
+
+```typescript
+FileMetrics {
+  pageRank: number
+  betweenness: number
+  fanIn: number
+  fanOut: number
+  coupling: number        // fanOut / (max(fanIn, 1) + fanOut)
+  tension: number         // Entropy of multi-module pulls
+  isBridge: boolean       // betweenness > 0.1
+  churn: number           // Git commit count
+  hasTests: boolean       // Test file exists
+  testFile: string        // Path to test file
+  cyclomaticComplexity: number  // Avg complexity of exports
+  blastRadius: number           // Transitive dependent count
+  deadExports: string[]         // Unused export names
+  isTestFile: boolean           // Whether this file is a test
+}
+
+ModuleMetrics {
+  path: string
+  files: number
+  loc: number
+  exports: number
+  internalDeps: number
+  externalDeps: number
+  cohesion: number        // internalDeps / totalDeps
+  escapeVelocity: number  // Extraction readiness
+  dependsOn: string[]
+  dependedBy: string[]
+}
+```
+
+---
+
+# Metrics Reference
+
+## Per-File Metrics
+
+| Metric | Range | Description |
+|--------|-------|-------------|
+| pageRank | 0-1 | Importance in dependency graph |
+| betweenness | 0-1 | Bridge frequency between shortest paths |
+| fanIn | 0-N | Files that import this file |
+| fanOut | 0-N | Files this file imports |
+| coupling | 0-1 | fanOut / (max(fanIn, 1) + fanOut) |
+| tension | 0-1 | Multi-module pull evenness. >0.3 = tension |
+| isBridge | bool | betweenness > 0.1 |
+| churn | 0-N | Git commits touching this file |
+| cyclomaticComplexity | 1-N | Avg complexity of exports |
+| blastRadius | 0-N | Transitive dependents affected by change |
+| deadExports | list | Export names not consumed by any import |
+| hasTests | bool | Matching test file exists |
+
+## Module Metrics
+
+| Metric | Description |
+|--------|-------------|
+| cohesion | internalDeps / totalDeps. 1=fully internal |
+| escapeVelocity | Extraction readiness. High = few internal deps, many consumers |
+| verdict | LEAF / COHESIVE / MODERATE / JUNK_DRAWER |
+
+## Force Analysis
+
+| Signal | Threshold | Meaning |
+|--------|-----------|---------|
+| Tension file | tension > 0.3 | Pulled by 2+ modules equally. Split candidate |
+| Bridge file | betweenness > 0.05 | Removing disconnects graph. Critical path |
+| Junk drawer | cohesion < 0.4 | Mostly external deps. Needs restructuring |
+| Extraction candidate | escapeVelocity >= 0.5 | 0 internal deps, many consumers. Extract to package |
+
+## Risk Trifecta
+
+The most dangerous files have: high churn + high coupling + low coverage.
+
+---
+
+# MCP Tools Reference
+
+15 tools available via MCP stdio.
+
+## 1. codebase_overview
+High-level summary. Input: `{ depth?: number }`. Returns: totalFiles, totalFunctions, modules, topDependedFiles, metrics.
+
+## 2. file_context
+Detailed file context. Input: `{ filePath: string }`. Returns: exports, imports, dependents, all FileMetrics.
+
+## 3. get_dependents
+File-level blast radius. Input: `{ filePath: string, depth?: number }`. Returns: direct + transitive dependents, riskLevel.
+
+## 4. find_hotspots
+Rank files by metric. Input: `{ metric: string, limit?: number }`. Metrics: coupling, pagerank, fan_in, fan_out, betweenness, tension, escape_velocity, churn, complexity, blast_radius, coverage.
+
+## 5. get_module_structure
+Module architecture. Input: `{ depth?: number }`. Returns: modules with metrics, cross-module deps, circular deps.
+
+## 6. analyze_forces
+Architectural force analysis. Input: `{ cohesionThreshold?, tensionThreshold?, escapeThreshold? }`. Returns: cohesion verdicts, tension files, bridge files, extraction candidates.
+
+## 7. find_dead_exports
+Unused exports. Input: `{ module?: string, limit?: number }`. Returns: files with dead exports.
+
+## 8. get_groups
+Top-level directory groups. Input: `{}`. Returns: groups with rank, files, loc, importance, coupling.
+
+## 9. symbol_context
+Function/class context. Input: `{ name: string }`. Returns: callers, callees, metrics.
+
+## 10. search
+Keyword search (BM25). Input: `{ query: string, limit?: number }`. Returns: ranked files + symbols.
+
+## 11. detect_changes
+Git diff analysis. Input: `{ scope?: "staged" | "unstaged" | "all" }`. Returns: changed files, affected files, risk metrics.
+
+## 12. impact_analysis
+Symbol-level blast radius. Input: `{ symbol: string }`. Returns: depth-grouped impact levels.
+
+## 13. rename_symbol
+Reference finder for rename planning. Input: `{ oldName: string, newName: string, dryRun?: boolean }`. Returns: references with confidence.
+
+## 14. get_processes
+Entry point execution flows. Input: `{ entryPoint?: string, limit?: number }`. Returns: processes with steps and depth.
+
+## 15. get_clusters
+Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clusters with cohesion.
+
+## Tool Selection Guide
+
+| Question | Tool |
+|----------|------|
+| What does this codebase look like? | codebase_overview |
+| Tell me about file X | file_context |
+| What breaks if I change file X? | get_dependents |
+| What breaks if I change function X? | impact_analysis |
+| What are the riskiest files? | find_hotspots |
+| Which files need tests? | find_hotspots (coverage) |
+| What can I safely delete? | find_dead_exports |
+| How are modules organized? | get_module_structure |
+| What's architecturally wrong? | analyze_forces |
+| Who calls this function? | symbol_context |
+| Find files related to X | search |
+| What changed? | detect_changes |
+| Find all references to X | rename_symbol |
+| How does data flow? | get_processes |
+| What files naturally belong together? | get_clusters |
+
+---
+
+# CLI Reference
+
+15 commands — full parity with MCP tools.
+
+## Commands
+
+### overview
+```bash
+codebase-intelligence overview <path> [--json] [--force]
+```
+High-level codebase snapshot: files, functions, modules, dependencies.
+
+### hotspots
+```bash
+codebase-intelligence hotspots <path> [--metric <metric>] [--limit <n>] [--json] [--force]
+```
+Rank files by metric. Default: coupling. Available: coupling, pagerank, fan_in, fan_out, betweenness, tension, churn, complexity, blast_radius, coverage, escape_velocity.
+
+### file
+```bash
+codebase-intelligence file <path> <file> [--json] [--force]
+```
+Detailed file context: exports, imports, dependents, all metrics.
+
+### search
+```bash
+codebase-intelligence search <path> <query> [--limit <n>] [--json] [--force]
+```
+BM25 keyword search across files and symbols.
+
+### changes
+```bash
+codebase-intelligence changes <path> [--scope <scope>] [--json] [--force]
+```
+Git diff analysis with risk metrics. Scope: staged, unstaged, all (default).
+
+### dependents
+```bash
+codebase-intelligence dependents <path> <file> [--depth <n>] [--json] [--force]
+```
+File-level blast radius: direct + transitive dependents, risk level.
+
+### modules
+```bash
+codebase-intelligence modules <path> [--json] [--force]
+```
+Module architecture: cohesion, cross-module deps, circular deps.
+
+### forces
+```bash
+codebase-intelligence forces <path> [--cohesion <n>] [--tension <n>] [--escape <n>] [--json] [--force]
+```
+Architectural force analysis: tension files, bridges, extraction candidates.
+
+### dead-exports
+```bash
+codebase-intelligence dead-exports <path> [--module <m>] [--limit <n>] [--json] [--force]
+```
+Find unused exports across the codebase.
+
+### groups
+```bash
+codebase-intelligence groups <path> [--json] [--force]
+```
+Top-level directory groups with aggregate metrics.
+
+### symbol
+```bash
+codebase-intelligence symbol <path> <name> [--json] [--force]
+```
+Function/class context: callers, callees, metrics.
+
+### impact
+```bash
+codebase-intelligence impact <path> <symbol> [--json] [--force]
+```
+Symbol-level blast radius with depth-grouped impact levels.
+
+### rename
+```bash
+codebase-intelligence rename <path> <oldName> <newName> [--no-dry-run] [--json] [--force]
+```
+Find all references for rename planning (read-only by default).
+
+### processes
+```bash
+codebase-intelligence processes <path> [--entry <name>] [--limit <n>] [--json] [--force]
+```
+Entry point execution flows through the call graph.
+
+### clusters
+```bash
+codebase-intelligence clusters <path> [--min-files <n>] [--json] [--force]
+```
+Community-detected file clusters (Louvain algorithm).
+
+## Global Behavior
+
+- **Auto-caching**: First run parses and saves index to `.code-visualizer/`. Subsequent runs use cache if HEAD unchanged.
+- **Progress**: All progress messages go to stderr. Results go to stdout.
+- **JSON mode**: `--json` outputs stable JSON schema to stdout.
+- **Exit codes**: 0 = success, 1 = runtime error, 2 = bad args/usage.
+- **MCP mode**: `codebase-intelligence <path>` (no subcommand) starts MCP stdio server.
