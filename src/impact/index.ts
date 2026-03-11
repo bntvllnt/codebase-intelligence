@@ -16,6 +16,7 @@ interface ImpactResult {
   symbol: string;
   levels: ImpactLevel[];
   totalAffected: number;
+  notFound?: boolean;
 }
 
 interface RenameReference {
@@ -69,7 +70,7 @@ export function impactAnalysis(graph: CodebaseGraph, symbolQuery: string): Impac
   }
 
   if (targetIds.length === 0) {
-    return { symbol: symbolQuery, levels: [], totalAffected: 0 };
+    return { symbol: symbolQuery, levels: [], totalAffected: 0, notFound: true };
   }
 
   const reverseEdges = new Map<string, Array<{ source: string; confidence: CallConfidence }>>();

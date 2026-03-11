@@ -157,7 +157,7 @@ function walkDir(dir: string, rootDir: string, results: string[], visited: Set<s
 function parseFile(sourceFile: ts.SourceFile, checker: ts.TypeChecker, rootDir: string, aliases: PathAlias[]): ParsedFile {
   const filePath = sourceFile.fileName;
   const relativePath = path.relative(rootDir, filePath);
-  const loc = sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd()).line + 1;
+  const loc = sourceFile.getEnd() === 0 ? 0 : sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd() - 1).line + 1;
   const exports = extractExports(sourceFile, checker);
   const imports = extractImports(sourceFile, aliases);
   const callSites = extractCallSites(sourceFile, checker, rootDir);
