@@ -615,6 +615,12 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     },
     async ({ symbol }) => {
       const result = impactAnalysis(graph, symbol);
+      if (result.notFound) {
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: `Symbol not found: ${symbol}` }) }],
+          isError: true,
+        };
+      }
       return {
         content: [{
           type: "text" as const,

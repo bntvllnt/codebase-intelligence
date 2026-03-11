@@ -261,9 +261,14 @@ describe("Tool 12: impact_analysis", () => {
     expect(r).toHaveProperty("nextSteps");
   });
 
-  it("returns empty levels for unknown symbol", async () => {
-    const r = await callTool("impact_analysis", { symbol: "nonexistent_xyz_123" });
-    expect(r).toHaveProperty("totalAffected", 0);
+  it("returns isError for unknown symbol", async () => {
+    const result = await client.callTool({
+      name: "impact_analysis",
+      arguments: { symbol: "nonexistent_xyz_123" },
+    });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    expect(text).toContain("Symbol not found");
   });
 });
 
