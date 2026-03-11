@@ -2,3 +2,4 @@
 2026-03-02 | shipped | mcp-parity-readme-sync | 3h→2h | 1d | 100% MCP-REST parity: +2 tools, enhanced 3 tools, 15 tool descriptions, README sync, 21 new tests
 2026-03-11 | shipped | fix-dead-export-false-positives | 2h→1.5h | 1d | Fix 33% false positive rate: merge duplicate imports, include same-file calls, call graph consumption. 8 regression tests.
 2026-03-11 | shipped | fix-error-handling | 1h→0.5h | 1d | Consistent impact_analysis error handling, LOC off-by-one fix, empty file guard. 17 regression tests.
+2026-03-11 | shipped | fix-metrics-test-files | 2h→1.5h | 1d | Exclude test files from coverage/coupling metrics, isTestFile detection, coupling formula fix. 19 regression tests.
