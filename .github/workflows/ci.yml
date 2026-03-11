@@ -39,19 +39,18 @@ jobs:
         run: pnpm build
 
       - name: Test
-        if: matrix.node-version != 22
         run: pnpm test
 
-      - name: Test with coverage
+      - name: Coverage
         if: matrix.node-version == 22
-        env:
-          VITEST_WORKER_TIMEOUT: 120000
+        continue-on-error: true
         run: pnpm vitest run --coverage --pool forks --no-file-parallelism
 
       - name: Upload coverage
-        if: matrix.node-version == 22
+        if: matrix.node-version == 22 && always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage/
           retention-days: 14
+          if-no-files-found: ignore
