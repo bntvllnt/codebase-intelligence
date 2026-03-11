@@ -44,7 +44,7 @@ jobs:
 
       - name: Test with coverage
         if: matrix.node-version == 22
-        run: pnpm vitest run --coverage
+        run: pnpm vitest run --coverage --no-file-parallelism
 
       - name: Upload coverage
         if: matrix.node-version == 22

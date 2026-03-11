@@ -12,6 +12,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
     testTimeout: 15000,
     hookTimeout: 15000,
+    teardownTimeout: 30000,
     coverage: {
       provider: "v8",
       include: ["src/**/*.ts"],
