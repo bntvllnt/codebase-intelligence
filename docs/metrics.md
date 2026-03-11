@@ -10,7 +10,7 @@ All metrics are computed per-file and stored in `FileMetrics`. Module-level aggr
 | **betweenness** | number | 0-1 | graphology-metrics | How often file bridges shortest paths between others. Normalized. |
 | **fanIn** | number | 0-N | graph in-degree | Count of files that import this file. |
 | **fanOut** | number | 0-N | graph out-degree | Count of files this file imports. |
-| **coupling** | number | 0-1 | derived | `fanOut / (fanIn + fanOut)`. 0=pure dependency, 1=pure dependent. |
+| **coupling** | number | 0-1 | derived | `fanOut / (max(fanIn, 1) + fanOut)`. 0=pure dependency. Leaf consumers (fan_in=0) score < 1.0. |
 | **tension** | number | 0-1 | entropy | Evenness of pulls from multiple modules. >0.3 = tension. |
 | **isBridge** | boolean | - | derived | `betweenness > 0.1`. Bridges separate clusters. |
 | **churn** | number | 0-N | git log | Number of commits touching this file. 0 if not a git repo. |
@@ -19,6 +19,7 @@ All metrics are computed per-file and stored in `FileMetrics`. Module-level aggr
 | **deadExports** | string[] | - | cross-ref | Export names not consumed by any edge in the graph. |
 | **hasTests** | boolean | - | filename match | Whether a matching `.test.ts`/`.spec.ts`/`__tests__/` file exists. |
 | **testFile** | string | - | filename match | Relative path to the test file, if found. |
+| **isTestFile** | boolean | - | parser | Whether this file IS a test file (`.test.`/`.spec.`/`__tests__/`). Used to filter test files from coverage and coupling hotspots. |
 
 ## Module Metrics
 

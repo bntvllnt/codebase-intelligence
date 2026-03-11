@@ -63,7 +63,7 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
   for (const node of fileNodes) {
     const fanIn = graph.inDegree(node.id);
     const fanOut = graph.outDegree(node.id);
-    const coupling = fanOut === 0 && fanIn === 0 ? 0 : fanOut / (fanIn + fanOut);
+    const coupling = fanOut === 0 && fanIn === 0 ? 0 : fanOut / (Math.max(fanIn, 1) + fanOut);
     const pr = pageRanks.get(node.id) ?? 0;
     const btwn = betweennessScores.get(node.id) ?? 0;
 
@@ -94,6 +94,7 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
       deadExports,
       hasTests: parsed?.testFile !== undefined,
       testFile: parsed?.testFile ?? "",
+      isTestFile: parsed?.isTestFile ?? false,
     });
   }
 

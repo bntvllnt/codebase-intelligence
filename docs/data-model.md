@@ -63,7 +63,7 @@ FileMetrics {
   betweenness: number
   fanIn: number
   fanOut: number
-  coupling: number        // fanOut / (fanIn + fanOut)
+  coupling: number        // fanOut / (max(fanIn, 1) + fanOut)
   tension: number         // Entropy of multi-module pulls
   isBridge: boolean       // betweenness > 0.1
 
@@ -76,6 +76,7 @@ FileMetrics {
   cyclomaticComplexity: number  // Avg complexity of exports
   blastRadius: number           // Transitive dependent count
   deadExports: string[]         // Unused export names
+  isTestFile: boolean           // Whether this file is a test file
 }
 
 ModuleMetrics {
