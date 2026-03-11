@@ -177,7 +177,7 @@ describe("analyzeGraph", () => {
     expect(result.forceAnalysis.moduleCohesion.length).toBeGreaterThan(0);
 
     const verdicts = result.forceAnalysis.moduleCohesion.map((m) => m.verdict);
-    expect(verdicts.every((v) => ["COHESIVE", "MODERATE", "JUNK_DRAWER"].includes(v))).toBe(true);
+    expect(verdicts.every((v) => ["COHESIVE", "MODERATE", "JUNK_DRAWER", "LEAF"].includes(v))).toBe(true);
   });
 
   it("detects tension files pulled by multiple modules", () => {
@@ -541,6 +541,213 @@ describe("computeGroups", () => {
     for (const group of result.groups) {
       expect(group).toHaveProperty("fanIn");
       expect(group).toHaveProperty("fanOut");
+    }
+  });
+});
+
+describe("LEAF verdict for single-file modules", () => {
+  it("AC-1: single non-test file module gets LEAF verdict", () => {
+    const files = [
+      makeFile("src/search/index.ts"),
+      makeFile("src/parser/a.ts", { imports: [imp("src/parser/b.ts")] }),
+      makeFile("src/parser/b.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const searchMod = result.forceAnalysis.moduleCohesion.find((m) => m.path === "src/search/");
+    expect(searchMod).toBeDefined();
+    expect(searchMod?.verdict).toBe("LEAF");
+  });
+
+  it("AC-E2: 2-file module with 0 internal deps gets JUNK_DRAWER, not LEAF", () => {
+    const files = [
+      makeFile("src/grab/a.ts", { imports: [imp("src/other/x.ts")] }),
+      makeFile("src/grab/b.ts", { imports: [imp("src/other/y.ts")] }),
+      makeFile("src/other/x.ts"),
+      makeFile("src/other/y.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const grabMod = result.forceAnalysis.moduleCohesion.find((m) => m.path === "src/grab/");
+    expect(grabMod).toBeDefined();
+    expect(grabMod?.verdict).toBe("JUNK_DRAWER");
+  });
+
+  it("EC1: 1-file 0-dep module gets LEAF", () => {
+    const files = [
+      makeFile("src/lonely/index.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const mod = result.forceAnalysis.moduleCohesion.find((m) => m.path === "src/lonely/");
+    expect(mod).toBeDefined();
+    expect(mod?.verdict).toBe("LEAF");
+  });
+
+  it("EC2: 1-file module with outgoing deps still gets LEAF", () => {
+    const files = [
+      makeFile("src/single/index.ts", { imports: [imp("src/other/a.ts"), imp("src/other/b.ts")] }),
+      makeFile("src/other/a.ts"),
+      makeFile("src/other/b.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const singleMod = result.forceAnalysis.moduleCohesion.find((m) => m.path === "src/single/");
+    expect(singleMod).toBeDefined();
+    expect(singleMod?.verdict).toBe("LEAF");
+  });
+
+  it("AC-10/EC6: module with 1 prod file + 1 test file gets LEAF", () => {
+    const files = [
+      makeFile("src/community/index.ts"),
+      makeFile("src/community/index.test.ts", { isTestFile: true }),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const mod = result.forceAnalysis.moduleCohesion.find((m) => m.path === "src/community/");
+    expect(mod).toBeDefined();
+    expect(mod?.verdict).toBe("LEAF");
+  });
+
+  it("EC7: module with 2 prod files + 1 test file is NOT LEAF", () => {
+    const files = [
+      makeFile("src/mod/a.ts", { imports: [imp("src/other/x.ts")] }),
+      makeFile("src/mod/b.ts", { imports: [imp("src/other/y.ts")] }),
+      makeFile("src/mod/a.test.ts", { isTestFile: true }),
+      makeFile("src/other/x.ts"),
+      makeFile("src/other/y.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const mod = result.forceAnalysis.moduleCohesion.find((m) => m.path === "src/mod/");
+    expect(mod).toBeDefined();
+    expect(mod?.verdict).not.toBe("LEAF");
+  });
+
+  it("AC-6: summary does not count LEAF modules as junk-drawer", () => {
+    const files = [
+      makeFile("src/search/index.ts"),
+      makeFile("src/grab/a.ts", { imports: [imp("src/other/x.ts")] }),
+      makeFile("src/grab/b.ts", { imports: [imp("src/other/y.ts")] }),
+      makeFile("src/other/x.ts"),
+      makeFile("src/other/y.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    // search/ is LEAF and should NOT be counted in junk-drawer summary
+    expect(result.forceAnalysis.summary).not.toContain("src/search/");
+    // grab/ is JUNK_DRAWER and should be in summary
+    expect(result.forceAnalysis.summary).toContain("src/grab/");
+  });
+});
+
+describe("tension suppression for type hubs and entry points", () => {
+  it("AC-2: type hub file gets suppressed split recommendation", () => {
+    // types/index.ts is pulled by two different modules
+    const files = [
+      makeFile("src/types/index.ts", {
+        imports: [imp("src/a/x.ts"), imp("src/b/y.ts")],
+        exports: [
+          { name: "MyType", type: "interface", loc: 1, isDefault: false, complexity: 1 },
+        ],
+      }),
+      makeFile("src/a/x.ts"),
+      makeFile("src/b/y.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const typesFile = result.forceAnalysis.tensionFiles.find(
+      (t) => t.file === "src/types/index.ts"
+    );
+    if (typesFile) {
+      expect(typesFile.recommendation).toContain("not recommended");
+      expect(typesFile.recommendation).not.toContain("Split into");
+    }
+  });
+
+  it("AC-3: entry point file gets suppressed split recommendation", () => {
+    // cli.ts is pulled by two different modules
+    const files = [
+      makeFile("cli.ts", {
+        imports: [imp("src/a/x.ts"), imp("src/b/y.ts")],
+      }),
+      makeFile("src/a/x.ts"),
+      makeFile("src/b/y.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const cliFile = result.forceAnalysis.tensionFiles.find(
+      (t) => t.file === "cli.ts"
+    );
+    if (cliFile) {
+      expect(cliFile.recommendation).toContain("not recommended");
+      expect(cliFile.recommendation).not.toContain("Split into");
+    }
+  });
+
+  it("EC4: types.ts in nested module gets suppressed split rec", () => {
+    const files = [
+      makeFile("src/core/types.ts", {
+        imports: [imp("src/a/x.ts"), imp("src/b/y.ts")],
+      }),
+      makeFile("src/a/x.ts"),
+      makeFile("src/b/y.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const typesFile = result.forceAnalysis.tensionFiles.find(
+      (t) => t.file === "src/core/types.ts"
+    );
+    if (typesFile) {
+      expect(typesFile.recommendation).toContain("not recommended");
+    }
+  });
+
+  it("EC5: entry point at root (main.ts, server.ts) gets suppressed", () => {
+    const files = [
+      makeFile("main.ts", {
+        imports: [imp("src/a/x.ts"), imp("src/b/y.ts")],
+      }),
+      makeFile("src/a/x.ts"),
+      makeFile("src/b/y.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const mainFile = result.forceAnalysis.tensionFiles.find(
+      (t) => t.file === "main.ts"
+    );
+    if (mainFile) {
+      expect(mainFile.recommendation).toContain("not recommended");
+    }
+  });
+
+  it("regular file with tension still gets split recommendation", () => {
+    const files = [
+      makeFile("utils.ts", {
+        imports: [imp("src/a/x.ts"), imp("src/b/y.ts")],
+      }),
+      makeFile("src/a/x.ts"),
+      makeFile("src/b/y.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    const utilsFile = result.forceAnalysis.tensionFiles.find(
+      (t) => t.file === "utils.ts"
+    );
+    if (utilsFile) {
+      expect(utilsFile.recommendation).toContain("Split into");
     }
   });
 });

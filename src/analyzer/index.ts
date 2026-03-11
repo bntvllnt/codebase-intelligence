@@ -317,6 +317,28 @@ function computeModuleMetrics(
   return moduleMetrics;
 }
 
+function isTestFilePath(fileId: string): boolean {
+  return fileId.includes(".test.") || fileId.includes(".spec.") || fileId.includes("__tests__/");
+}
+
+function isTypeHubFile(fileId: string): boolean {
+  const basename = path.basename(fileId);
+  const dir = path.dirname(fileId);
+  const dirBasename = path.basename(dir);
+  if (basename === "types.ts" || basename === "constants.ts" || basename === "config.ts") return true;
+  if (basename === "index.ts" && dirBasename === "types") return true;
+  return false;
+}
+
+function isEntryPointFile(fileId: string): boolean {
+  const basename = path.basename(fileId);
+  const entryNames = ["cli.ts", "main.ts", "app.ts", "server.ts"];
+  if (entryNames.includes(basename)) return true;
+  const dir = path.dirname(fileId);
+  if (basename === "index.ts" && (dir === "." || dir === "")) return true;
+  return false;
+}
+
 function computeForceAnalysis(
   graph: Graph,
   fileNodes: GraphNode[],
@@ -324,10 +346,22 @@ function computeForceAnalysis(
   moduleMetrics: Map<string, ModuleMetrics>,
   betweennessScores: Map<string, number>
 ): ForceAnalysis {
+  // Group files by module for non-test file counting
+  const moduleFiles = new Map<string, GraphNode[]>();
+  for (const node of fileNodes) {
+    const existing = moduleFiles.get(node.module) ?? [];
+    existing.push(node);
+    moduleFiles.set(node.module, existing);
+  }
+
   // Module cohesion verdicts
-  type CohesionVerdict = "COHESIVE" | "MODERATE" | "JUNK_DRAWER";
+  type CohesionVerdict = "COHESIVE" | "MODERATE" | "JUNK_DRAWER" | "LEAF";
   const moduleCohesion = [...moduleMetrics.values()].map((m) => {
-    const verdict: CohesionVerdict = m.cohesion >= 0.6 ? "COHESIVE" : m.cohesion >= 0.4 ? "MODERATE" : "JUNK_DRAWER";
+    const files = moduleFiles.get(m.path) ?? [];
+    const nonTestFileCount = files.filter((f) => !isTestFilePath(f.id)).length;
+    const verdict: CohesionVerdict = nonTestFileCount <= 1
+      ? "LEAF"
+      : m.cohesion >= 0.6 ? "COHESIVE" : m.cohesion >= 0.4 ? "MODERATE" : "JUNK_DRAWER";
     return { ...m, verdict };
   });
 
@@ -375,16 +409,24 @@ function computeForceAnalysis(
       const tension = maxEntropy > 0 ? Math.round((entropy / maxEntropy) * 100) / 100 : 0;
 
       if (tension > 0.3) {
-        const topModules = pulls
-          .sort((a, b) => b.strength - a.strength)
-          .slice(0, 2)
-          .map((p) => path.basename(p.module.replace(/\/$/, "")));
+        let recommendation: string;
+        if (isTypeHubFile(file.id)) {
+          recommendation = "Type hub — split not recommended (design-intentional shared types)";
+        } else if (isEntryPointFile(file.id)) {
+          recommendation = "Entry point — split not recommended (CLI/app entry point)";
+        } else {
+          const topModules = pulls
+            .sort((a, b) => b.strength - a.strength)
+            .slice(0, 2)
+            .map((p) => path.basename(p.module.replace(/\/$/, "")));
+          recommendation = `Split into ${topModules.map((m) => `${m}-${path.basename(file.id)}`).join(" and ")}`;
+        }
 
         tensionFiles.push({
           file: file.id,
           tension,
           pulledBy: pulls.sort((a, b) => b.strength - a.strength),
-          recommendation: `Split into ${topModules.map((m) => `${m}-${path.basename(file.id)}`).join(" and ")}`,
+          recommendation,
         });
       }
     }
