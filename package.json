@@ -1,6 +1,6 @@
 {
   "name": "codebase-intelligence",
-  "version": "2.0.2",
+  "version": "2.1.0",
   "description": "Codebase analysis engine with MCP integration for LLM-assisted code understanding",
   "type": "module",
   "main": "dist/cli.js",
