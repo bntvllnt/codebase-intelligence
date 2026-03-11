@@ -95,6 +95,7 @@ export interface FileMetrics {
   deadExports: string[];
   hasTests: boolean;
   testFile: string;
+  isTestFile: boolean;
 }
 
 export interface ModuleMetrics {

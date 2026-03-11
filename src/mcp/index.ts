@@ -204,7 +204,10 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
           });
         }
       } else {
+        const filterTestFiles = metric === "coverage" || metric === "coupling";
         for (const [filePath, metrics] of graph.fileMetrics) {
+          if (filterTestFiles && metrics.isTestFile) continue;
+
           let score: number;
           let reason: string;
 

@@ -90,7 +90,7 @@ describe("analyzeGraph", () => {
     expect(metricsD?.fanOut).toBe(0);
   });
 
-  it("computes coupling = fanOut / (fanIn + fanOut)", () => {
+  it("computes coupling = fanOut / (max(fanIn, 1) + fanOut)", () => {
     const files = [
       makeFile("a.ts", { imports: [imp("b.ts"), imp("c.ts")] }),
       makeFile("b.ts"),
@@ -99,8 +99,8 @@ describe("analyzeGraph", () => {
     const built = buildGraph(files);
     const result = analyzeGraph(built);
 
-    // a.ts: fanIn=0, fanOut=2 → coupling = 2/(0+2) = 1.0
-    expect(result.fileMetrics.get("a.ts")?.coupling).toBe(1);
+    // a.ts: fanIn=0, fanOut=2 → coupling = 2/(max(0,1)+2) = 2/3 ≈ 0.667
+    expect(result.fileMetrics.get("a.ts")?.coupling).toBeCloseTo(2 / 3, 5);
 
     // b.ts: fanIn=1, fanOut=0 → coupling = 0/(1+0) = 0
     expect(result.fileMetrics.get("b.ts")?.coupling).toBe(0);
