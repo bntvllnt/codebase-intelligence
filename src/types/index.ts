@@ -139,7 +139,7 @@ export interface ExtractionCandidate {
 }
 
 export interface ForceAnalysis {
-  moduleCohesion: Array<ModuleMetrics & { verdict: "COHESIVE" | "MODERATE" | "JUNK_DRAWER" }>;
+  moduleCohesion: Array<ModuleMetrics & { verdict: "COHESIVE" | "MODERATE" | "JUNK_DRAWER" | "LEAF" }>;
   tensionFiles: TensionFile[];
   bridgeFiles: BridgeFile[];
   extractionCandidates: ExtractionCandidate[];

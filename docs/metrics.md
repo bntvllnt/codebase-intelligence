@@ -27,15 +27,16 @@ All metrics are computed per-file and stored in `FileMetrics`. Module-level aggr
 |--------|------|-------|-------------|
 | **cohesion** | number | 0-1 | `internalDeps / (internalDeps + externalDeps)`. 1=fully internal. |
 | **escapeVelocity** | number | 0-1 | Readiness for extraction. High = few internal deps, many external consumers. |
-| **verdict** | string | COHESIVE/MODERATE/JUNK_DRAWER | Cohesion >= 0.6 = COHESIVE, >= 0.4 = MODERATE, else JUNK_DRAWER. |
+| **verdict** | string | LEAF/COHESIVE/MODERATE/JUNK_DRAWER | Single non-test file = LEAF (cohesion meaningless). Otherwise: cohesion >= 0.6 = COHESIVE, >= 0.4 = MODERATE, else JUNK_DRAWER. |
 
 ## Force Analysis
 
 | Signal | Threshold | Meaning |
 |--------|-----------|---------|
-| **Tension file** | tension > 0.3 | File pulled by 2+ modules with roughly equal strength. Split candidate. |
+| **Tension file** | tension > 0.3 | File pulled by 2+ modules with roughly equal strength. Split candidate. Type hubs (`types.ts`, `constants.ts`, `config.ts`) and entry points (`cli.ts`, `main.ts`, `app.ts`, `server.ts`) get suppressed split recommendations. |
 | **Bridge file** | betweenness > 0.05, connects 2+ modules | Removing it disconnects parts of the graph. Critical path. |
-| **Junk drawer** | module cohesion < 0.4 | Module with mostly external deps. Needs restructuring. |
+| **Leaf module** | 1 non-test file | Single-file module. Cohesion is degenerate (no internal deps possible). Not a problem — use `find_hotspots(metric='coupling')` for high-coupling concerns. |
+| **Junk drawer** | module cohesion < 0.4, 2+ non-test files | Module with mostly external deps. Needs restructuring. |
 | **Extraction candidate** | escapeVelocity >= 0.5 | Module with 0 internal deps, consumed by many others. Extract to package. |
 
 ## Complexity Scoring

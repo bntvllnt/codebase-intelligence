@@ -75,6 +75,49 @@ describe("Tool 2: file_context", () => {
     const text = (result.content as Array<{ type: string; text: string }>)[0].text;
     expect(text).toContain("File not found");
   });
+
+  it("AC-4: strips src/ prefix and finds file", async () => {
+    // Find a file whose graph key does NOT start with src/
+    // The fixture codebase files use paths relative to the fixture src dir
+    const files = graph.nodes.filter((n) => n.type === "file");
+    const filePath = files[0].id;
+    // Prepend src/ to simulate user passing src/-prefixed path
+    const r = await callTool("file_context", { filePath: `src/${filePath}` });
+    expect(r).toHaveProperty("path");
+    expect(r).not.toHaveProperty("error");
+  });
+
+  it("EC3: strips only one leading src/ prefix", async () => {
+    // src/src/foo.ts should strip to src/foo.ts, not foo.ts
+    const result = await client.callTool({ name: "file_context", arguments: { filePath: "src/src/foo.ts" } });
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    // If src/foo.ts doesn't exist either, it should be an error, but the key point
+    // is that it tried src/foo.ts (not foo.ts)
+    if (parsed.error) {
+      expect(parsed.error).not.toContain("src/src/foo.ts");
+    }
+  });
+
+  it("EC8: normalizes backslash paths to forward slashes", async () => {
+    const files = graph.nodes.filter((n) => n.type === "file");
+    const filePath = files[0].id;
+    // Replace / with \ to simulate Windows path
+    const backslashPath = filePath.replace(/\//g, "\\");
+    const r = await callTool("file_context", { filePath: backslashPath });
+    expect(r).toHaveProperty("path");
+    expect(r).not.toHaveProperty("error");
+  });
+
+  it("AC-E1: error includes path suggestions for unknown file", async () => {
+    const result = await client.callTool({ name: "file_context", arguments: { filePath: "nonexistent.ts" } });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    expect(parsed).toHaveProperty("suggestions");
+    const suggestions = parsed.suggestions as string[];
+    expect(suggestions.length).toBeGreaterThan(0);
+  });
 });
 
 describe("Tool 3: get_dependents", () => {
@@ -165,6 +208,20 @@ describe("Tool 6: analyze_forces", () => {
     });
     const cohesion = r.moduleCohesion as Array<{ verdict: string }>;
     expect(cohesion.some((m) => m.verdict !== "COHESIVE")).toBe(true);
+  });
+
+  it("AC-9: custom cohesionThreshold preserves LEAF for single-file modules", async () => {
+    const r = await callTool("analyze_forces", {
+      cohesionThreshold: 0.9,
+    });
+    const cohesion = r.moduleCohesion as Array<{ verdict: string; files: number; path: string }>;
+    // Find any single-file module (fixture codebase has some)
+    const singleFileModules = cohesion.filter((m) => m.files === 1);
+    if (singleFileModules.length > 0) {
+      for (const m of singleFileModules) {
+        expect(m.verdict).toBe("LEAF");
+      }
+    }
   });
 });
 

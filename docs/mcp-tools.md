@@ -19,6 +19,8 @@ Detailed context for a single file.
 **Input:** `{ filePath: string }` (relative path)
 **Returns:** path, loc, exports, imports (with symbols, isTypeOnly, weight), dependents (with symbols, isTypeOnly, weight), metrics (all FileMetrics including churn, complexity, blastRadius, deadExports, hasTests, testFile)
 
+**Path normalization:** Backslashes are normalized to forward slashes. Common prefixes (`src/`, `lib/`, `app/`) are stripped once from the leading position before graph lookup. If the file is not found, the error includes up to 3 suggested similar paths.
+
 **Use when:** Before modifying a file, understand its role, connections, and risk profile.
 **Not for:** Symbol-level detail (use symbol_context).
 

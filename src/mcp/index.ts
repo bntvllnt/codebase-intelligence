@@ -16,6 +16,53 @@ function getSearchIndex(graph: CodebaseGraph): SearchIndex {
   return cachedSearchIndex;
 }
 
+function normalizeFilePath(filePath: string): string {
+  let normalized = filePath.replace(/\\/g, "/");
+  normalized = normalized.replace(/^(src|lib|app)\//, "");
+  return normalized;
+}
+
+function resolveFilePath(normalizedPath: string, graph: CodebaseGraph): string | undefined {
+  if (graph.fileMetrics.has(normalizedPath)) return normalizedPath;
+  return undefined;
+}
+
+function suggestSimilarPaths(queryPath: string, graph: CodebaseGraph): string[] {
+  const allPaths = [...graph.fileMetrics.keys()];
+  const queryLower = queryPath.toLowerCase();
+  const queryBasename = queryPath.split("/").pop() ?? queryPath;
+  const queryBasenameLower = queryBasename.toLowerCase();
+
+  const scored = allPaths.map((p) => {
+    const pLower = p.toLowerCase();
+    const pBasename = (p.split("/").pop() ?? p).toLowerCase();
+    let score = 0;
+    if (pLower.includes(queryLower)) score += 10;
+    if (pBasename === queryBasenameLower) score += 5;
+    if (pLower.includes(queryBasenameLower)) score += 3;
+
+    const shorter = queryLower.length < pLower.length ? queryLower : pLower;
+    const longer = queryLower.length < pLower.length ? pLower : queryLower;
+    let commonPrefix = 0;
+    for (let i = 0; i < shorter.length; i++) {
+      if (shorter[i] === longer[i]) commonPrefix++;
+      else break;
+    }
+    score += commonPrefix * 0.1;
+
+    return { path: p, score };
+  });
+
+  const matches = scored
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((s) => s.path);
+
+  if (matches.length > 0) return matches;
+  return allPaths.slice(0, 3);
+}
+
 /** Register all MCP tools on a server instance. Shared by stdio and HTTP transports. */
 export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   // Tool 1: codebase_overview
@@ -69,11 +116,28 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     "file_context",
     "Get detailed context for a specific file: exports, imports, dependents, and all metrics. Use when: 'tell me about this file', understanding a file before modifying it. Not for: symbol-level detail (use symbol_context)",
     { filePath: z.string().describe("Relative path to the file") },
-    async ({ filePath }) => {
+    async ({ filePath: rawFilePath }) => {
+      const normalizedPath = normalizeFilePath(rawFilePath);
+      const filePath = resolveFilePath(normalizedPath, graph);
+      if (!filePath) {
+        const suggestions = suggestSimilarPaths(normalizedPath, graph);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({
+            error: `File not found in graph: ${normalizedPath}`,
+            suggestions,
+          }) }],
+          isError: true,
+        };
+      }
+
       const metrics = graph.fileMetrics.get(filePath);
       if (!metrics) {
+        const suggestions = suggestSimilarPaths(normalizedPath, graph);
         return {
-          content: [{ type: "text" as const, text: JSON.stringify({ error: `File not found in graph: ${filePath}` }) }],
+          content: [{ type: "text" as const, text: JSON.stringify({
+            error: `File not found in graph: ${normalizedPath}`,
+            suggestions,
+          }) }],
           isError: true,
         };
       }
@@ -338,8 +402,9 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       const tensionMin = tensionThreshold ?? 0.3;
       const escapeMin = escapeThreshold ?? 0.5;
 
-      type CohesionVerdict = "COHESIVE" | "MODERATE" | "JUNK_DRAWER";
+      type CohesionVerdict = "COHESIVE" | "MODERATE" | "JUNK_DRAWER" | "LEAF";
       const moduleCohesion = graph.forceAnalysis.moduleCohesion.map((m) => {
+        if (m.verdict === "LEAF") return { ...m, verdict: "LEAF" as CohesionVerdict };
         const verdict: CohesionVerdict = m.cohesion >= cohesionMin ? "COHESIVE" : m.cohesion >= cohesionMin * 0.67 ? "MODERATE" : "JUNK_DRAWER";
         return { ...m, verdict };
       });
