@@ -41,6 +41,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # Coverage is best-effort: vitest v3 + v8 provider has a known worker
+      # timeout bug (onTaskUpdate) on CI runners. Tests pass above; coverage
+      # collection may timeout without affecting correctness.
       - name: Coverage
         if: matrix.node-version == 22
         continue-on-error: true

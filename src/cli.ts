@@ -358,7 +358,7 @@ program
     output(`  Bridge:      ${result.metrics.isBridge ? "yes" : "no"}`);
     output(`  Churn:       ${result.metrics.churn}`);
     output(`  Complexity:  ${result.metrics.cyclomaticComplexity}`);
-    output(`  Blast radius:${result.metrics.blastRadius}`);
+    output(`  Blast radius: ${result.metrics.blastRadius}`);
     output(`  Has tests:   ${result.metrics.hasTests ? `yes (${result.metrics.testFile})` : "no"}`);
 
     if (result.metrics.deadExports.length > 0) {

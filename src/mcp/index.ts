@@ -1,7 +1,11 @@
+import { createRequire } from "module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import type { CodebaseGraph } from "../types/index.js";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../../package.json") as { version: string };
 import { getHints } from "./hints.js";
 import { getIndexedHead } from "../server/graph-store.js";
 import {
@@ -411,7 +415,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
 export async function startMcpServer(graph: CodebaseGraph): Promise<void> {
   const server = new McpServer({
     name: "codebase-intelligence",
-    version: "0.1.0",
+    version: pkg.version,
   });
 
   registerTools(server, graph);

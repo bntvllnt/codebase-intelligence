@@ -66,6 +66,22 @@ export function getSearchIndex(graph: CodebaseGraph): SearchIndex {
   return idx;
 }
 
+// ── Shared lookup helpers ───────────────────────────────────
+
+function buildNodeById(graph: CodebaseGraph): Map<string, CodebaseGraph["nodes"][number]> {
+  return new Map(graph.nodes.map((n) => [n.id, n]));
+}
+
+function buildReverseAdjacency(graph: CodebaseGraph): Map<string, string[]> {
+  const rev = new Map<string, string[]>();
+  for (const e of graph.edges) {
+    const existing = rev.get(e.target);
+    if (existing) existing.push(e.source);
+    else rev.set(e.target, [e.source]);
+  }
+  return rev;
+}
+
 // ── Result computation functions ────────────────────────────
 // Each returns a plain object. MCP wraps in protocol, CLI formats for terminal.
 
@@ -153,7 +169,8 @@ export function computeFileContext(
     return { error: `File not found in graph: ${normalizedPath}`, suggestions: suggestSimilarPaths(normalizedPath, graph) };
   }
 
-  const node = graph.nodes.find((n) => n.id === filePath && n.type === "file");
+  const nodeById = buildNodeById(graph);
+  const node = nodeById.get(filePath);
   const fileExports = graph.nodes
     .filter((n) => n.parentFile === filePath)
     .map((n) => ({ name: n.label, type: n.type, loc: n.loc }));
@@ -440,27 +457,30 @@ export function computeDependents(
     .filter((e) => e.target === filePath)
     .map((e) => ({ path: e.source, symbols: e.symbols }));
 
+  const reverseAdj = buildReverseAdjacency(graph);
   const transitive: Array<{ path: string; throughPath: string[]; depth: number }> = [];
   const visited = new Set<string>([filePath]);
+  const parentChain = new Map<string, string[]>();
+  parentChain.set(filePath, []);
 
-  function bfs(current: string[], currentDepth: number, pathSoFar: string[]): void {
-    if (currentDepth > maxDepth) return;
-    const next: string[] = [];
-    for (const node of current) {
-      const deps = graph.edges.filter((e) => e.target === node).map((e) => e.source);
+  let currentLevel = [filePath];
+  for (let currentDepth = 1; currentDepth <= maxDepth && currentLevel.length > 0; currentDepth++) {
+    const nextLevel: string[] = [];
+    for (const node of currentLevel) {
+      const deps = reverseAdj.get(node) ?? [];
       for (const dep of deps) {
         if (visited.has(dep)) continue;
         visited.add(dep);
+        const chain = [...(parentChain.get(node) ?? []), node];
+        parentChain.set(dep, chain);
         if (currentDepth > 1) {
-          transitive.push({ path: dep, throughPath: [...pathSoFar, node], depth: currentDepth });
+          transitive.push({ path: dep, throughPath: chain, depth: currentDepth });
         }
-        next.push(dep);
+        nextLevel.push(dep);
       }
     }
-    if (next.length > 0) bfs(next, currentDepth + 1, [...pathSoFar, ...current]);
+    currentLevel = nextLevel;
   }
-
-  bfs([filePath], 1, []);
   const totalAffected = visited.size - 1;
   const riskLevel = totalAffected > 20 ? "HIGH" : totalAffected > 5 ? "MEDIUM" : "LOW";
 
@@ -487,20 +507,19 @@ export function computeModuleStructure(graph: CodebaseGraph): ModuleStructureRes
     dependsOn: m.dependsOn, dependedBy: m.dependedBy,
   }));
 
-  const crossMap = new Map<string, number>();
+  const nodeById = buildNodeById(graph);
+  const crossMap = new Map<string, { from: string; to: string; weight: number }>();
   for (const edge of graph.edges) {
-    const sourceNode = graph.nodes.find((n) => n.id === edge.source);
-    const targetNode = graph.nodes.find((n) => n.id === edge.target);
+    const sourceNode = nodeById.get(edge.source);
+    const targetNode = nodeById.get(edge.target);
     if (!sourceNode || !targetNode || sourceNode.module === targetNode.module) continue;
-    const key = `${sourceNode.module}->${targetNode.module}`;
-    crossMap.set(key, (crossMap.get(key) ?? 0) + 1);
+    const key = `${sourceNode.module}\0${targetNode.module}`;
+    const existing = crossMap.get(key);
+    if (existing) existing.weight++;
+    else crossMap.set(key, { from: sourceNode.module, to: targetNode.module, weight: 1 });
   }
 
-  const crossModuleDeps: Array<{ from: string; to: string; weight: number }> = [];
-  for (const [key, weight] of crossMap) {
-    const [from, to] = key.split("->");
-    crossModuleDeps.push({ from, to, weight });
-  }
+  const crossModuleDeps = [...crossMap.values()];
 
   return {
     modules: modules.sort((a, b) => b.files - a.files),
@@ -567,19 +586,21 @@ export function computeDeadExports(
   limit?: number,
 ): DeadExportsResult {
   const maxResults = limit ?? 20;
+  const nodeById = buildNodeById(graph);
   const deadFiles: Array<{ path: string; module: string; deadExports: string[]; totalExports: number }> = [];
 
   for (const [filePath, metrics] of graph.fileMetrics) {
     if (metrics.deadExports.length === 0) continue;
-    const node = graph.nodes.find((n) => n.id === filePath);
+    const node = nodeById.get(filePath);
     if (!node) continue;
     if (module && node.module !== module) continue;
     const totalExports = graph.nodes.filter((n) => n.parentFile === filePath).length;
     deadFiles.push({ path: filePath, module: node.module, deadExports: metrics.deadExports, totalExports });
   }
 
-  const sorted = deadFiles.sort((a, b) => b.deadExports.length - a.deadExports.length).slice(0, maxResults);
-  const totalDead = sorted.reduce((sum, f) => sum + f.deadExports.length, 0);
+  deadFiles.sort((a, b) => b.deadExports.length - a.deadExports.length);
+  const totalDead = deadFiles.reduce((sum, f) => sum + f.deadExports.length, 0);
+  const sorted = deadFiles.slice(0, maxResults);
 
   return {
     totalDeadExports: totalDead,
