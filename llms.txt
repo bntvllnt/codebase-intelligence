@@ -1,0 +1,41 @@
+# Codebase Intelligence
+
+> TypeScript codebase analysis engine — dependency graphs, architectural metrics, MCP + CLI interfaces.
+
+## Documentation
+
+- [Architecture](docs/architecture.md): Pipeline, module map, data flow, design decisions
+- [Data Model](docs/data-model.md): All TypeScript interfaces with field descriptions
+- [Metrics](docs/metrics.md): Per-file and module metrics, force analysis, complexity scoring
+- [MCP Tools](docs/mcp-tools.md): 15 MCP tools — inputs, outputs, use cases, selection guide
+- [CLI Reference](docs/cli-reference.md): CLI commands, flags, output formats, examples
+
+## Quick Start
+
+MCP mode (AI agents):
+```bash
+codebase-intelligence ./path/to/project
+```
+
+CLI mode (humans/CI) — 15 commands, full MCP parity:
+```bash
+codebase-intelligence overview ./src
+codebase-intelligence hotspots ./src --metric coupling
+codebase-intelligence file ./src parser/index.ts
+codebase-intelligence search ./src "auth"
+codebase-intelligence changes ./src --json
+codebase-intelligence dependents ./src types.ts --depth 3
+codebase-intelligence modules ./src
+codebase-intelligence forces ./src
+codebase-intelligence dead-exports ./src
+codebase-intelligence groups ./src
+codebase-intelligence symbol ./src parseCodebase
+codebase-intelligence impact ./src getUserById
+codebase-intelligence rename ./src oldName newName
+codebase-intelligence processes ./src --entry main
+codebase-intelligence clusters ./src --min-files 3
+```
+
+## Optional
+
+For complete documentation in a single file, see [llms-full.txt](llms-full.txt).

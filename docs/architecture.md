@@ -18,8 +18,12 @@ Analyzer
   | computes: churn, complexity, blast radius, dead exports, test coverage
   | produces: ForceAnalysis (tension files, bridges, extraction candidates)
   v
-MCP (stdio)
-  | exposes: 15 tools, 2 prompts, 3 resources for LLM agents
+Core (shared computation)
+  | result builders used by both MCP and CLI
+  v
+MCP (stdio)                    CLI (terminal/CI)
+  | 15 tools, 2 prompts,        | 5 commands: overview, hotspots,
+  | 3 resources for LLMs        | file, search, changes + --json
 ```
 
 ## Module Map
@@ -30,6 +34,7 @@ src/
   parser/index.ts      <- TS AST extraction + git churn + test detection
   graph/index.ts       <- graphology graph + circular dep detection
   analyzer/index.ts    <- All metric computation
+  core/index.ts        <- Shared result computation (MCP + CLI)
   mcp/index.ts         <- 15 MCP tools for LLM integration
   mcp/hints.ts         <- Next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
@@ -38,7 +43,7 @@ src/
   community/index.ts   <- Louvain clustering
   persistence/index.ts <- Graph export/import to .code-visualizer/
   server/graph-store.ts <- Global graph state (shared by CLI + MCP)
-  cli.ts               <- Entry point, wires pipeline together
+  cli.ts               <- Entry point, CLI commands + MCP fallback
 ```
 
 ## Data Flow
@@ -63,12 +68,12 @@ startMcpServer(codebaseGraph)
 
 ## Key Design Decisions
 
-- **MCP-only**: No web UI or REST API. All interaction through MCP stdio for LLM agents.
+- **Dual interface**: MCP stdio for LLM agents, CLI subcommands for humans/CI. Both consume `src/core/`.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports (known limitation).
 - **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.
-- **Graph persistence**: Optional `--index` flag caches parsed graph to `.code-visualizer/` for instant startup on unchanged HEAD.
+- **Graph persistence**: CLI commands always cache the graph index to `.code-visualizer/`. MCP mode (`codebase-intelligence <path>`) requires `--index` to persist the cache.
 
 ## Adding a New Metric
 

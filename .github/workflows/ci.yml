@@ -1,17 +1,22 @@
 name: CI
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
 
 concurrency:
-  group: ci-${{ github.head_ref }}
+  group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   quality:
     name: Quality Gates
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 22]
     steps:
       - uses: actions/checkout@v4
 
@@ -19,7 +24,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -35,3 +40,20 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # Coverage is best-effort: vitest v3 + v8 provider has a known worker
+      # timeout bug (onTaskUpdate) on CI runners. Tests pass above; coverage
+      # collection may timeout without affecting correctness.
+      - name: Coverage
+        if: matrix.node-version == 22
+        continue-on-error: true
+        run: pnpm vitest run --coverage --pool forks --no-file-parallelism
+
+      - name: Upload coverage
+        if: matrix.node-version == 22 && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
+          if-no-files-found: ignore
