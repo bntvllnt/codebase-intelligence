@@ -2,9 +2,9 @@
 
 # codebase-intelligence
 
-**Codebase analysis engine for TypeScript projects.**
+**CLI-first codebase analysis for TypeScript projects.**
 
-Parse your codebase, build a dependency graph, compute architectural metrics, and query it all via MCP for LLM-assisted code understanding.
+Parse your codebase, build a dependency graph, compute architectural metrics, and query everything from your terminal/CI. MCP support is included as an optional secondary interface.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node-%3E%3D18-brightgreen)](https://nodejs.org)
@@ -16,83 +16,116 @@ Parse your codebase, build a dependency graph, compute architectural metrics, an
 
 ## Quick Start
 
-### Claude Code (one-liner)
+### CLI (recommended)
+
+```bash
+npx codebase-intelligence overview ./src
+```
+
+Common workflows:
+
+```bash
+npx codebase-intelligence hotspots ./src --metric complexity --limit 10
+npx codebase-intelligence impact ./src parseCodebase
+npx codebase-intelligence dead-exports ./src --limit 20
+npx codebase-intelligence changes ./src --json
+```
+
+### MCP (optional)
 
 ```bash
 claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest .
-```
-
-Done. Available in all projects. Verify with `/mcp` inside Claude Code.
-
-To scope to a single project instead:
-
-```bash
-claude mcp add -s project -t stdio codebase-intelligence -- npx -y codebase-intelligence@latest ./src
 ```
 
 ## Table of Contents
 
 - [Features](#features)
 - [Installation](#installation)
-- [Usage](#usage)
-- [MCP Integration](#mcp-integration)
+- [CLI Usage](#cli-usage)
+- [MCP Integration (Secondary)](#mcp-integration-secondary)
 - [Metrics](#metrics)
 - [Architecture](#architecture)
 - [Requirements](#requirements)
 - [Limitations](#limitations)
+- [Release](#release)
 - [Contributing](#contributing)
 - [License](#license)
 
 ## Features
 
-- **15 MCP tools** — codebase overview, file context, hotspots, module structure, force analysis, dead exports, symbol context, search, impact analysis, rename planning, process tracing, community detection, and more
-- **2 MCP prompts** — detect_impact, generate_map
-- **3 MCP resources** — clusters, processes, setup guide
+- **15 CLI commands** for architecture analysis, dependency impact, dead code detection, and search
+- **Machine-readable JSON output** (`--json`) for automation and CI pipelines
+- **Auto-cached index** in `.code-visualizer/` for fast repeat queries
 - **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
-- **Symbol-level analysis** — call graph with callers/callees, symbol PageRank, per-symbol impact analysis
-- **BM25 search** — find files and symbols by keyword with ranked results
-- **Process tracing** — detect entry points and trace execution flows through the call graph
-- **Community detection** — Louvain algorithm discovers natural file groupings beyond directory structure
-- **Graph persistence** — cache parsed graphs to `.code-visualizer/` for instant startup
+- **Symbol-level analysis** — callers/callees, symbol importance, impact blast radius
+- **BM25 search** — ranked keyword search across files and symbols
+- **Process tracing** — detect entry points and execution flows through the call graph
+- **Community detection** — Louvain clustering for natural file groupings
+- **MCP parity (secondary)** — same analysis available as 15 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
 
-Run directly with npx (no install needed):
+Run directly with npx (no install):
 
 ```bash
-npx codebase-intelligence ./src
+npx codebase-intelligence overview ./src
 ```
 
 Or install globally:
 
 ```bash
 npm install -g codebase-intelligence
-codebase-intelligence ./src
+codebase-intelligence overview ./src
 ```
 
-## Usage
+## CLI Usage
+
+```bash
+codebase-intelligence <command> <path> [options]
+```
+
+### Commands
+
+| Command | What it does |
+|---|---|
+| `overview` | High-level codebase snapshot |
+| `hotspots` | Rank files by metric (coupling, churn, complexity, blast radius, coverage, etc.) |
+| `file` | Full context for one file |
+| `search` | BM25 keyword search |
+| `changes` | Git diff analysis with risk metrics |
+| `dependents` | File-level blast radius |
+| `modules` | Module architecture + cross-dependencies |
+| `forces` | Cohesion/tension/escape-velocity analysis |
+| `dead-exports` | Unused export detection |
+| `groups` | Top-level directory groups + aggregate metrics |
+| `symbol` | Callers/callees and symbol metrics |
+| `impact` | Symbol-level blast radius |
+| `rename` | Reference discovery for rename planning |
+| `processes` | Entry-point execution flow tracing |
+| `clusters` | Community-detected file clusters |
+
+### Useful flags
+
+| Flag | Description |
+|---|---|
+| `--json` | Stable JSON output |
+| `--force` | Rebuild index even if cache is valid |
+| `--limit <n>` | Limit results on supported commands |
+| `--metric <m>` | Select ranking metric for `hotspots` |
+
+For full command details, see [docs/cli-reference.md](docs/cli-reference.md).
+
+## MCP Integration (Secondary)
+
+Running without a subcommand starts the MCP stdio server (backward compatible):
 
 ```bash
 npx codebase-intelligence ./src
-# => Parsed 142 files, 387 functions, 612 dependencies
-# => MCP stdio server started
 ```
-
-### Options
-
-| Flag | Description | Default |
-|------|-------------|---------|
-| `<path>` | Path to TypeScript codebase | required |
-| `--index` | Persist graph index to `.code-visualizer/` | off |
-| `--force` | Re-index even if HEAD unchanged | off |
-| `--status` | Print index status and exit | - |
-| `--clean` | Remove `.code-visualizer/` index and exit | - |
-
-## MCP Integration
 
 ### Claude Code (manual)
 
-Add to `.mcp.json` in your project root:
+Add to `.mcp.json`:
 
 ```json
 {
@@ -122,25 +155,7 @@ Add to `.cursor/mcp.json` or `.vscode/mcp.json`:
 }
 ```
 
-### MCP Tools
-
-| Tool | What it does |
-|------|--------------|
-| `codebase_overview` | High-level architecture: modules, entry points, key metrics |
-| `file_context` | Everything about one file: exports, imports, dependents, metrics |
-| `get_dependents` | File-level blast radius: what breaks if you change this file |
-| `find_hotspots` | Ranked files by any metric (coupling, churn, complexity, etc.) |
-| `get_module_structure` | Module map with cross-deps, cohesion, circular deps |
-| `analyze_forces` | Module health: tension files, bridges, extraction candidates |
-| `find_dead_exports` | Unused exports that can be safely removed |
-| `get_groups` | Top-level directory groups with aggregate metrics |
-| `symbol_context` | Callers, callees, importance metrics for any function or class |
-| `search` | Find files and symbols by keyword with ranked results |
-| `detect_changes` | Git diff with risk metrics per changed file |
-| `impact_analysis` | Symbol-level blast radius with depth-grouped risk labels |
-| `rename_symbol` | Find all references to a symbol (read-only, for rename planning) |
-| `get_processes` | Trace execution flows from entry points through the call graph |
-| `get_clusters` | Community-detected clusters of related files |
+For MCP tool details, see [docs/mcp-tools.md](docs/mcp-tools.md).
 
 ## Metrics
 
@@ -160,21 +175,24 @@ Add to `.cursor/mcp.json` or `.vscode/mcp.json`:
 
 ## Architecture
 
-```
-codebase-intelligence <path>
+```text
+codebase-intelligence <command> <path>
         |
         v
-   +---------+     +---------+     +----------+     +---------+
-   | Parser  | --> | Graph   | --> | Analyzer | --> |   MCP   |
-   | TS AST  |     | grapho- |     | metrics  |     |  stdio  |
-   |         |     | logy    |     |          |     |         |
-   +---------+     +---------+     +----------+     +---------+
+   +---------+     +---------+     +----------+
+   | Parser  | --> | Graph   | --> | Analyzer |
+   | TS AST  |     | grapho- |     | metrics  |
+   |         |     | logy    |     |          |
+   +---------+     +---------+     +----------+
+        |
+        +--> CLI output (default)
+        +--> MCP stdio (optional mode)
 ```
 
-1. **Parser** — extracts files, functions, and imports via the TypeScript Compiler API. Resolves path aliases, respects `.gitignore`, detects test associations.
-2. **Graph** — builds nodes and edges with [graphology](https://graphology.github.io/). Detects circular deps via iterative DFS.
-3. **Analyzer** — computes all 11 metrics plus group-level aggregations.
-4. **MCP** — exposes 15 tools, 2 prompts, and 3 resources via stdio for LLM agents.
+1. **Parser** — extracts files, functions, and imports via TypeScript Compiler API.
+2. **Graph** — builds dependency/call graphs with [graphology](https://graphology.github.io/).
+3. **Analyzer** — computes file/module/symbol metrics.
+4. **Interfaces** — CLI is primary; MCP is available for agent integrations.
 
 ## Requirements
 
@@ -183,9 +201,9 @@ codebase-intelligence <path>
 
 ## Limitations
 
-- TypeScript only (no JS CommonJS, Python, Go, etc.)
-- Static analysis only (no runtime/dynamic imports)
-- Call graph confidence varies: type-resolved calls are reliable, text-inferred calls are best-effort
+- TypeScript-focused analysis
+- Static analysis only (no runtime tracing)
+- Call graph confidence varies by symbol resolution quality
 
 ## Release
 
@@ -208,7 +226,7 @@ Publishing is automated and **only happens on `v*` tags**.
 3. Tag: `git tag vX.Y.Z`
 4. Push: `git push origin main --tags`
 
-The `v*` tag triggers the `CI` workflow's **publish** job, which runs `npm publish --access public --provenance`.
+The `v*` tag triggers the `CI` workflow publish job (`npm publish --access public --provenance`).
 
 ## Contributing
 
