@@ -48,6 +48,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - [Requirements](#requirements)
 - [Limitations](#limitations)
 - [Release](#release)
+- [Security](#security)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -207,30 +208,48 @@ codebase-intelligence <command> <path>
 
 ## Release
 
-Publishing is automated and **only happens on `v*` tags**.
+Publishing is automated through GitHub Actions.
 
-### One-time setup
+### Normal CI
 
-1. Create an npm automation token (npmjs.com → Access Tokens).
-2. Add it to GitHub repository secrets as `NPM_TOKEN`.
-
-### Normal CI (before release)
-
-- `CI` workflow runs on every PR and push to `main`:
+- `CI` runs on every PR and push to `main`:
   - lint → typecheck → build → test
 
-### Create a release
+### Canary publish
 
-1. Bump `package.json` version.
-2. Commit: `chore(release): bump to vX.Y.Z`
-3. Tag: `git tag vX.Y.Z`
-4. Push: `git push origin main --tags`
+- Pushes to `main` trigger the `Publish` workflow canary job.
+- The package is published to npm with a `canary` tag using the current version plus the short commit SHA.
 
-The `v*` tag triggers the `CI` workflow publish job (`npm publish --access public --provenance`).
+### Release publish
+
+- Releases are created with the `Publish` workflow via `workflow_dispatch`.
+- Select the bump type: `patch`, `minor`, or `major`.
+- The workflow:
+  1. runs quality gates
+  2. bumps `package.json`
+  3. commits and tags the release
+  4. publishes to npm with provenance
+  5. creates a GitHub Release
+
+See `.github/workflows/publish.yml` for the exact release flow.
+
+## Security
+
+Please do not report security vulnerabilities in public issues.
+
+- Read [`SECURITY.md`](SECURITY.md) for supported versions and disclosure guidance.
+- Use GitHub Security Advisories or private maintainer contact for sensitive reports.
 
 ## Contributing
 
-Contributions are welcome. Please open an issue first to discuss what you'd like to change.
+Contributions are welcome.
+
+Start here:
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, workflow, testing, and PR expectations
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community standards
+- [`SECURITY.md`](SECURITY.md) — vulnerability reporting
+
+Quick setup:
 
 ```bash
 git clone https://github.com/bntvllnt/codebase-intelligence.git
