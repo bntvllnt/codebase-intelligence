@@ -84,7 +84,7 @@ Architectural force analysis.
 codebase-intelligence forces <path> [--cohesion <n>] [--tension <n>] [--escape <n>] [--json] [--force]
 ```
 
-**Output:** module cohesion verdicts, tension files, bridge files, extraction candidates, summary.
+**Output:** module cohesion verdicts, tension files, bridge files, extraction candidates, shallow modules, deep modules, seam candidates, locality risks, summary.
 
 ### dead-exports
 

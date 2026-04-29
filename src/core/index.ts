@@ -538,6 +538,10 @@ export interface ForcesResult {
   tensionFiles: Array<{ file: string; tension: number; pulledBy: Array<{ module: string; strength: number; symbols: string[] }>; recommendation: string }>;
   bridgeFiles: Array<{ file: string; betweenness: number; connects: string[]; role: string }>;
   extractionCandidates: Array<{ target: string; escapeVelocity: number; recommendation: string }>;
+  shallowModules: Array<{ module: string; files: number; exports: number; exportsPerFile: number; cohesion: number; locPerExport: number; evidence: string }>;
+  deepModules: Array<{ module: string; files: number; exports: number; exportsPerFile: number; locPerExport: number; dependedByModules: number; evidence: string }>;
+  seamCandidates: Array<{ target: string; scope: string; exposedSymbols: number; fanIn: number; dependentModules: number; evidence: string }>;
+  localityRisks: Array<{ file: string; kind: string; tension: number; blastRadius: number; isBridge: boolean; pulledByModuleCount: number; evidence: string }>;
   summary: string;
 }
 
@@ -568,6 +572,10 @@ export function computeForces(
     tensionFiles,
     bridgeFiles: graph.forceAnalysis.bridgeFiles,
     extractionCandidates,
+    shallowModules: graph.forceAnalysis.shallowModules,
+    deepModules: graph.forceAnalysis.deepModules,
+    seamCandidates: graph.forceAnalysis.seamCandidates,
+    localityRisks: graph.forceAnalysis.localityRisks,
     summary: graph.forceAnalysis.summary,
   };
 }

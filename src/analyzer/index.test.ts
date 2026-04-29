@@ -208,6 +208,57 @@ describe("analyzeGraph", () => {
     expect(result.forceAnalysis.summary).toContain("healthy");
   });
 
+  it("detects shallow modules from wide public surface and low locality", () => {
+    const files = [
+      makeFile("src/shallow/api.ts", {
+        loc: 18,
+        exports: [
+          { name: "one", type: "function", loc: 2, isDefault: false, complexity: 1 },
+          { name: "two", type: "function", loc: 2, isDefault: false, complexity: 1 },
+          { name: "three", type: "function", loc: 2, isDefault: false, complexity: 1 },
+          { name: "four", type: "function", loc: 2, isDefault: false, complexity: 1 },
+        ],
+        imports: [imp("src/shared/base.ts")],
+      }),
+      makeFile("src/shallow/helpers.ts", {
+        loc: 18,
+        exports: [
+          { name: "five", type: "function", loc: 2, isDefault: false, complexity: 1 },
+          { name: "six", type: "function", loc: 2, isDefault: false, complexity: 1 },
+        ],
+        imports: [imp("src/shared/base.ts")],
+      }),
+      makeFile("src/shared/base.ts"),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    expect(result.forceAnalysis.shallowModules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ module: "src/shallow/", exports: 6 }),
+      ]),
+    );
+  });
+
+  it("detects locality risks for files with tension and broad blast radius", () => {
+    const files = [
+      makeFile("src/shared/utils.ts", {
+        imports: [imp("src/a/service.ts"), imp("src/b/service.ts")],
+      }),
+      makeFile("src/a/service.ts", { imports: [imp("src/shared/utils.ts")] }),
+      makeFile("src/b/service.ts", { imports: [imp("src/shared/utils.ts")] }),
+      makeFile("src/feature/consumer.ts", { imports: [imp("src/shared/utils.ts")] }),
+    ];
+    const built = buildGraph(files);
+    const result = analyzeGraph(built, files);
+
+    expect(result.forceAnalysis.localityRisks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ file: "src/shared/utils.ts" }),
+      ]),
+    );
+  });
+
   it("handles circular dependencies in stats", () => {
     const files = [
       makeFile("a.ts", { imports: [imp("b.ts")] }),
@@ -244,6 +295,10 @@ describe("analyzeGraph", () => {
     expect(result.forceAnalysis).toHaveProperty("tensionFiles");
     expect(result.forceAnalysis).toHaveProperty("bridgeFiles");
     expect(result.forceAnalysis).toHaveProperty("extractionCandidates");
+    expect(result.forceAnalysis).toHaveProperty("shallowModules");
+    expect(result.forceAnalysis).toHaveProperty("deepModules");
+    expect(result.forceAnalysis).toHaveProperty("seamCandidates");
+    expect(result.forceAnalysis).toHaveProperty("localityRisks");
     expect(result.forceAnalysis).toHaveProperty("summary");
   });
 });

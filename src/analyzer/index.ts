@@ -11,6 +11,10 @@ import type {
   TensionFile,
   BridgeFile,
   ExtractionCandidate,
+  ShallowModule,
+  DeepModule,
+  SeamCandidate,
+  LocalityRisk,
   CodebaseGraph,
   GraphNode,
   SymbolMetrics,
@@ -123,7 +127,14 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
   const groups = computeGroups(fileNodes, fileMetrics);
 
   // Centrifuge force analysis
-  const forceAnalysis = computeForceAnalysis(graph, fileNodes, fileMetrics, moduleMetrics, betweennessScores);
+  const forceAnalysis = computeForceAnalysis(
+    graph,
+    fileNodes,
+    fileMetrics,
+    moduleMetrics,
+    betweennessScores,
+    parsedByPath,
+  );
 
   // Update tension in fileMetrics from force analysis
   for (const tf of forceAnalysis.tensionFiles) {
@@ -339,12 +350,46 @@ function isEntryPointFile(fileId: string): boolean {
   return false;
 }
 
+function getModuleExportStats(
+  files: GraphNode[],
+  parsedByPath: Map<string, ParsedFile>,
+): { exportCount: number; loc: number } {
+  let exportCount = 0;
+  let loc = 0;
+
+  for (const file of files) {
+    if (isTestFilePath(file.id)) continue;
+    loc += file.loc;
+    exportCount += parsedByPath.get(file.id)?.exports.length ?? 0;
+  }
+
+  return { exportCount, loc };
+}
+
+function dependentModuleCountForModule(modulePath: string, graph: Graph): number {
+  const dependents = new Set<string>();
+
+  graph.forEachNode((nodeId: string, attrs: Record<string, unknown>) => {
+    if (attrs.type !== "file") return;
+    if ((attrs.module as string) !== modulePath) return;
+
+    for (const neighbor of graph.inNeighbors(nodeId)) {
+      if (graph.getNodeAttribute(neighbor, "type") !== "file") continue;
+      const neighborModule = graph.getNodeAttribute(neighbor, "module") as string;
+      if (neighborModule !== modulePath) dependents.add(neighborModule);
+    }
+  });
+
+  return dependents.size;
+}
+
 function computeForceAnalysis(
   graph: Graph,
   fileNodes: GraphNode[],
   fileMetrics: Map<string, FileMetrics>,
   moduleMetrics: Map<string, ModuleMetrics>,
-  betweennessScores: Map<string, number>
+  betweennessScores: Map<string, number>,
+  parsedByPath: Map<string, ParsedFile>,
 ): ForceAnalysis {
   // Group files by module for non-test file counting
   const moduleFiles = new Map<string, GraphNode[]>();
@@ -471,6 +516,109 @@ function computeForceAnalysis(
     });
   }
 
+  const shallowModules: ShallowModule[] = [];
+  const deepModules: DeepModule[] = [];
+  const seamCandidates: SeamCandidate[] = [];
+  const localityRisks: LocalityRisk[] = [];
+
+  for (const mod of moduleMetrics.values()) {
+    const files = moduleFiles.get(mod.path) ?? [];
+    const nonTestFiles = files.filter((file) => !isTestFilePath(file.id));
+    if (nonTestFiles.length === 0) continue;
+
+    const { exportCount, loc } = getModuleExportStats(nonTestFiles, parsedByPath);
+    const exportsPerFile = exportCount / nonTestFiles.length;
+    const locPerExport = exportCount > 0 ? loc / exportCount : loc;
+    const dependedByModules = dependentModuleCountForModule(mod.path, graph);
+
+    if (
+      exportCount >= nonTestFiles.length * 2
+      && locPerExport <= 20
+      && mod.cohesion <= 0.5
+      && dependedByModules <= 1
+    ) {
+      shallowModules.push({
+        module: mod.path,
+        files: nonTestFiles.length,
+        exports: exportCount,
+        exportsPerFile: Math.round(exportsPerFile * 100) / 100,
+        cohesion: mod.cohesion,
+        locPerExport: Math.round(locPerExport * 100) / 100,
+        evidence: `${exportCount} exports across ${nonTestFiles.length} file(s), ${locPerExport.toFixed(1)} LOC/export, cohesion ${mod.cohesion.toFixed(2)}`,
+      });
+    }
+
+    if (
+      exportCount > 0
+      && exportCount <= nonTestFiles.length
+      && locPerExport >= 25
+      && dependedByModules >= 1
+      && mod.cohesion >= 0.5
+    ) {
+      deepModules.push({
+        module: mod.path,
+        files: nonTestFiles.length,
+        exports: exportCount,
+        exportsPerFile: Math.round(exportsPerFile * 100) / 100,
+        locPerExport: Math.round(locPerExport * 100) / 100,
+        dependedByModules,
+        evidence: `${exportCount} exports hide ${loc} LOC across ${nonTestFiles.length} file(s); reused by ${dependedByModules} module(s)`,
+      });
+    }
+
+    if (exportCount > 0 && dependedByModules >= 2) {
+      seamCandidates.push({
+        target: mod.path,
+        scope: "module",
+        exposedSymbols: exportCount,
+        fanIn: dependedByModules,
+        dependentModules: dependedByModules,
+        evidence: `${exportCount} exported symbol(s) used across ${dependedByModules} dependent module(s)`,
+      });
+    }
+  }
+
+  for (const file of fileNodes) {
+    const parsed = parsedByPath.get(file.id);
+    const exposedSymbols = parsed?.exports.length ?? 0;
+    const metrics = fileMetrics.get(file.id);
+    if (!metrics) continue;
+
+    const tensionInfo = tensionFiles.find((item) => item.file === file.id);
+    const pulledByModuleCount = tensionInfo?.pulledBy.length ?? 0;
+    const kind: LocalityRisk["kind"] | null = tensionInfo && metrics.blastRadius >= 2
+      ? "ripple-zone"
+      : metrics.isBridge && metrics.blastRadius >= 2
+        ? "bridge-blast"
+        : pulledByModuleCount >= 2 && metrics.blastRadius >= 1
+          ? "concept-spread"
+          : null;
+
+    if (kind) {
+      localityRisks.push({
+        file: file.id,
+        kind,
+        tension: metrics.tension,
+        blastRadius: metrics.blastRadius,
+        isBridge: metrics.isBridge,
+        pulledByModuleCount,
+        evidence: `blast radius ${metrics.blastRadius}, tension ${metrics.tension.toFixed(2)}, bridge=${String(metrics.isBridge)}`,
+      });
+    }
+
+    const dependentModules = tensionInfo?.pulledBy.length ?? 0;
+    if (exposedSymbols > 0 && dependentModules >= 2 && metrics.fanIn >= 2) {
+      seamCandidates.push({
+        target: file.id,
+        scope: "file",
+        exposedSymbols,
+        fanIn: metrics.fanIn,
+        dependentModules,
+        evidence: `${exposedSymbols} exported symbol(s), fan-in ${metrics.fanIn}, pulled by ${dependentModules} module(s)`,
+      });
+    }
+  }
+
   // Summary
   const junkDrawers = moduleCohesion.filter((m) => m.verdict === "JUNK_DRAWER");
   const summaryParts: string[] = [];
@@ -483,6 +631,12 @@ function computeForceAnalysis(
   if (extractionCandidates.length > 0) {
     summaryParts.push(`${extractionCandidates.map((e) => e.target).join(", ")} ready for extraction`);
   }
+  if (shallowModules.length > 0) {
+    summaryParts.push(`${shallowModules.length} shallow module candidate(s)`);
+  }
+  if (localityRisks.length > 0) {
+    summaryParts.push(`${localityRisks.length} locality risk(s)`);
+  }
   if (summaryParts.length === 0) {
     summaryParts.push("Codebase architecture looks healthy. No major force imbalances detected.");
   }
@@ -492,6 +646,10 @@ function computeForceAnalysis(
     tensionFiles: tensionFiles.sort((a, b) => b.tension - a.tension),
     bridgeFiles: bridgeFiles.sort((a, b) => b.betweenness - a.betweenness),
     extractionCandidates: extractionCandidates.sort((a, b) => b.escapeVelocity - a.escapeVelocity),
+    shallowModules: shallowModules.sort((a, b) => b.exportsPerFile - a.exportsPerFile),
+    deepModules: deepModules.sort((a, b) => b.locPerExport - a.locPerExport),
+    seamCandidates: seamCandidates.sort((a, b) => b.dependentModules - a.dependentModules || b.fanIn - a.fanIn),
+    localityRisks: localityRisks.sort((a, b) => b.blastRadius - a.blastRadius || b.tension - a.tension),
     summary: summaryParts.join(". ") + ".",
   };
 }

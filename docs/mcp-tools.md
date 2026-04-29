@@ -60,7 +60,7 @@ Module-level architecture with cross-module dependencies.
 Architectural force analysis — module health, misplaced files, bridge files.
 
 **Input:** `{ cohesionThreshold?: number, tensionThreshold?: number, escapeThreshold?: number }`
-**Returns:** moduleCohesion (with verdicts), tensionFiles (with pull details + recommendations), bridgeFiles (with connections), extractionCandidates (with recommendations), summary
+**Returns:** moduleCohesion (with verdicts), tensionFiles (with pull details + recommendations), bridgeFiles (with connections), extractionCandidates (with recommendations), shallowModules, deepModules, seamCandidates, localityRisks, summary
 
 **Use when:** "What's architecturally wrong?" "Which modules are coupled?" "What files should be moved?"
 **Not for:** File-level metrics (use find_hotspots).

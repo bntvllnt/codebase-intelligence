@@ -628,6 +628,42 @@ program
         output(`    ${e.recommendation}`);
       }
     }
+
+    if (result.shallowModules.length > 0) {
+      output(``);
+      output(`Shallow Modules (${result.shallowModules.length}):`);
+      for (const m of result.shallowModules) {
+        output(`  ${m.module} (${m.exports} exports, cohesion: ${m.cohesion.toFixed(2)})`);
+        output(`    ${m.evidence}`);
+      }
+    }
+
+    if (result.deepModules.length > 0) {
+      output(``);
+      output(`Deep Modules (${result.deepModules.length}):`);
+      for (const m of result.deepModules) {
+        output(`  ${m.module} (${m.exports} exports, depended by: ${m.dependedByModules})`);
+        output(`    ${m.evidence}`);
+      }
+    }
+
+    if (result.seamCandidates.length > 0) {
+      output(``);
+      output(`Seam Candidates (${result.seamCandidates.length}):`);
+      for (const seam of result.seamCandidates) {
+        output(`  ${seam.target} [${seam.scope}] (dependents: ${seam.dependentModules}, fan-in: ${seam.fanIn})`);
+        output(`    ${seam.evidence}`);
+      }
+    }
+
+    if (result.localityRisks.length > 0) {
+      output(``);
+      output(`Locality Risks (${result.localityRisks.length}):`);
+      for (const risk of result.localityRisks) {
+        output(`  ${risk.file} [${risk.kind}] (blast radius: ${risk.blastRadius}, tension: ${risk.tension.toFixed(2)})`);
+        output(`    ${risk.evidence}`);
+      }
+    }
   });
 
 // ── Subcommand: dead-exports ───────────────────────────────
