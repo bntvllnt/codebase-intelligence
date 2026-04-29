@@ -187,12 +187,16 @@ describe("Tool 5: get_module_structure", () => {
 });
 
 describe("Tool 6: analyze_forces", () => {
-  it("returns cohesion, tension, bridges, extraction candidates", async () => {
+  it("returns cohesion, tension, bridges, extraction candidates, and architecture signals", async () => {
     const r = await callTool("analyze_forces");
     expect(r).toHaveProperty("moduleCohesion");
     expect(r).toHaveProperty("tensionFiles");
     expect(r).toHaveProperty("bridgeFiles");
     expect(r).toHaveProperty("extractionCandidates");
+    expect(r).toHaveProperty("shallowModules");
+    expect(r).toHaveProperty("deepModules");
+    expect(r).toHaveProperty("seamCandidates");
+    expect(r).toHaveProperty("localityRisks");
     expect(r).toHaveProperty("summary");
     expect(r).toHaveProperty("nextSteps");
     const cohesion = r.moduleCohesion as Array<Record<string, unknown>>;
@@ -221,6 +225,23 @@ describe("Tool 6: analyze_forces", () => {
       for (const m of singleFileModules) {
         expect(m.verdict).toBe("LEAF");
       }
+    }
+  });
+
+  it("returns evidence-bearing derived signals when present", async () => {
+    const r = await callTool("analyze_forces");
+
+    for (const item of r.shallowModules as Array<{ evidence: string }>) {
+      expect(item.evidence.length).toBeGreaterThan(0);
+    }
+    for (const item of r.deepModules as Array<{ evidence: string }>) {
+      expect(item.evidence.length).toBeGreaterThan(0);
+    }
+    for (const item of r.seamCandidates as Array<{ evidence: string }>) {
+      expect(item.evidence.length).toBeGreaterThan(0);
+    }
+    for (const item of r.localityRisks as Array<{ evidence: string }>) {
+      expect(item.evidence.length).toBeGreaterThan(0);
     }
   });
 });

@@ -1,5 +1,6 @@
+import { execFileSync } from "child_process";
 import { describe, it, expect } from "vitest";
-import { getFixturePipeline } from "./helpers/pipeline.js";
+import { getFixturePipeline, getFixtureSrcPath } from "./helpers/pipeline.js";
 import {
   computeOverview,
   computeFileContext,
@@ -390,6 +391,10 @@ describe("CLI core commands (integration)", () => {
       expect(Array.isArray(result.tensionFiles)).toBe(true);
       expect(Array.isArray(result.bridgeFiles)).toBe(true);
       expect(Array.isArray(result.extractionCandidates)).toBe(true);
+      expect(Array.isArray(result.shallowModules)).toBe(true);
+      expect(Array.isArray(result.deepModules)).toBe(true);
+      expect(Array.isArray(result.seamCandidates)).toBe(true);
+      expect(Array.isArray(result.localityRisks)).toBe(true);
       expect(typeof result.summary).toBe("string");
     });
 
@@ -408,6 +413,54 @@ describe("CLI core commands (integration)", () => {
       const lenient = computeForces(codebaseGraph, 0.1, 0.9, 0.9);
 
       expect(strict.tensionFiles.length).toBeGreaterThanOrEqual(lenient.tensionFiles.length);
+    });
+
+    it("returns evidence on derived architecture signals", () => {
+      const { codebaseGraph } = getFixturePipeline();
+      const result = computeForces(codebaseGraph);
+
+      for (const item of result.shallowModules) expect(item.evidence.length).toBeGreaterThan(0);
+      for (const item of result.deepModules) expect(item.evidence.length).toBeGreaterThan(0);
+      for (const item of result.seamCandidates) expect(item.evidence.length).toBeGreaterThan(0);
+      for (const item of result.localityRisks) expect(item.evidence.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("forces CLI command", () => {
+    it("returns the new architecture signals in JSON output", () => {
+      const stdout = execFileSync(
+        "pnpm",
+        ["exec", "tsx", "src/cli.ts", "forces", getFixtureSrcPath(), "--json", "--force"],
+        { cwd: process.cwd(), encoding: "utf8" },
+      );
+      const parsed = JSON.parse(stdout) as Record<string, unknown>;
+
+      expect(parsed).toHaveProperty("moduleCohesion");
+      expect(parsed).toHaveProperty("tensionFiles");
+      expect(parsed).toHaveProperty("bridgeFiles");
+      expect(parsed).toHaveProperty("extractionCandidates");
+      expect(parsed).toHaveProperty("shallowModules");
+      expect(parsed).toHaveProperty("deepModules");
+      expect(parsed).toHaveProperty("seamCandidates");
+      expect(parsed).toHaveProperty("localityRisks");
+      expect(parsed).toHaveProperty("summary");
+    });
+
+    it("prints the new architecture sections in human output when data exists", () => {
+      const stdout = execFileSync(
+        "pnpm",
+        ["exec", "tsx", "src/cli.ts", "forces", getFixtureSrcPath(), "--force"],
+        { cwd: process.cwd(), encoding: "utf8" },
+      );
+      const { codebaseGraph } = getFixturePipeline();
+      const result = computeForces(codebaseGraph);
+
+      expect(stdout).toContain("Force Analysis");
+      expect(stdout).toContain("Module Cohesion");
+      if (result.shallowModules.length > 0) expect(stdout).toContain("Shallow Modules");
+      if (result.deepModules.length > 0) expect(stdout).toContain("Deep Modules");
+      if (result.seamCandidates.length > 0) expect(stdout).toContain("Seam Candidates");
+      if (result.localityRisks.length > 0) expect(stdout).toContain("Locality Risks");
     });
   });
 
@@ -463,7 +516,6 @@ describe("CLI core commands (integration)", () => {
     it("returns context for a known symbol", () => {
       const { codebaseGraph } = getFixturePipeline();
       const firstSymbol = [...codebaseGraph.symbolMetrics.values()][0];
-      if (!firstSymbol) return;
 
       const result = computeSymbolContext(codebaseGraph, firstSymbol.name);
 
@@ -538,7 +590,6 @@ describe("CLI core commands (integration)", () => {
     it("returns impact levels for a known symbol", () => {
       const { codebaseGraph } = getFixturePipeline();
       const firstSymbol = [...codebaseGraph.symbolMetrics.values()][0];
-      if (!firstSymbol) return;
 
       const result = impactAnalysis(codebaseGraph, firstSymbol.name);
 
@@ -559,7 +610,6 @@ describe("CLI core commands (integration)", () => {
     it("finds references for a known symbol", () => {
       const { codebaseGraph } = getFixturePipeline();
       const firstSymbol = [...codebaseGraph.symbolMetrics.values()][0];
-      if (!firstSymbol) return;
 
       const result = renameSymbol(codebaseGraph, firstSymbol.name, "newName", true);
 
