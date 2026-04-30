@@ -7,16 +7,7 @@ on:
       - "src/**"
       - "pnpm-lock.yaml"
       - ".github/workflows/publish.yml"
-  workflow_dispatch:
-    inputs:
-      bump:
-        description: "Version bump type"
-        required: true
-        type: choice
-        options:
-          - patch
-          - minor
-          - major
+  workflow_dispatch: {}
 
 concurrency:
   group: publish-${{ github.event_name }}
@@ -78,9 +69,6 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Upgrade npm for OIDC support
-        run: npm install -g npm@latest
-
       - name: Publish canary
         run: |
           sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
@@ -88,9 +76,9 @@ jobs:
           BASE_VERSION=$(node -p "require('./package.json').version")
           SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
           CANARY_VERSION="${BASE_VERSION}-canary.${SHORT_SHA}"
-          npm version "$CANARY_VERSION" --no-git-tag-version
+          npm version "$CANARY_VERSION" --no-git-tag-version --ignore-scripts
           TARBALL=$(pnpm pack --pack-destination /tmp | tail -1)
-          npm publish "$TARBALL" --tag canary --provenance --access public
+          npx --yes npm@latest publish "$TARBALL" --tag canary --provenance --access public
 
   release:
     name: Publish Release
@@ -104,7 +92,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.RELEASE_PAT }}
 
       - uses: pnpm/action-setup@v4
 
@@ -119,12 +106,15 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Bump version
+      - name: Read version + guard against retag
         id: version
         run: |
-          npm version ${{ inputs.bump }} --no-git-tag-version
           VERSION=$(node -p "require('./package.json').version")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          if git rev-parse "v${VERSION}" >/dev/null 2>&1; then
+            echo "::error::Tag v${VERSION} already exists. Bump package.json on main via a PR before dispatching release."
+            exit 1
+          fi
 
       - name: Generate changelog
         id: changelog
@@ -163,24 +153,19 @@ jobs:
             echo "CHANGELOG_EOF"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Commit and tag
+      - name: Tag release
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json
-          git commit -m "chore(release): v${{ steps.version.outputs.version }}"
           git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
-          git push origin main --follow-tags
-
-      - name: Upgrade npm for OIDC support
-        run: npm install -g npm@latest
+          git push origin "v${{ steps.version.outputs.version }}"
 
       - name: Publish to npm
         run: |
           sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
           unset NODE_AUTH_TOKEN
           TARBALL=$(pnpm pack --pack-destination /tmp | tail -1)
-          npm publish "$TARBALL" --tag latest --provenance --access public
+          npx --yes npm@latest publish "$TARBALL" --tag latest --provenance --access public
 
       - name: Create GitHub Release
         env:

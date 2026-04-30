@@ -207,26 +207,31 @@ codebase-intelligence <command> <path>
 
 ## Release
 
-Publishing is automated and **only happens on `v*` tags**.
-
-### One-time setup
-
-1. Create an npm automation token (npmjs.com → Access Tokens).
-2. Add it to GitHub repository secrets as `NPM_TOKEN`.
+Publishing is automated through GitHub Actions.
 
 ### Normal CI (before release)
 
 - `CI` workflow runs on every PR and push to `main`:
   - lint → typecheck → build → test
 
+### Canary publish
+
+- Pushes to `main` trigger a canary publish.
+- The package is published to npm with the `canary` tag.
+- Canary versions are derived from the current package version plus the short commit SHA.
+
 ### Create a release
 
-1. Bump `package.json` version.
-2. Commit: `chore(release): bump to vX.Y.Z`
-3. Tag: `git tag vX.Y.Z`
-4. Push: `git push origin main --tags`
+1. Bump `package.json` version in a normal PR.
+2. Merge that PR to `main`.
+3. Run the `Publish` workflow manually from GitHub Actions.
+4. The workflow will:
+   - verify the tag does not already exist
+   - create and push `vX.Y.Z`
+   - publish to npm with provenance via OIDC
+   - create a GitHub Release with generated notes
 
-The `v*` tag triggers the `CI` workflow publish job (`npm publish --access public --provenance`).
+No PAT is required for npm publish. The workflow uses GitHub repository permissions for tagging and OIDC for npm publishing.
 
 ## Contributing
 
