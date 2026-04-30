@@ -38,6 +38,10 @@ All metrics are computed per-file and stored in `FileMetrics`. Module-level aggr
 | **Leaf module** | 1 non-test file | Single-file module. Cohesion is degenerate (no internal deps possible). Not a problem — use `find_hotspots(metric='coupling')` for high-coupling concerns. |
 | **Junk drawer** | module cohesion < 0.4, 2+ non-test files | Module with mostly external deps. Needs restructuring. |
 | **Extraction candidate** | escapeVelocity >= 0.5 | Module with 0 internal deps, consumed by many others. Extract to package. |
+| **Shallow module** | many exports per file, low LOC per export, low cohesion | Public surface is wide relative to hidden behavior. Complexity likely leaks to callers. |
+| **Deep module** | few exports, high LOC per export, reused across modules | Small interface hiding larger useful behavior. Good leverage for callers. |
+| **Seam candidate** | exported file/module used by 2+ external modules | Natural place to stabilize an interface and vary implementation behind it. |
+| **Locality risk** | tension + blast radius, or bridge + blast radius | Changes to one concept are likely to spread across multiple files/modules. |
 
 ## Complexity Scoring
 

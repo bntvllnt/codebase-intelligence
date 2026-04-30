@@ -138,11 +138,58 @@ export interface ExtractionCandidate {
   recommendation: string;
 }
 
+export interface ShallowModule {
+  module: string;
+  files: number;
+  exports: number;
+  exportsPerFile: number;
+  cohesion: number;
+  locPerExport: number;
+  evidence: string;
+}
+
+export interface DeepModule {
+  module: string;
+  files: number;
+  exports: number;
+  exportsPerFile: number;
+  locPerExport: number;
+  dependedByModules: number;
+  evidence: string;
+}
+
+export type SeamScope = "file" | "module";
+
+export interface SeamCandidate {
+  target: string;
+  scope: SeamScope;
+  exposedSymbols: number;
+  fanIn: number;
+  dependentModules: number;
+  evidence: string;
+}
+
+export type LocalityRiskKind = "ripple-zone" | "bridge-blast" | "concept-spread";
+
+export interface LocalityRisk {
+  file: string;
+  kind: LocalityRiskKind;
+  tension: number;
+  blastRadius: number;
+  isBridge: boolean;
+  pulledByModuleCount: number;
+  evidence: string;
+}
+
 export interface ForceAnalysis {
   moduleCohesion: Array<ModuleMetrics & { verdict: "COHESIVE" | "MODERATE" | "JUNK_DRAWER" | "LEAF" }>;
   tensionFiles: TensionFile[];
   bridgeFiles: BridgeFile[];
   extractionCandidates: ExtractionCandidate[];
+  shallowModules: ShallowModule[];
+  deepModules: DeepModule[];
+  seamCandidates: SeamCandidate[];
+  localityRisks: LocalityRisk[];
   summary: string;
 }
 
