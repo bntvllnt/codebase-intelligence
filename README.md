@@ -48,6 +48,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - [Requirements](#requirements)
 - [Limitations](#limitations)
 - [Release](#release)
+- [Security](#security)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -233,9 +234,23 @@ Publishing is automated through GitHub Actions.
 
 No PAT is required for npm publish. The workflow uses GitHub repository permissions for tagging and OIDC for npm publishing.
 
+## Security
+
+Please do not report security vulnerabilities in public issues.
+
+- Read [`SECURITY.md`](SECURITY.md) for supported versions and disclosure guidance.
+- Use GitHub Security Advisories or private maintainer contact for sensitive reports.
+
 ## Contributing
 
-Contributions are welcome. Please open an issue first to discuss what you'd like to change.
+Contributions are welcome.
+
+Start here:
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — setup, workflow, testing, and PR expectations
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community standards
+- [`SECURITY.md`](SECURITY.md) — vulnerability reporting
+
+Quick setup:
 
 ```bash
 git clone https://github.com/bntvllnt/codebase-intelligence.git

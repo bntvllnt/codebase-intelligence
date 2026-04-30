@@ -7,5 +7,6 @@ next-env.d.ts
 .npmrc
 .mcp.json
 .worktrees/
+.vllnt/
 test-results/
 scripts/
