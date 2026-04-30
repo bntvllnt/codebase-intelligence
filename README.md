@@ -210,28 +210,29 @@ codebase-intelligence <command> <path>
 
 Publishing is automated through GitHub Actions.
 
-### Normal CI
+### Normal CI (before release)
 
-- `CI` runs on every PR and push to `main`:
+- `CI` workflow runs on every PR and push to `main`:
   - lint → typecheck → build → test
 
 ### Canary publish
 
-- Pushes to `main` trigger the `Publish` workflow canary job.
-- The package is published to npm with a `canary` tag using the current version plus the short commit SHA.
+- Pushes to `main` trigger a canary publish.
+- The package is published to npm with the `canary` tag.
+- Canary versions are derived from the current package version plus the short commit SHA.
 
-### Release publish
+### Create a release
 
-- Releases are created with the `Publish` workflow via `workflow_dispatch`.
-- Select the bump type: `patch`, `minor`, or `major`.
-- The workflow:
-  1. runs quality gates
-  2. bumps `package.json`
-  3. commits and tags the release
-  4. publishes to npm with provenance
-  5. creates a GitHub Release
+1. Bump `package.json` version in a normal PR.
+2. Merge that PR to `main`.
+3. Run the `Publish` workflow manually from GitHub Actions.
+4. The workflow will:
+   - verify the tag does not already exist
+   - create and push `vX.Y.Z`
+   - publish to npm with provenance via OIDC
+   - create a GitHub Release with generated notes
 
-See `.github/workflows/publish.yml` for the exact release flow.
+No PAT is required for npm publish. The workflow uses GitHub repository permissions for tagging and OIDC for npm publishing.
 
 ## Security
 
