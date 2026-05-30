@@ -125,18 +125,22 @@ codebase-intelligence has the data — but AI agents only benefit if they actual
 *query* it instead of defaulting to grep/read. `init` closes that gap.
 
 ```bash
-codebase-intelligence init        # current repo, all agents + skill
-codebase-intelligence init ./repo --agents claude,agents
-codebase-intelligence init --no-skill
+codebase-intelligence init                  # interactive picker (TTY)
+codebase-intelligence init --agents claude,cursor
+codebase-intelligence init --all --skill    # every agent + global skill
+codebase-intelligence init --yes            # non-interactive defaults
 ```
 
-It writes an idempotent, marked instruction block ("query CI before grep/read") into
-each agent's native file, and installs a portable skill:
+Nothing is written unless you choose it. On a terminal, `init` shows an interactive
+picker (`AGENTS.md` + `CLAUDE.md` preselected); non-interactively it defaults to those
+two. The global skill is **opt-in** (`--skill`). It writes an idempotent, marked
+instruction block ("query CI before grep/read") into each selected agent's native file:
 
-| Layer | Target |
-|---|---|
-| Repo instructions | `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/codebase-intelligence.mdc`, `.github/copilot-instructions.md`, `GEMINI.md`, `CONVENTIONS.md` (Aider) |
-| Portable skill | `~/.claude/skills/codebase-intelligence/SKILL.md` |
+| Layer | Target | Default |
+|---|---|---|
+| Repo instructions | `AGENTS.md`, `CLAUDE.md` | selected |
+| Repo instructions | `.cursor/rules/*.mdc`, `.github/copilot-instructions.md`, `GEMINI.md`, `CONVENTIONS.md` (Aider) | opt-in |
+| Portable skill | `~/.claude/skills/codebase-intelligence/SKILL.md` | opt-in (`--skill`) |
 
 Writes are idempotent — only content between the
 `<!-- codebase-intelligence:start -->` / `:end` markers is ever touched, so re-running

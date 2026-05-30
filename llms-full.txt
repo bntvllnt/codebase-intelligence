@@ -379,15 +379,17 @@ Community-detected file clusters (Louvain algorithm).
 
 ### init
 ```bash
-codebase-intelligence init [path] [--agents <list>] [--no-skill] [--json]
+codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [--json]
 ```
-Make AI agents actually use codebase-intelligence. Writes an idempotent, marked
-instruction block ("query CI before grep/read") into each agent's repo file —
+Set up AI agents to use codebase-intelligence. Writes an idempotent, marked
+instruction block ("query CI before grep/read") into each selected agent's repo file —
 `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/codebase-intelligence.mdc`,
-`.github/copilot-instructions.md`, `GEMINI.md`, `CONVENTIONS.md` — and installs the
-portable skill to `~/.claude/skills/codebase-intelligence/SKILL.md`. Only content
-between the `codebase-intelligence:start`/`:end` markers is ever touched, so re-running
-is safe. `--agents` limits targets (default: all); `--no-skill` skips the skill.
+`.github/copilot-instructions.md`, `GEMINI.md`, `CONVENTIONS.md`. Opt-in: on a TTY it
+shows an interactive picker (`AGENTS.md` + `CLAUDE.md` preselected); non-interactively
+(or `--yes`/`--json`) it defaults to those two. `--agents` selects explicitly, `--all`
+targets every agent, `--skill` also installs the portable skill to
+`~/.claude/skills/codebase-intelligence/SKILL.md` (never installed otherwise). Only
+content between the `codebase-intelligence:start`/`:end` markers is ever touched.
 
 ## Global Behavior
 

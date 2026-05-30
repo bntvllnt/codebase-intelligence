@@ -11,8 +11,10 @@ import {
   installRepoFiles,
   installGlobalSkill,
   isAgentId,
+  resolveInitPlan,
   AGENT_TARGETS,
   ALL_AGENT_IDS,
+  DEFAULT_AGENTS,
   DEFAULT_MARKERS,
 } from "./index.js";
 
@@ -192,5 +194,56 @@ describe("installGlobalSkill", () => {
 
     const second = installGlobalSkill(home);
     expect(second.action).toBe("unchanged");
+  });
+});
+
+describe("resolveInitPlan", () => {
+  it("defaults to AGENTS.md + CLAUDE.md only", () => {
+    expect([...DEFAULT_AGENTS]).toEqual(["agents", "claude"]);
+  });
+
+  it("--all selects every agent (explicit, non-interactive)", () => {
+    const plan = resolveInitPlan({ all: true }, true);
+    expect(plan.mode).toBe("explicit");
+    expect(plan.agents).toEqual([...ALL_AGENT_IDS]);
+    expect(plan.installSkill).toBe(false);
+  });
+
+  it("--agents picks the listed agents", () => {
+    const plan = resolveInitPlan({ agents: "claude,gemini" }, true);
+    expect(plan.mode).toBe("explicit");
+    expect(plan.agents).toEqual(["claude", "gemini"]);
+    expect(plan.invalidAgents).toEqual([]);
+  });
+
+  it("--agents reports unknown ids and keeps valid ones", () => {
+    const plan = resolveInitPlan({ agents: "claude,bogus" }, true);
+    expect(plan.agents).toEqual(["claude"]);
+    expect(plan.invalidAgents).toEqual(["bogus"]);
+  });
+
+  it("no flags on a TTY → interactive, seeded with the default set", () => {
+    const plan = resolveInitPlan({}, true);
+    expect(plan.mode).toBe("interactive");
+    expect(plan.agents).toEqual([...DEFAULT_AGENTS]);
+  });
+
+  it("no flags without a TTY → non-interactive default", () => {
+    const plan = resolveInitPlan({}, false);
+    expect(plan.mode).toBe("default");
+    expect(plan.agents).toEqual([...DEFAULT_AGENTS]);
+  });
+
+  it("--json forces non-interactive even on a TTY", () => {
+    expect(resolveInitPlan({ json: true }, true).mode).toBe("default");
+  });
+
+  it("--yes forces non-interactive even on a TTY", () => {
+    expect(resolveInitPlan({ yes: true }, true).mode).toBe("default");
+  });
+
+  it("--skill is opt-in across modes", () => {
+    expect(resolveInitPlan({ skill: true }, false).installSkill).toBe(true);
+    expect(resolveInitPlan({}, false).installSkill).toBe(false);
   });
 });

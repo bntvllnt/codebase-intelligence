@@ -11,13 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`init` command** — agent adoption layer. `codebase-intelligence init [path]` writes
   an idempotent, marked instruction block ("query CI before grep/read") into each
-  agent's repo file (`AGENTS.md`, `CLAUDE.md`,
+  selected agent's repo file (`AGENTS.md`, `CLAUDE.md`,
   `.cursor/rules/codebase-intelligence.mdc`, `.github/copilot-instructions.md`,
-  `GEMINI.md`, `CONVENTIONS.md`) and installs a portable skill to
+  `GEMINI.md`, `CONVENTIONS.md`) and optionally installs a portable skill to
   `~/.claude/skills/codebase-intelligence/SKILL.md`.
-  - `--agents <list>` to target a subset of agents (default: all).
-  - `--no-skill` to skip the global skill install.
-  - `--json` for machine-readable output.
+  - **Opt-in by design** — nothing is written unless chosen. On a TTY, an interactive
+    picker (`AGENTS.md` + `CLAUDE.md` preselected); non-interactively, those two by
+    default. The global skill installs only with `--skill`.
+  - `--agents <list>` to select explicitly, `--all` for every agent, `--yes` for
+    non-interactive defaults, `--json` for machine-readable output.
   - Writes are idempotent — only content between the
     `codebase-intelligence:start`/`:end` markers is ever touched; existing user content
     is preserved.
