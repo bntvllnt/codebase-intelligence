@@ -42,6 +42,7 @@ src/
   process/index.ts     <- Entry point detection + call chain tracing
   community/index.ts   <- Louvain clustering
   persistence/index.ts <- Graph export/import to .code-visualizer/
+  install/index.ts     <- Agent adoption: managed-block engine + per-agent file targets + skill
   server/graph-store.ts <- Global graph state (shared by CLI + MCP)
   cli.ts               <- Entry point, CLI commands + MCP fallback
 ```

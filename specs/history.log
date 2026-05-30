@@ -4,3 +4,4 @@
 2026-03-11 | shipped | fix-error-handling | 1h→0.5h | 1d | Consistent impact_analysis error handling, LOC off-by-one fix, empty file guard. 17 regression tests.
 2026-03-11 | shipped | fix-metrics-test-files | 2h→1.5h | 1d | Exclude test files from coverage/coupling metrics, isTestFile detection, coupling formula fix. 19 regression tests.
 2026-03-11 | shipped | feat-metric-quality | 3h→2h | 1d | LEAF verdict for single-file modules, tension suppression for type hubs/entry points, file_context path normalization. 20 regression tests.
+2026-05-30 | shipped | feat-agent-adoption-init | 3h→1h | 1d | `init` command: idempotent managed-block instructions for 6 agents + portable skill + registry SKILL.md. 18 tests, docs + CHANGELOG. PR #34.

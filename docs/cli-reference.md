@@ -1,6 +1,6 @@
 # CLI Reference
 
-15 commands for terminal and CI use. Full parity with MCP tools. All commands auto-cache the index to `.code-visualizer/`.
+16 commands for terminal and CI use. The 15 analysis commands have full parity with MCP tools and auto-cache the index to `.code-visualizer/`; `init` sets up agent adoption.
 
 ## Commands
 
@@ -156,6 +156,20 @@ codebase-intelligence clusters <path> [--min-files <n>] [--json] [--force]
 
 **Output:** clusters with files, file count, cohesion.
 
+### init
+
+Make AI agents use codebase-intelligence: write a managed instruction block into each
+agent's repo file (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/codebase-intelligence.mdc`,
+`.github/copilot-instructions.md`, `GEMINI.md`, `CONVENTIONS.md`) and install the
+portable skill to `~/.claude/skills/`. Idempotent — only content between the
+`codebase-intelligence:start`/`:end` markers is touched.
+
+```bash
+codebase-intelligence init [path] [--agents <list>] [--no-skill] [--json]
+```
+
+**Output:** per-file actions (created / updated / unchanged) and skill install status.
+
 ## Flags
 
 | Flag | Available On | Description |
@@ -173,6 +187,8 @@ codebase-intelligence clusters <path> [--min-files <n>] [--json] [--force]
 | `--entry <name>` | processes | Filter by entry point name |
 | `--min-files <n>` | clusters | Min files per cluster |
 | `--no-dry-run` | rename | Actually perform the rename (default: dry run) |
+| `--agents <list>` | init | Comma-separated agents (default: all) |
+| `--no-skill` | init | Skip installing the global Claude skill |
 
 ## Behavior
 

@@ -40,7 +40,14 @@ import {
   impactAnalysis,
   renameSymbol,
 } from "./core/index.js";
+import {
+  installRepoFiles,
+  installGlobalSkill,
+  isAgentId,
+  ALL_AGENT_IDS,
+} from "./install/index.js";
 import type { CodebaseGraph } from "./types/index.js";
+import type { AgentId } from "./install/index.js";
 
 const INDEX_DIR_NAME = ".code-visualizer";
 
@@ -179,6 +186,12 @@ interface McpOptions {
   clean?: boolean;
 }
 
+interface InitOptions {
+  agents?: string;
+  skill?: boolean;
+  json?: boolean;
+}
+
 const program = new Command();
 
 program
@@ -200,7 +213,8 @@ program
       "  impact <path> <symbol>   Symbol-level blast radius\n" +
       "  rename <path> <old> <new> Find references for rename\n" +
       "  processes <path>         Entry point execution flows\n" +
-      "  clusters <path>          Community-detected file clusters\n\n" +
+      "  clusters <path>          Community-detected file clusters\n" +
+      "  init [path]              Make AI agents use CI (writes agent instruction files + skill)\n\n" +
       "MCP mode:\n" +
       "  codebase-intelligence <path>  Start MCP stdio server\n\n" +
       "Try: codebase-intelligence overview ./src",
@@ -933,6 +947,62 @@ program
         output(`  ${f}`);
       }
     }
+  });
+
+// ── Subcommand: init ───────────────────────────────────────
+
+program
+  .command("init")
+  .description("Make AI agents use codebase-intelligence: write per-agent instruction files + install the skill")
+  .argument("[path]", "Repo root (default: current directory)", ".")
+  .option("--agents <list>", `Comma-separated agents to target (default: all). Available: ${ALL_AGENT_IDS.join(", ")}`)
+  .option("--no-skill", "Skip installing the global Claude skill")
+  .option("--json", "Output as JSON")
+  .action((targetPath: string, options: InitOptions) => {
+    const resolved = path.resolve(targetPath);
+    if (!fs.existsSync(resolved)) {
+      process.stderr.write(`Error: Path does not exist: ${targetPath}\n`);
+      process.exit(1);
+    }
+
+    let agents: AgentId[] | undefined;
+    if (options.agents) {
+      const requested = options.agents
+        .split(",")
+        .map((a) => a.trim())
+        .filter(Boolean);
+      const invalid = requested.filter((a) => !isAgentId(a));
+      if (invalid.length > 0) {
+        process.stderr.write(
+          `Error: Unknown agents: ${invalid.join(", ")}. Available: ${ALL_AGENT_IDS.join(", ")}\n`,
+        );
+        process.exit(2);
+      }
+      agents = requested.filter(isAgentId);
+    }
+
+    const repoResults = installRepoFiles(resolved, { agents });
+    const skillResult = options.skill === false ? undefined : installGlobalSkill();
+
+    if (options.json) {
+      outputJson({ repoFiles: repoResults, skill: skillResult ?? null });
+      return;
+    }
+
+    output(`Codebase Intelligence — agent adoption`);
+    output(`──────────────────────────────────────`);
+    output(`Repo instruction files (${resolved}):`);
+    for (const r of repoResults) {
+      output(`  ${r.action.padEnd(9)} ${r.path}`);
+    }
+    if (skillResult) {
+      output(``);
+      output(`Global skill:`);
+      output(`  ${skillResult.action.padEnd(9)} ${skillResult.path}`);
+    }
+    output(``);
+    output(`Done. Agents in this repo will now be told to query codebase-intelligence first.`);
+    output(`Re-run anytime — writes are idempotent (managed blocks only).`);
   });
 
 // ── MCP fallback (backward compat) ──────────────────────────
