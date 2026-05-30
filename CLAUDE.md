@@ -186,3 +186,28 @@ LLM knowledge base for building this tool. Single source of truth per topic:
 - NEVER create fake/stub graph objects — build them through the real pipeline
 - NEVER skip tests because "it's just config"
 - NEVER write tests that pass regardless of implementation (test behavior, not existence)
+
+<!-- codebase-intelligence:start (auto-generated — do not edit between markers) -->
+## Codebase Intelligence
+
+This repo is analyzed by `codebase-intelligence` — a static-analysis tool that maps
+architecture, dependencies, and risk metrics for TypeScript code.
+
+**Use it BEFORE grep/read when you need to understand structure, impact, or risk.**
+It is faster and more accurate than reading files one at a time.
+
+| When you need to… | Run |
+|---|---|
+| Understand the codebase | `codebase-intelligence overview .` |
+| Find where complexity/risk lives | `codebase-intelligence hotspots .` |
+| Blast radius before editing a symbol | `codebase-intelligence impact . <symbol>` |
+| Who depends on a file | `codebase-intelligence dependents . <file>` |
+| Find unused exports | `codebase-intelligence dead-exports .` |
+| Keyword search | `codebase-intelligence search . <query>` |
+| Plan a rename | `codebase-intelligence rename . <old> <new>` |
+
+- Add `--json` for machine-readable output (use in automation/subagents).
+- No global install? Prefix with `npx codebase-intelligence@latest`.
+- Full command list: `codebase-intelligence --help`.
+- MCP stdio server: `codebase-intelligence .`
+<!-- codebase-intelligence:end -->
