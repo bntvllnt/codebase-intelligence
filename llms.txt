@@ -17,7 +17,7 @@ MCP mode (AI agents):
 codebase-intelligence ./path/to/project
 ```
 
-CLI mode (humans/CI) — 15 commands, full MCP parity:
+CLI mode (humans/CI) — 16 commands (15 analysis with MCP parity + `init` for agent adoption):
 ```bash
 codebase-intelligence overview ./src
 codebase-intelligence hotspots ./src --metric coupling
@@ -34,6 +34,7 @@ codebase-intelligence impact ./src getUserById
 codebase-intelligence rename ./src oldName newName
 codebase-intelligence processes ./src --entry main
 codebase-intelligence clusters ./src --min-files 3
+codebase-intelligence init .                         # make AI agents use CI
 ```
 
 ## Optional

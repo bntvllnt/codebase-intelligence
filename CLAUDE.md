@@ -20,6 +20,7 @@ src/
   process/index.ts    <- Entry point detection + call chain tracing
   community/index.ts  <- Louvain clustering
   persistence/index.ts <- Graph export/import to .code-visualizer/
+  install/index.ts    <- Agent adoption: managed-block engine + per-agent files + skill (init)
   cli.ts              <- CLI entry point (commander)
 docs/
   architecture.md     <- Pipeline, module map, data flow, design decisions

@@ -42,6 +42,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - [Features](#features)
 - [Installation](#installation)
 - [CLI Usage](#cli-usage)
+- [Agent Adoption](#agent-adoption)
 - [MCP Integration (Secondary)](#mcp-integration-secondary)
 - [Metrics](#metrics)
 - [Architecture](#architecture)
@@ -54,7 +55,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 ## Features
 
-- **15 CLI commands** for architecture analysis, dependency impact, dead code detection, and search
+- **16 CLI commands** for architecture analysis, dependency impact, dead code detection, search, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.code-visualizer/` for fast repeat queries
 - **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
@@ -62,6 +63,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **BM25 search** — ranked keyword search across files and symbols
 - **Process tracing** — detect entry points and execution flows through the call graph
 - **Community detection** — Louvain clustering for natural file groupings
+- **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
 - **MCP parity (secondary)** — same analysis available as 15 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
@@ -104,6 +106,7 @@ codebase-intelligence <command> <path> [options]
 | `rename` | Reference discovery for rename planning |
 | `processes` | Entry-point execution flow tracing |
 | `clusters` | Community-detected file clusters |
+| `init` | Make AI agents use CI — writes per-agent instruction files + installs the skill |
 
 ### Useful flags
 
@@ -115,6 +118,39 @@ codebase-intelligence <command> <path> [options]
 | `--metric <m>` | Select ranking metric for `hotspots` |
 
 For full command details, see [docs/cli-reference.md](docs/cli-reference.md).
+
+## Agent Adoption
+
+codebase-intelligence has the data — but AI agents only benefit if they actually
+*query* it instead of defaulting to grep/read. `init` closes that gap.
+
+```bash
+codebase-intelligence init        # current repo, all agents + skill
+codebase-intelligence init ./repo --agents claude,agents
+codebase-intelligence init --no-skill
+```
+
+It writes an idempotent, marked instruction block ("query CI before grep/read") into
+each agent's native file, and installs a portable skill:
+
+| Layer | Target |
+|---|---|
+| Repo instructions | `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/codebase-intelligence.mdc`, `.github/copilot-instructions.md`, `GEMINI.md`, `CONVENTIONS.md` (Aider) |
+| Portable skill | `~/.claude/skills/codebase-intelligence/SKILL.md` |
+
+Writes are idempotent — only content between the
+`<!-- codebase-intelligence:start -->` / `:end` markers is ever touched, so re-running
+is safe and your own edits are preserved.
+
+### Install the skill directly
+
+The skill is also published to the [skills.sh](https://www.skills.sh/) registry:
+
+```bash
+ags install codebase-intelligence
+# or
+npx skills add github.com/bntvllnt/codebase-intelligence
+```
 
 ## MCP Integration (Secondary)
 
@@ -208,7 +244,8 @@ codebase-intelligence <command> <path>
 
 ## Release
 
-Publishing is automated through GitHub Actions.
+Publishing is automated through GitHub Actions. See [CHANGELOG.md](CHANGELOG.md) for
+release notes.
 
 ### Normal CI (before release)
 
