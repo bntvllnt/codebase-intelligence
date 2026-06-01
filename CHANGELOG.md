@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-06-01
+
+### Fixed
+
+- **`--help` rendered the command list twice.** The program description embedded a
+  hand-maintained command list that commander also auto-generates, producing two
+  command sections with contradictory `init` descriptions — the manual one stale,
+  claiming the global skill installs by default (it is opt-in since 2.4.0). The manual
+  list is removed; commander is now the single source, with the MCP-mode and starter
+  hints appended after it via `addHelpText`.
+
+### Added
+
+- **`init` lifecycle E2E tests** (`tests/cli-init.e2e.test.ts`) — spawn the real binary
+  across every mode (`--json`, default, `--all`, `--agents`, unknown-id, empty
+  selection, idempotent re-run, missing path, `--skill` opt-in), plus `promptSelection`
+  non-TTY fallback tests. The CLI action layer was previously uncovered.
+
 ## [2.4.0] - 2026-06-01
 
 ### Added
@@ -40,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Baseline for this changelog. For release history prior to and including 2.3.0, see the
 [git tags](https://github.com/bntvllnt/codebase-intelligence/tags) and commit history.
 
-[Unreleased]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.4.0...HEAD
+[Unreleased]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.4.1...HEAD
+[2.4.1]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/bntvllnt/codebase-intelligence/releases/tag/v2.3.0
