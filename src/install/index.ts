@@ -112,6 +112,75 @@ export function isAgentId(value: string): value is AgentId {
   return (ALL_AGENT_IDS as readonly string[]).includes(value);
 }
 
+/**
+ * Default selection when the user doesn't choose explicitly: the universal
+ * `AGENTS.md` standard plus `CLAUDE.md`. Everything else is opt-in.
+ */
+export const DEFAULT_AGENTS: readonly AgentId[] = ["agents", "claude"];
+
+// ── Init planning (pure) ────────────────────────────────────
+
+export interface InitFlags {
+  /** Comma-separated agent ids from `--agents`. */
+  agents?: string;
+  /** `--all`: every agent. */
+  all?: boolean;
+  /** `--skill`: install the global skill (opt-in). */
+  skill?: boolean;
+  /** `--json`: machine output, implies non-interactive. */
+  json?: boolean;
+  /** `--yes`: accept defaults without prompting. */
+  yes?: boolean;
+}
+
+export type InitMode = "explicit" | "interactive" | "default";
+
+export interface InitPlan {
+  /** Agents to write (preselection when mode is "interactive"). */
+  agents: AgentId[];
+  /** Whether to install the global skill (default when mode is "interactive"). */
+  installSkill: boolean;
+  /** How the selection was decided. "interactive" → caller should prompt. */
+  mode: InitMode;
+  /** Unknown ids passed to `--agents`. */
+  invalidAgents: string[];
+}
+
+/**
+ * Decide what `init` should do from its flags and whether stdout is a TTY.
+ * Pure — no prompting or filesystem. When `mode` is "interactive" the caller
+ * presents a picker seeded with `agents`/`installSkill`; otherwise the plan is
+ * final.
+ */
+export function resolveInitPlan(flags: InitFlags, isTty: boolean): InitPlan {
+  const installSkill = flags.skill === true;
+
+  if (flags.all === true) {
+    return { agents: [...ALL_AGENT_IDS], installSkill, mode: "explicit", invalidAgents: [] };
+  }
+
+  if (flags.agents !== undefined) {
+    const requested = flags.agents
+      .split(",")
+      .map((a) => a.trim())
+      .filter(Boolean);
+    return {
+      agents: requested.filter(isAgentId),
+      installSkill,
+      mode: "explicit",
+      invalidAgents: requested.filter((a) => !isAgentId(a)),
+    };
+  }
+
+  const interactive = isTty && flags.json !== true && flags.yes !== true;
+  return {
+    agents: [...DEFAULT_AGENTS],
+    installSkill,
+    mode: interactive ? "interactive" : "default",
+    invalidAgents: [],
+  };
+}
+
 // ── Content (single source of truth) ────────────────────────
 
 /**

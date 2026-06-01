@@ -158,14 +158,19 @@ codebase-intelligence clusters <path> [--min-files <n>] [--json] [--force]
 
 ### init
 
-Make AI agents use codebase-intelligence: write a managed instruction block into each
-agent's repo file (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/codebase-intelligence.mdc`,
-`.github/copilot-instructions.md`, `GEMINI.md`, `CONVENTIONS.md`) and install the
-portable skill to `~/.claude/skills/`. Idempotent — only content between the
+Set up AI agents to use codebase-intelligence by writing a managed instruction block
+into each selected agent's repo file (`AGENTS.md`, `CLAUDE.md`,
+`.cursor/rules/codebase-intelligence.mdc`, `.github/copilot-instructions.md`,
+`GEMINI.md`, `CONVENTIONS.md`) and optionally installing the portable skill to
+`~/.claude/skills/`. Idempotent — only content between the
 `codebase-intelligence:start`/`:end` markers is touched.
 
+Opt-in by design: on a TTY it shows an interactive picker (`AGENTS.md` + `CLAUDE.md`
+preselected). Non-interactively (or with `--yes`/`--json`) it defaults to those two.
+The global skill is never installed unless `--skill` is passed.
+
 ```bash
-codebase-intelligence init [path] [--agents <list>] [--no-skill] [--json]
+codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [--json]
 ```
 
 **Output:** per-file actions (created / updated / unchanged) and skill install status.
@@ -187,8 +192,10 @@ codebase-intelligence init [path] [--agents <list>] [--no-skill] [--json]
 | `--entry <name>` | processes | Filter by entry point name |
 | `--min-files <n>` | clusters | Min files per cluster |
 | `--no-dry-run` | rename | Actually perform the rename (default: dry run) |
-| `--agents <list>` | init | Comma-separated agents (default: all) |
-| `--no-skill` | init | Skip installing the global Claude skill |
+| `--agents <list>` | init | Comma-separated agents, non-interactive (default: agents,claude) |
+| `--all` | init | Target every agent (non-interactive) |
+| `--skill` | init | Also install the global Claude skill (opt-in) |
+| `-y, --yes` | init | Accept defaults without prompting |
 
 ## Behavior
 

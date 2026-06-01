@@ -43,11 +43,11 @@ import {
 import {
   installRepoFiles,
   installGlobalSkill,
-  isAgentId,
+  resolveInitPlan,
   ALL_AGENT_IDS,
 } from "./install/index.js";
+import { promptSelection } from "./install/prompt.js";
 import type { CodebaseGraph } from "./types/index.js";
-import type { AgentId } from "./install/index.js";
 
 const INDEX_DIR_NAME = ".code-visualizer";
 
@@ -188,7 +188,9 @@ interface McpOptions {
 
 interface InitOptions {
   agents?: string;
+  all?: boolean;
   skill?: boolean;
+  yes?: boolean;
   json?: boolean;
 }
 
@@ -953,36 +955,50 @@ program
 
 program
   .command("init")
-  .description("Make AI agents use codebase-intelligence: write per-agent instruction files + install the skill")
+  .description("Set up AI agents to use codebase-intelligence: write per-agent instruction files (+ optional skill)")
   .argument("[path]", "Repo root (default: current directory)", ".")
-  .option("--agents <list>", `Comma-separated agents to target (default: all). Available: ${ALL_AGENT_IDS.join(", ")}`)
-  .option("--no-skill", "Skip installing the global Claude skill")
-  .option("--json", "Output as JSON")
-  .action((targetPath: string, options: InitOptions) => {
+  .option("--agents <list>", `Comma-separated agents, non-interactive. Available: ${ALL_AGENT_IDS.join(", ")}`)
+  .option("--all", "Target every agent (non-interactive)")
+  .option("--skill", "Also install the global Claude skill (opt-in)")
+  .option("-y, --yes", "Accept defaults without prompting")
+  .option("--json", "Output as JSON (implies non-interactive)")
+  .action(async (targetPath: string, options: InitOptions) => {
     const resolved = path.resolve(targetPath);
     if (!fs.existsSync(resolved)) {
       process.stderr.write(`Error: Path does not exist: ${targetPath}\n`);
       process.exit(1);
     }
 
-    let agents: AgentId[] | undefined;
-    if (options.agents) {
-      const requested = options.agents
-        .split(",")
-        .map((a) => a.trim())
-        .filter(Boolean);
-      const invalid = requested.filter((a) => !isAgentId(a));
-      if (invalid.length > 0) {
-        process.stderr.write(
-          `Error: Unknown agents: ${invalid.join(", ")}. Available: ${ALL_AGENT_IDS.join(", ")}\n`,
-        );
-        process.exit(2);
+    const isTty = process.stdin.isTTY && process.stdout.isTTY;
+    const plan = resolveInitPlan(options, isTty);
+
+    if (plan.invalidAgents.length > 0) {
+      process.stderr.write(
+        `Error: Unknown agents: ${plan.invalidAgents.join(", ")}. Available: ${ALL_AGENT_IDS.join(", ")}\n`,
+      );
+      process.exit(2);
+    }
+
+    let agents = plan.agents;
+    let installSkill = plan.installSkill;
+
+    if (plan.mode === "interactive") {
+      const selection = await promptSelection(agents, installSkill);
+      if (!selection) {
+        output("Cancelled — nothing written.");
+        return;
       }
-      agents = requested.filter(isAgentId);
+      agents = selection.agents;
+      installSkill = selection.skill;
+    }
+
+    if (agents.length === 0 && !installSkill) {
+      output("Nothing selected — nothing to do.");
+      return;
     }
 
     const repoResults = installRepoFiles(resolved, { agents });
-    const skillResult = options.skill === false ? undefined : installGlobalSkill();
+    const skillResult = installSkill ? installGlobalSkill() : undefined;
 
     if (options.json) {
       outputJson({ repoFiles: repoResults, skill: skillResult ?? null });
@@ -991,9 +1007,11 @@ program
 
     output(`Codebase Intelligence — agent adoption`);
     output(`──────────────────────────────────────`);
-    output(`Repo instruction files (${resolved}):`);
-    for (const r of repoResults) {
-      output(`  ${r.action.padEnd(9)} ${r.path}`);
+    if (repoResults.length > 0) {
+      output(`Repo instruction files (${resolved}):`);
+      for (const r of repoResults) {
+        output(`  ${r.action.padEnd(9)} ${r.path}`);
+      }
     }
     if (skillResult) {
       output(``);
@@ -1001,7 +1019,7 @@ program
       output(`  ${skillResult.action.padEnd(9)} ${skillResult.path}`);
     }
     output(``);
-    output(`Done. Agents in this repo will now be told to query codebase-intelligence first.`);
+    output(`Done. Selected agents will be told to query codebase-intelligence first.`);
     output(`Re-run anytime — writes are idempotent (managed blocks only).`);
   });
 
