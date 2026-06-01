@@ -198,30 +198,18 @@ const program = new Command();
 
 program
   .name("codebase-intelligence")
-  .description(
-    "Analyze TypeScript codebases — architecture, dependencies, metrics.\n\n" +
-      "Commands:\n" +
-      "  overview <path>          High-level codebase snapshot\n" +
-      "  hotspots <path>          Rank files by metric\n" +
-      "  file <path> <file>       Detailed file context\n" +
-      "  search <path> <query>    Keyword search\n" +
-      "  changes <path>           Git diff analysis\n" +
-      "  dependents <path> <file> File-level blast radius\n" +
-      "  modules <path>           Module architecture\n" +
-      "  forces <path>            Architectural force analysis\n" +
-      "  dead-exports <path>      Find unused exports\n" +
-      "  groups <path>            Top-level directory groups\n" +
-      "  symbol <path> <name>     Function/class context\n" +
-      "  impact <path> <symbol>   Symbol-level blast radius\n" +
-      "  rename <path> <old> <new> Find references for rename\n" +
-      "  processes <path>         Entry point execution flows\n" +
-      "  clusters <path>          Community-detected file clusters\n" +
-      "  init [path]              Make AI agents use CI (writes agent instruction files + skill)\n\n" +
-      "MCP mode:\n" +
-      "  codebase-intelligence <path>  Start MCP stdio server\n\n" +
-      "Try: codebase-intelligence overview ./src",
-  )
+  .description("Analyze TypeScript codebases — architecture, dependencies, metrics.")
   .version(pkg.version);
+
+// Commander auto-generates the command list; only the extras it can't express
+// (MCP mode, a starter hint) are appended after it. A second, hand-maintained
+// command list would drift out of sync — keep commander as the single source.
+program.addHelpText(
+  "after",
+  "\nMCP mode:\n" +
+    "  codebase-intelligence <path>  Start MCP stdio server\n\n" +
+    "Try: codebase-intelligence overview ./src",
+);
 
 // ── Subcommand: overview ────────────────────────────────────
 

@@ -5,6 +5,7 @@ import {
   toggleAll,
   collectSelection,
   renderMenu,
+  promptSelection,
 } from "./prompt.js";
 import { AGENT_TARGETS } from "./index.js";
 
@@ -70,5 +71,20 @@ describe("renderMenu", () => {
     expect(lines[1].startsWith(" ")).toBe(true);
     expect(out).toContain("[x]");
     expect(out).toContain("[ ]");
+  });
+});
+
+describe("promptSelection (non-TTY fallback)", () => {
+  it("returns the preselection unchanged when stdin is not a TTY", async () => {
+    // Under vitest stdin is not a TTY, so promptSelection cannot read
+    // keystrokes and must fall back to the seeded preselection.
+    expect(process.stdin.isTTY).toBeFalsy();
+    const sel = await promptSelection(["agents", "claude"], true);
+    expect(sel).toEqual({ agents: ["agents", "claude"], skill: true });
+  });
+
+  it("falls back to an empty selection when nothing is preselected", async () => {
+    const sel = await promptSelection([], false);
+    expect(sel).toEqual({ agents: [], skill: false });
   });
 });
