@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-06-01
+
 ### Added
 
 - **`init` command** — agent adoption layer. `codebase-intelligence init [path]` writes
@@ -38,5 +40,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Baseline for this changelog. For release history prior to and including 2.3.0, see the
 [git tags](https://github.com/bntvllnt/codebase-intelligence/tags) and commit history.
 
-[Unreleased]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.3.0...HEAD
+[Unreleased]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.4.0...HEAD
+[2.4.0]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/bntvllnt/codebase-intelligence/releases/tag/v2.3.0
