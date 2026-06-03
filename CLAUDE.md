@@ -66,6 +66,8 @@ npm run test        # vitest
 
 All four must pass before shipping. Run in order: lint -> typecheck -> build -> test.
 
+**CI is the merge gate (BLOCKING).** The full pipeline (lint → typecheck → build → test incl. E2E → coverage) runs in `.github/workflows/ci.yml`. Red CI blocks merge. Never suppress to pass a gate — no `eslint-disable`, no `@ts-ignore`/`@ts-expect-error`, no skipped tests. Fix the cause.
+
 ## Release Protocol
 
 ### Version Bumping
@@ -161,6 +163,7 @@ LLM knowledge base for building this tool. Single source of truth per topic:
 - Every bug fix MUST include a regression test
 - Target: maximum coverage — if code exists, it should be tested
 - No feature or fix ships without corresponding tests
+- Every CLI command, flag, MCP tool, and metric maps to at least one E2E scenario — a surface with no E2E is an incomplete feature (BLOCKING)
 
 ### Real Environment Tests (MANDATORY)
 
@@ -178,7 +181,14 @@ LLM knowledge base for building this tool. Single source of truth per topic:
 | Graph | Real parsed files -> real graph builder, assert nodes/edges |
 | Analyzer | Real graph -> real metrics, assert values |
 | MCP | Real MCP server instance, assert tool responses |
-| CLI | Real process execution where feasible |
+| CLI | Real process execution — spawn built binary, assert stdout/stderr/exit + side-effects |
+
+### E2E (CLI + MCP) — BLOCKING
+
+- Every CLI command and every MCP tool MUST have an E2E test that exercises the REAL surface — spawn the built binary (`node dist/cli.js …` / `npx codebase-intelligence …`) or a real MCP stdio server — and asserts real output, exit code, and any files/side-effects. No internal mocks (see Anti-Patterns).
+- Full lifecycle for stateful commands: e.g. `init` asserts the files it writes, idempotency (re-run is safe), and `--json` shape — not just exit 0.
+- New command, new flag, or new MCP tool = new or updated E2E test in the same change. A behavior change with no E2E update fails the gate.
+- "E2E" here means CLI/MCP real-process tests. Browser E2E (Playwright/Maestro) does NOT apply — this package has no UI. This project rule overrides the global ui-testing rule.
 
 ### Anti-Patterns (NEVER)
 
