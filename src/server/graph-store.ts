@@ -5,6 +5,8 @@ declare global {
   var __codebaseGraph: CodebaseGraph | undefined;
 
   var __indexedHeadHash: string | undefined;
+
+  var __codebaseRoot: string | undefined;
 }
 
 export function setGraph(graph: CodebaseGraph): void {
@@ -24,4 +26,12 @@ export function setIndexedHead(hash: string): void {
 
 export function getIndexedHead(): string {
   return globalThis.__indexedHeadHash ?? "";
+}
+
+export function setRoot(root: string): void {
+  globalThis.__codebaseRoot = root;
+}
+
+export function getRoot(): string {
+  return globalThis.__codebaseRoot ?? process.cwd();
 }

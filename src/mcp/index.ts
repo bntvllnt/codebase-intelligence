@@ -7,7 +7,8 @@ import type { CodebaseGraph } from "../types/index.js";
 const require = createRequire(import.meta.url);
 const pkg = require("../../package.json") as { version: string };
 import { getHints } from "./hints.js";
-import { getIndexedHead } from "../server/graph-store.js";
+import { getIndexedHead, getRoot } from "../server/graph-store.js";
+import { runCheck } from "../rules/check.js";
 import {
   computeOverview,
   computeFileContext,
@@ -408,6 +409,25 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
           mimeType: "application/json",
         }],
       };
+    }
+  );
+
+  // Tool: check — run the configurable rules engine and gate
+  server.tool(
+    "check",
+    "Run the rules engine (comments, circular deps, dead exports) and return findings with a pass/warn/fail verdict. Use when: linting a codebase or enforcing CI gates. Not for: architecture metrics (use analyze_forces)",
+    {},
+    async () => {
+      try {
+        const result = runCheck(graph, getRoot());
+        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ error: message }) }],
+          isError: true,
+        };
+      }
     }
   );
 }

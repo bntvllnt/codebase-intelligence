@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-15 tools available via MCP stdio.
+16 tools available via MCP stdio.
 
 ## 1. codebase_overview
 
@@ -155,6 +155,18 @@ Community-detected clusters of related files.
 **Use when:** "What files are related?" "Find natural groupings." Discovering emergent groupings that differ from directory structure.
 **Not for:** Directory-based modules (use get_module_structure).
 
+## 16. check
+
+Run the configurable rules engine and gate on findings.
+
+**Input:** `{}` (uses the loaded graph + discovered config)
+**Returns:** `{ verdict: "pass"|"warn"|"fail", summary: { error, warn, rules }, configPath, findings[] }`. Each finding has ruleId, severity, file, line, column, message, fingerprint, and optional advisory `actions[]` (the tool is read-only — actions are hints, never applied).
+
+Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn). Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
+
+**Use when:** Linting a codebase or enforcing a CI gate. "What rule violations exist?"
+**Not for:** Architecture metrics (use analyze_forces).
+
 ## MCP Prompts
 
 | Prompt | Description |
@@ -190,3 +202,4 @@ Community-detected clusters of related files.
 | "How does data flow through the app?" | `get_processes` |
 | "What files naturally belong together?" | `get_clusters` |
 | "What are the main areas?" | `get_groups` |
+| "What rule violations exist? Lint this." | `check` |
