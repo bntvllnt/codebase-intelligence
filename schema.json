@@ -1,0 +1,345 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/bntvllnt/codebase-intelligence/main/schema.json",
+  "title": "Codebase Intelligence configuration",
+  "description": "Configuration for the codebase-intelligence CLI, MCP server, and CI gate. Place in a file named codebase-intelligence.json (or .codebase-intelligence.json / .codebase-intelligencerc.json) at the project root.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Path or URL to this JSON Schema, for editor autocomplete and validation."
+    },
+    "root": {
+      "type": "string",
+      "description": "Project root to analyze, relative to the config file.",
+      "default": "."
+    },
+    "include": {
+      "type": "array",
+      "description": "Glob patterns of files to analyze. Defaults to all .ts/.tsx not ignored.",
+      "items": { "type": "string" },
+      "default": ["**/*.ts", "**/*.tsx"]
+    },
+    "exclude": {
+      "type": "array",
+      "description": "Glob patterns to exclude from analysis (in addition to .gitignore, node_modules, .d.ts).",
+      "items": { "type": "string" },
+      "default": ["**/*.test.ts", "**/*.spec.ts", "dist/**"]
+    },
+    "entry": {
+      "type": "array",
+      "description": "Entry-point files or globs. Exports reachable from entries are never reported as dead. Framework conventions (Next.js routes, Convex functions, test files) are auto-detected on top of this.",
+      "items": { "type": "string" }
+    },
+    "ignore": {
+      "type": "object",
+      "description": "Suppress whole categories of findings.",
+      "additionalProperties": false,
+      "properties": {
+        "dependencies": {
+          "type": "array",
+          "description": "Package names never reported as unused/unlisted.",
+          "items": { "type": "string" }
+        },
+        "unresolvedImports": {
+          "type": "array",
+          "description": "Import specifier patterns to treat as resolvable (e.g. virtual modules).",
+          "items": { "type": "string" }
+        },
+        "exportsUsedInFile": {
+          "type": "boolean",
+          "description": "If true, an export referenced anywhere in its own file is not reported as dead.",
+          "default": false
+        }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "description": "Rule configuration, ESLint-style. Each key is a rule id; the value is a severity ('off' | 'warn' | 'error' or 0 | 1 | 2), or a tuple [severity, options]. Unknown rule ids are validated against the generic entry shape so custom rules are allowed.",
+      "additionalProperties": { "$ref": "#/$defs/ruleEntry" },
+      "properties": {
+        "no-circular-deps": {
+          "$ref": "#/$defs/severity",
+          "description": "Forbid circular dependencies between files/modules."
+        },
+        "no-dead-exports": {
+          "$ref": "#/$defs/severity",
+          "description": "Report exported symbols that are never imported (respecting entry points + framework awareness)."
+        },
+        "no-dead-files": {
+          "$ref": "#/$defs/severity",
+          "description": "Report files unreachable from any entry point."
+        },
+        "no-unused-deps": {
+          "$ref": "#/$defs/severity",
+          "description": "Report package.json dependencies that are never imported."
+        },
+        "no-duplication": {
+          "description": "Report duplicated code (clone families).",
+          "oneOf": [
+            { "$ref": "#/$defs/severity" },
+            {
+              "type": "array",
+              "prefixItems": [
+                { "$ref": "#/$defs/severity" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "minTokens": { "type": "integer", "minimum": 10, "default": 50 },
+                    "mode": { "enum": ["strict", "mild", "weak"], "default": "mild" },
+                    "skipLocal": { "type": "boolean", "default": false, "description": "Only report clones that span different directories." }
+                  }
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 2
+            }
+          ]
+        },
+        "max-cyclomatic-complexity": {
+          "description": "Forbid functions above a cyclomatic-complexity threshold.",
+          "oneOf": [
+            { "$ref": "#/$defs/severity" },
+            {
+              "type": "array",
+              "prefixItems": [
+                { "$ref": "#/$defs/severity" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": { "max": { "type": "integer", "minimum": 1, "default": 15 } }
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 2
+            }
+          ]
+        },
+        "max-cognitive-complexity": {
+          "description": "Forbid functions above a cognitive-complexity threshold.",
+          "oneOf": [
+            { "$ref": "#/$defs/severity" },
+            {
+              "type": "array",
+              "prefixItems": [
+                { "$ref": "#/$defs/severity" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": { "max": { "type": "integer", "minimum": 1, "default": 20 } }
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 2
+            }
+          ]
+        },
+        "no-boundary-violations": {
+          "$ref": "#/$defs/severity",
+          "description": "Forbid imports that cross a forbidden architecture boundary (see top-level 'boundaries')."
+        },
+        "no-divergent-paths": {
+          "description": "Highways gate: forbid more than N divergent code paths for one logical data operation (low data-path reuse).",
+          "oneOf": [
+            { "$ref": "#/$defs/severity" },
+            {
+              "type": "array",
+              "prefixItems": [
+                { "$ref": "#/$defs/severity" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "minRoutes": { "type": "integer", "minimum": 2, "default": 3, "description": "Flag an operation group with at least this many divergent routes." },
+                    "maxConvergenceRatio": { "type": "number", "minimum": 0, "maximum": 1, "default": 0.34, "description": "Flag only when shared-intermediate ratio is below this." }
+                  }
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 2
+            }
+          ]
+        },
+        "no-comments": {
+          "description": "Forbid comments. By default forbids // line comments while allowing JSDoc, compiler/tool directives, and a license header. Set style:'all' to forbid every comment.",
+          "oneOf": [
+            { "$ref": "#/$defs/severity" },
+            {
+              "type": "array",
+              "prefixItems": [
+                { "$ref": "#/$defs/severity" },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "style": {
+                      "enum": ["line", "block", "all"],
+                      "default": "line",
+                      "description": "Which comment kinds to forbid: 'line' (//), 'block' (/* */), or 'all'."
+                    },
+                    "allowJSDoc": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "Allow /** ... */ JSDoc/TSDoc blocks."
+                    },
+                    "allowDirectives": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "Allow directive comments such as @ts-expect-error, @ts-ignore, eslint-disable, and this tool's own ci-ignore comments."
+                    },
+                    "allowLicenseHeader": {
+                      "type": "boolean",
+                      "default": true,
+                      "description": "Allow a comment at the very top of a file (license/banner)."
+                    },
+                    "allow": {
+                      "type": "array",
+                      "description": "Additional substrings/patterns whose comments are allowed (e.g. 'TODO', 'FIXME', '@public').",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              ],
+              "minItems": 1,
+              "maxItems": 2
+            }
+          ]
+        }
+      }
+    },
+    "boundaries": {
+      "type": "object",
+      "description": "Architecture boundary rules. Used by the no-boundary-violations rule.",
+      "additionalProperties": false,
+      "properties": {
+        "preset": {
+          "enum": ["layered", "hexagonal", "feature-sliced"],
+          "description": "Start from a preset architecture, then override with zones/rules."
+        },
+        "zones": {
+          "type": "array",
+          "description": "Named logical areas of the codebase.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "patterns"],
+            "properties": {
+              "name": { "type": "string" },
+              "patterns": { "type": "array", "items": { "type": "string" } },
+              "autoDiscover": { "type": "boolean", "default": false }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "description": "Directed allow/forbid edges between zones.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["from"],
+            "properties": {
+              "from": { "type": "string", "description": "Source zone name." },
+              "allow": { "type": "array", "items": { "type": "string" }, "description": "Zone names this zone may import." },
+              "forbid": { "type": "array", "items": { "type": "string" }, "description": "Zone names this zone may not import." }
+            }
+          }
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "description": "Composite-score gates.",
+      "additionalProperties": false,
+      "properties": {
+        "health": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "minScore": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100,
+              "description": "Fail if the 0-100 health score is below this."
+            }
+          }
+        }
+      }
+    },
+    "output": {
+      "type": "object",
+      "description": "Default output options (CLI flags override these).",
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "enum": ["text", "json", "sarif", "markdown", "annotations", "pr-comment-github", "pr-comment-gitlab", "badge"],
+          "default": "text"
+        },
+        "quiet": { "type": "boolean", "default": false },
+        "summary": { "type": "boolean", "default": false }
+      }
+    },
+    "baseline": {
+      "type": "string",
+      "description": "Path to a baseline file. When set, the CI gate fails only on findings not present in the baseline."
+    },
+    "ci": {
+      "type": "object",
+      "description": "Continuous-integration gate behavior.",
+      "additionalProperties": false,
+      "properties": {
+        "gate": {
+          "enum": ["all", "new-only"],
+          "default": "new-only",
+          "description": "Fail on all findings, or only on findings introduced since --base."
+        },
+        "failOn": {
+          "enum": ["error", "warn", "never"],
+          "default": "error",
+          "description": "Minimum severity that makes the process exit non-zero."
+        },
+        "maxWarnings": {
+          "type": "integer",
+          "minimum": -1,
+          "default": -1,
+          "description": "Fail if warnings exceed this count. -1 disables the warning gate."
+        },
+        "tolerance": {
+          "type": "number",
+          "minimum": 0,
+          "default": 0,
+          "description": "Allowed percent growth in findings vs baseline before failing."
+        },
+        "base": {
+          "type": "string",
+          "description": "Git ref to diff against for new-only gating (e.g. origin/main). Overridable with --base."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "severity": {
+      "description": "Rule severity: 'off' | 'warn' | 'error', or numeric 0 | 1 | 2.",
+      "oneOf": [
+        { "enum": ["off", "warn", "error"] },
+        { "enum": [0, 1, 2] }
+      ]
+    },
+    "ruleEntry": {
+      "description": "A rule severity, or a [severity, options] tuple.",
+      "oneOf": [
+        { "$ref": "#/$defs/severity" },
+        {
+          "type": "array",
+          "prefixItems": [
+            { "$ref": "#/$defs/severity" },
+            { "type": "object" }
+          ],
+          "minItems": 1,
+          "maxItems": 2
+        }
+      ]
+    }
+  }
+}

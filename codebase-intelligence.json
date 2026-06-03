@@ -1,0 +1,49 @@
+{
+  "$schema": "./schema.json",
+  "root": ".",
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "tests/**", "dist/**"],
+  "entry": ["src/cli.ts"],
+  "ignore": {
+    "exportsUsedInFile": false
+  },
+  "rules": {
+    "no-circular-deps": "error",
+    "no-dead-exports": "warn",
+    "no-dead-files": "warn",
+    "no-unused-deps": "warn",
+    "no-duplication": ["warn", { "minTokens": 50, "mode": "mild" }],
+    "max-cyclomatic-complexity": ["warn", { "max": 20 }],
+    "no-boundary-violations": "warn",
+    "no-divergent-paths": "off",
+    "no-comments": "off"
+  },
+  "boundaries": {
+    "zones": [
+      { "name": "types", "patterns": ["src/types/**"] },
+      { "name": "parser", "patterns": ["src/parser/**"] },
+      { "name": "graph", "patterns": ["src/graph/**"] },
+      { "name": "analyzer", "patterns": ["src/analyzer/**"] },
+      { "name": "core", "patterns": ["src/core/**"] },
+      { "name": "surfaces", "patterns": ["src/cli.ts", "src/mcp/**"] }
+    ],
+    "rules": [
+      { "from": "types", "forbid": ["parser", "graph", "analyzer", "core", "surfaces"] },
+      { "from": "parser", "allow": ["types"] },
+      { "from": "graph", "allow": ["types", "parser"] },
+      { "from": "analyzer", "allow": ["types", "graph"] }
+    ]
+  },
+  "thresholds": {
+    "health": { "minScore": 80 }
+  },
+  "output": {
+    "format": "text",
+    "quiet": false
+  },
+  "ci": {
+    "gate": "new-only",
+    "failOn": "error",
+    "maxWarnings": -1
+  }
+}
