@@ -9,6 +9,7 @@ const pkg = require("../../package.json") as { version: string };
 import { getHints } from "./hints.js";
 import { getIndexedHead, getRoot } from "../server/graph-store.js";
 import { runCheck } from "../rules/check.js";
+import { formatJson } from "../rules/format.js";
 import {
   computeOverview,
   computeFileContext,
@@ -392,7 +393,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
           "codebase_overview", "file_context", "get_dependents", "find_hotspots",
           "get_module_structure", "analyze_forces", "find_dead_exports", "get_groups",
           "symbol_context", "search", "detect_changes", "impact_analysis", "rename_symbol",
-          "get_processes", "get_clusters",
+          "get_processes", "get_clusters", "check",
         ],
         indexedHead,
         gettingStarted: [
@@ -415,12 +416,12 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   // Tool: check — run the configurable rules engine and gate
   server.tool(
     "check",
-    "Run the rules engine (comments, circular deps, dead exports) and return findings with a pass/warn/fail verdict. Use when: linting a codebase or enforcing CI gates. Not for: architecture metrics (use analyze_forces)",
+    "Run the configured rules engine and return findings with a pass/warn/fail verdict (rules + severities come from codebase-intelligence.json). Use when: linting a codebase or enforcing CI gates. Not for: architecture metrics (use analyze_forces)",
     {},
     async () => {
       try {
         const result = runCheck(graph, getRoot());
-        return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+        return { content: [{ type: "text" as const, text: formatJson(result) }] };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         return {

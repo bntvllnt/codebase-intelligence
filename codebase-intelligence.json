@@ -42,7 +42,7 @@
     "quiet": false
   },
   "ci": {
-    "gate": "new-only",
+    "gate": "all",
     "failOn": "error",
     "maxWarnings": -1
   }

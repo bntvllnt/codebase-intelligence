@@ -1,4 +1,12 @@
 import type { CheckResult, OutputFormat } from "../types/index.js";
+import { ALL_RULES } from "./registry.js";
+
+const RULE_DESCRIPTIONS = new Map(ALL_RULES.map((r) => [r.id, r.meta.description]));
+
+/** "N error(s), M warning(s) — VERDICT" — shared by text output and the CLI --summary flag. */
+export function formatSummaryLine(result: CheckResult): string {
+  return `${String(result.summary.error)} error(s), ${String(result.summary.warn)} warning(s) — ${result.verdict.toUpperCase()}`;
+}
 
 export function formatJson(result: CheckResult): string {
   return JSON.stringify(
@@ -31,9 +39,7 @@ export function formatText(result: CheckResult): string {
     lines.push("");
   }
 
-  lines.push(
-    `${String(result.summary.error)} error(s), ${String(result.summary.warn)} warning(s) — ${result.verdict.toUpperCase()}`,
-  );
+  lines.push(formatSummaryLine(result));
   return lines.join("\n");
 }
 
@@ -47,7 +53,10 @@ export function formatSarif(result: CheckResult): string {
         tool: {
           driver: {
             name: "codebase-intelligence",
-            rules: ruleIds.map((id) => ({ id })),
+            rules: ruleIds.map((id) => ({
+              id,
+              shortDescription: { text: RULE_DESCRIPTIONS.get(id) ?? id },
+            })),
           },
         },
         results: result.findings.map((f) => ({
@@ -58,11 +67,17 @@ export function formatSarif(result: CheckResult): string {
             {
               physicalLocation: {
                 artifactLocation: { uri: f.file },
-                region: { startLine: f.line, startColumn: f.column },
+                region: {
+                  startLine: f.line,
+                  startColumn: f.column,
+                  ...(f.endLine !== undefined ? { endLine: f.endLine } : {}),
+                  ...(f.endColumn !== undefined ? { endColumn: f.endColumn } : {}),
+                },
               },
             },
           ],
-          fingerprints: { ciFingerprint: f.fingerprint },
+          // Position-derived key — may shift when lines change, hence partialFingerprints.
+          partialFingerprints: { ciFingerprint: f.fingerprint },
         })),
       },
     ],

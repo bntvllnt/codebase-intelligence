@@ -196,7 +196,7 @@
                     },
                     "allow": {
                       "type": "array",
-                      "description": "Additional substrings/patterns whose comments are allowed (e.g. 'TODO', 'FIXME', '@public').",
+                      "description": "Allow comments whose body (delimiters stripped) starts with one of these strings, e.g. 'TODO', 'FIXME', '@public'.",
                       "items": { "type": "string" }
                     }
                   }

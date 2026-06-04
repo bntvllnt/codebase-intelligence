@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { parseCodebase } from "../src/parser/index.js";
 import { buildGraph } from "../src/graph/index.js";
 import { analyzeGraph } from "../src/analyzer/index.js";
@@ -209,5 +210,71 @@ describe("verdict gating", () => {
   it("maxWarnings turns warnings into a failure", () => {
     const result = projectResult(DEAD_FILES, { rules: { "no-circular-deps": "off" }, ci: { maxWarnings: 0 } });
     expect(result.verdict).toBe("fail");
+  });
+
+  it("failOn:never disables the maxWarnings gate too", () => {
+    const result = projectResult(DEAD_FILES, {
+      rules: { "no-circular-deps": "off" },
+      ci: { failOn: "never", maxWarnings: 0 },
+    });
+    expect(result.verdict).not.toBe("fail");
+  });
+});
+
+describe("no-comments precision (post-review)", () => {
+  it("block-comment ci-ignore-file suppresses the whole file", () => {
+    const findings = project(
+      { "src/x.ts": "export const x = 1;\n/* ci-ignore-file no-comments */\nexport const y = x; // hidden\n" },
+      { rules: { "no-comments": "error", "no-dead-exports": "off" } },
+    );
+    expect(ids(findings)).not.toContain("no-comments");
+  });
+
+  it("allow matches comment-body prefix, not arbitrary substrings", () => {
+    const kept = project(
+      { "src/x.ts": "export const x = 1;\nexport const y = x; // TODO later\n" },
+      { rules: { "no-comments": ["error", { allow: ["TODO"] }], "no-dead-exports": "off" } },
+    );
+    expect(ids(kept)).not.toContain("no-comments");
+
+    // allow:["a"] must NOT over-allow "// bad" (substring "a") — body "bad" does not start with "a".
+    const flagged = project(
+      { "src/x.ts": "export const x = 1;\nexport const y = x; // bad\n" },
+      { rules: { "no-comments": ["error", { allow: ["a"] }], "no-dead-exports": "off" } },
+    );
+    expect(ids(flagged)).toContain("no-comments");
+  });
+});
+
+describe("new-only gate", () => {
+  function git(dir: string, args: string[]): string {
+    return execFileSync("git", args, { cwd: dir, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  }
+
+  it("filters findings to files changed since base", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-newonly-"));
+    created.push(dir);
+    fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "src", "old.ts"), "export function old(): number { return 1; }\n");
+    fs.writeFileSync(path.join(dir, "codebase-intelligence.json"), JSON.stringify({ rules: { "no-circular-deps": "off" } }));
+    git(dir, ["init"]);
+    git(dir, ["config", "user.email", "t@example.com"]);
+    git(dir, ["config", "user.name", "t"]);
+    git(dir, ["add", "-A"]);
+    git(dir, ["commit", "-m", "base", "--no-gpg-sign"]);
+    const base = git(dir, ["rev-parse", "HEAD"]);
+    fs.writeFileSync(path.join(dir, "src", "new.ts"), "export function fresh(): number { return 2; }\n");
+    git(dir, ["add", "-A"]);
+    git(dir, ["commit", "-m", "new", "--no-gpg-sign"]);
+
+    const parsed = parseCodebase(dir);
+    const graph = analyzeGraph(buildGraph(parsed), parsed);
+
+    const full = runCheck(graph, dir).findings.filter((f) => f.ruleId === "no-dead-exports");
+    expect(full.length).toBeGreaterThanOrEqual(2);
+
+    const gated = runCheck(graph, dir, { gate: "new-only", base }).findings;
+    expect(gated.length).toBeGreaterThanOrEqual(1);
+    expect(gated.every((f) => f.file === "src/new.ts")).toBe(true);
   });
 });

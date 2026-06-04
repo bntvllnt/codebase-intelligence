@@ -39,8 +39,14 @@ function shouldReport(
   if (o.allowJSDoc && isJsDoc) return false;
   if (o.allowDirectives && DIRECTIVE_RE.test(text)) return false;
   if (o.allowLicenseHeader && start === firstNonWs) return false;
-  if (o.allow.some((p) => text.includes(p))) return false;
+  const body = commentBody(text);
+  if (o.allow.some((p) => body.startsWith(p))) return false;
   return true;
+}
+
+/** Comment text with delimiters stripped, e.g. "// TODO x" -> "TODO x". */
+function commentBody(text: string): string {
+  return text.replace(/^\/\*+|^\/\/+/, "").replace(/\*\/$/, "").trim();
 }
 
 /**

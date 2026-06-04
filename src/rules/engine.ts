@@ -54,6 +54,11 @@ function resolveSetting(
   return { severity: normalizeSeverity(setting), options: undefined };
 }
 
+/**
+ * Per-finding identifier. Position-derived (includes line) so it is unique within a file;
+ * it shifts when earlier lines are added/removed, so it is emitted as a SARIF
+ * partialFingerprint, not a stable cross-revision baseline key.
+ */
 function fingerprint(ruleId: string, file: string, line: number, message: string): string {
   return createHash("sha1").update(`${ruleId}|${file}|${String(line)}|${message}`).digest("hex").slice(0, 12);
 }
@@ -65,7 +70,8 @@ interface FileSuppressions {
   lineRules: Map<number, RuleSet>;
 }
 
-const SUPPRESS_RE = /\/\/\s*ci-ignore-(file|next-line)\b([^\n]*)/;
+// Matches both line (`// ci-ignore-...`) and block (`/* ci-ignore-... */`) forms.
+const SUPPRESS_RE = /(?:\/\/|\/\*)\s*ci-ignore-(file|next-line)\b([^\n*]*)/;
 
 function mergeRuleSet(existing: RuleSet | null, incoming: RuleSet): RuleSet {
   if (existing === null) return incoming;
@@ -127,8 +133,11 @@ export function runEngine(
     let reported: ReportedFinding[];
     try {
       reported = rule.run(ctx, options);
-    } catch {
-      // A rule that throws drops to zero findings rather than crashing the whole run.
+    } catch (err) {
+      // A failing rule drops to zero findings rather than crashing the whole run, but we
+      // surface it so a broken rule is never a silent false-negative in CI.
+      const reason = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Warning: rule '${rule.id}' threw during analysis (${reason}); its findings are omitted.\n`);
       continue;
     }
 

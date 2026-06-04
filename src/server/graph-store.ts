@@ -32,6 +32,11 @@ export function setRoot(root: string): void {
   globalThis.__codebaseRoot = root;
 }
 
+/**
+ * Project root for the loaded graph. Falls back to process.cwd() if setRoot was never
+ * called — every CLI/MCP entry point calls setRoot first, so the fallback only applies to
+ * embedded/standalone use (where it may resolve the wrong directory).
+ */
 export function getRoot(): string {
   return globalThis.__codebaseRoot ?? process.cwd();
 }

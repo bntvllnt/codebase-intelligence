@@ -254,7 +254,7 @@ export type RuleSetting =
   | 0
   | 1
   | 2
-  | [Severity | 0 | 1 | 2, Record<string, unknown>];
+  | [Exclude<Severity, "off"> | 1 | 2, Record<string, unknown>];
 
 export interface BoundaryZone {
   name: string;
@@ -300,8 +300,11 @@ export interface CodebaseIntelligenceConfig {
   };
 }
 
+export type ActionKind = "remove-comment";
+
 export interface FindingAction {
-  kind: string;
+  kind: ActionKind;
+  /** snake_case is intentional — this is an agent-facing wire field. */
   auto_fixable: boolean;
   range?: { start: number; end: number };
 }

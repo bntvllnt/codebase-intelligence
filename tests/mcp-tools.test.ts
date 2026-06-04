@@ -459,6 +459,7 @@ describe("MCP Resources", () => {
     expect(setup).toHaveProperty("project", "codebase-intelligence");
     expect(setup).toHaveProperty("indexedHead", "abc123-test");
     expect(setup).toHaveProperty("availableTools");
-    expect((setup.availableTools as string[]).length).toBe(15);
+    expect((setup.availableTools as string[]).length).toBe(16);
+    expect(setup.availableTools as string[]).toContain("check");
   });
 });

@@ -48,7 +48,7 @@ import {
 } from "./install/index.js";
 import { promptSelection } from "./install/prompt.js";
 import { runCheck, exitCodeFor } from "./rules/check.js";
-import { formatResult } from "./rules/format.js";
+import { formatResult, formatSummaryLine } from "./rules/format.js";
 import { ConfigError } from "./config/index.js";
 import type { CodebaseGraph, OutputFormat } from "./types/index.js";
 
@@ -1085,12 +1085,9 @@ program
         summary: options.summary,
       });
 
-      if (options.summary) {
-        output(
-          `${String(result.summary.error)} error(s), ${String(result.summary.warn)} warning(s) — ${result.verdict.toUpperCase()}`,
-        );
-      } else if (!(options.quiet && result.verdict === "pass")) {
-        output(formatResult(result, format));
+      const silent = options.quiet === true && result.verdict === "pass";
+      if (!silent) {
+        output(options.summary ? formatSummaryLine(result) : formatResult(result, format));
       }
 
       process.exit(exitCodeFor(result));

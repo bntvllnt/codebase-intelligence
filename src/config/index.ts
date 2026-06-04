@@ -38,9 +38,12 @@ const severitySchema = z.union([
   z.literal(2),
 ]);
 
+// Options only make sense for an enabled rule — "off"/0 with options is rejected.
+const activeSeveritySchema = z.union([z.enum(["warn", "error"]), z.literal(1), z.literal(2)]);
+
 const ruleSettingSchema = z.union([
   severitySchema,
-  z.tuple([severitySchema, z.record(z.string(), z.unknown())]),
+  z.tuple([activeSeveritySchema, z.record(z.string(), z.unknown())]),
 ]);
 
 const configSchema = z
@@ -134,6 +137,8 @@ export function findConfigFile(startDir: string): string | null {
         /* malformed package.json — keep walking */
       }
     }
+    // Stop at the repository root — don't inherit ambient config from parent directories.
+    if (fs.existsSync(path.join(dir, ".git"))) return null;
     const parent = path.dirname(dir);
     if (parent === dir) return null;
     dir = parent;
@@ -173,14 +178,21 @@ export function loadConfig(
   let configPath: string | null = null;
 
   if (file) {
-    if (!fs.existsSync(file)) throw new ConfigError(`Config file not found: ${file}`, file);
+    if (!fs.existsSync(file)) throw new ConfigError(`Config file not found: ${path.basename(file)}`, file);
     configPath = file;
+
+    let contents: string;
+    try {
+      contents = fs.readFileSync(file, "utf-8");
+    } catch {
+      throw new ConfigError(`Config file is not readable: ${path.basename(file)}`, file);
+    }
 
     let parsed: unknown;
     try {
-      parsed = JSON.parse(fs.readFileSync(file, "utf-8"));
+      parsed = JSON.parse(contents);
     } catch {
-      throw new ConfigError(`Invalid JSON in config file: ${file}`, file);
+      throw new ConfigError(`Invalid JSON in config file: ${path.basename(file)}`, file);
     }
 
     if (path.basename(file) === "package.json") {

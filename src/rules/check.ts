@@ -1,3 +1,4 @@
+import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import type {
@@ -32,14 +33,35 @@ function computeVerdict(summary: CheckSummary, config: CodebaseIntelligenceConfi
   let failing = false;
   if (failOn === "error") failing = summary.error > 0;
   else if (failOn === "warn") failing = summary.error > 0 || summary.warn > 0;
-  if (maxWarnings >= 0 && summary.warn > maxWarnings) failing = true;
+  // maxWarnings is an independent count gate, but failOn:"never" disables all gating.
+  if (failOn !== "never" && maxWarnings >= 0 && summary.warn > maxWarnings) failing = true;
 
   return failing ? "fail" : "warn";
+}
+
+/** Files changed since baseRef (git, repo-relative paths). null when git/base is unavailable. */
+function changedFilesSince(rootDir: string, baseRef: string): Set<string> | null {
+  try {
+    const out = execFileSync("git", ["diff", "--name-only", `${baseRef}...HEAD`], {
+      cwd: rootDir,
+      encoding: "utf-8",
+      timeout: 10000,
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return new Set(out.split("\n").map((l) => l.trim()).filter(Boolean));
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Run the rules engine against an analyzed graph and return findings + verdict.
  * Loads config (discovery or overrides.configPath) — throws ConfigError on bad config.
+ *
+ * When config.ci.gate is "new-only", findings are filtered to files changed since
+ * config.ci.base (file-level new-vs-base gating; assumes rootDir is the repo root).
+ * Source reads are confined to rootDir (symlinks resolving outside are dropped).
  */
 export function runCheck(
   graph: CodebaseGraph,
@@ -47,14 +69,25 @@ export function runCheck(
   overrides?: ConfigOverrides,
 ): CheckResult {
   const { config, configPath } = loadConfig(rootDir, overrides);
+  const resolvedRoot = path.resolve(rootDir);
+  let realRoot = resolvedRoot;
+  try {
+    realRoot = fs.realpathSync(resolvedRoot);
+  } catch {
+    /* root not resolvable — keep the lexical path */
+  }
 
   const fileRelPaths = graph.nodes.filter((n) => n.type === "file").map((n) => n.id);
   const cache = new Map<string, string | null>();
   const sourceOf = (rel: string): string | null => {
     if (cache.has(rel)) return cache.get(rel) ?? null;
-    let text: string | null;
+    let text: string | null = null;
     try {
-      text = fs.readFileSync(path.join(rootDir, rel), "utf-8");
+      const real = fs.realpathSync(path.resolve(realRoot, rel));
+      // Confinement: never read a path (or symlink target) outside the project root.
+      if (real === realRoot || real.startsWith(realRoot + path.sep)) {
+        text = fs.readFileSync(real, "utf-8");
+      }
     } catch {
       text = null;
     }
@@ -62,8 +95,23 @@ export function runCheck(
     return text;
   };
 
-  const ctx: RuleContext = { graph, rootDir, config, fileRelPaths, sourceOf };
-  const findings = runEngine(ctx, ALL_RULES, config);
+  const ctx: RuleContext = { graph, rootDir: resolvedRoot, config, fileRelPaths, sourceOf };
+  let findings = runEngine(ctx, ALL_RULES, config);
+
+  if (config.ci?.gate === "new-only") {
+    const base = config.ci.base;
+    if (!base) {
+      process.stderr.write("Warning: gate 'new-only' requires a base ref (--base); running full check.\n");
+    } else {
+      const changed = changedFilesSince(resolvedRoot, base);
+      if (changed === null) {
+        process.stderr.write(`Warning: could not diff against '${base}'; running full check.\n`);
+      } else {
+        findings = findings.filter((f) => changed.has(f.file));
+      }
+    }
+  }
+
   const summary = summarize(findings);
   const verdict = computeVerdict(summary, config);
   return { findings, summary, verdict, configPath };
