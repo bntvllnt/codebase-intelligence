@@ -163,6 +163,21 @@ describe("check command (e2e)", () => {
     expect(stderr).toContain("--format must be one of");
   });
 
+  it("--quiet wins over --summary on pass: no output, exit 0 (pinned contract)", async () => {
+    const dir = makeProject(CLEAN, { rules: {} });
+    const { status, stdout } = await run(["check", dir, "--quiet", "--summary"]);
+    expect(status).toBe(0);
+    expect(stdout.trim()).toBe("");
+  });
+
+  it("--quiet --summary still prints the summary line on failure", async () => {
+    const dir = makeProject(CIRCULAR, { rules: { "no-dead-exports": "off" } });
+    const { status, stdout } = await run(["check", dir, "--quiet", "--summary"]);
+    expect(status).toBe(1);
+    expect(stdout).toContain("error(s)");
+    expect(stdout).toContain("FAIL");
+  });
+
   it("accepts an explicit --config path", async () => {
     const dir = makeProject(CIRCULAR);
     const cfg = path.join(dir, "custom.json");

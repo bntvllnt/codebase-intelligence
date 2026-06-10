@@ -247,8 +247,16 @@ describe("no-comments precision (post-review)", () => {
 });
 
 describe("new-only gate", () => {
+  // Hermetic git identity — independent of global config / CI env.
+  const GIT_ENV = {
+    ...process.env,
+    GIT_AUTHOR_NAME: "t",
+    GIT_AUTHOR_EMAIL: "t@example.com",
+    GIT_COMMITTER_NAME: "t",
+    GIT_COMMITTER_EMAIL: "t@example.com",
+  };
   function git(dir: string, args: string[]): string {
-    return execFileSync("git", args, { cwd: dir, encoding: "utf-8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", args, { cwd: dir, encoding: "utf-8", env: GIT_ENV, stdio: ["ignore", "pipe", "ignore"] }).trim();
   }
 
   it("filters findings to files changed since base", () => {
@@ -274,6 +282,29 @@ describe("new-only gate", () => {
     expect(full.length).toBeGreaterThanOrEqual(2);
 
     const gated = runCheck(graph, dir, { gate: "new-only", base }).findings;
+    expect(gated.length).toBeGreaterThanOrEqual(1);
+    expect(gated.every((f) => f.file === "src/new.ts")).toBe(true);
+  });
+
+  it("works when the check target is a subdirectory of the repo (regression: silent false-pass)", () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), "ci-newonly-sub-"));
+    created.push(repo);
+    const app = path.join(repo, "app");
+    fs.mkdirSync(path.join(app, "src"), { recursive: true });
+    fs.writeFileSync(path.join(app, "src", "old.ts"), "export function old(): number { return 1; }\n");
+    fs.writeFileSync(path.join(app, "codebase-intelligence.json"), JSON.stringify({ rules: { "no-circular-deps": "off" } }));
+    git(repo, ["init"]);
+    git(repo, ["add", "-A"]);
+    git(repo, ["commit", "-m", "base", "--no-gpg-sign"]);
+    const base = git(repo, ["rev-parse", "HEAD"]);
+    fs.writeFileSync(path.join(app, "src", "new.ts"), "export function fresh(): number { return 2; }\n");
+    git(repo, ["add", "-A"]);
+    git(repo, ["commit", "-m", "new", "--no-gpg-sign"]);
+
+    // Check the SUBDIR, not the repo root — findings are app-relative, git paths repo-relative.
+    const parsed = parseCodebase(app);
+    const graph = analyzeGraph(buildGraph(parsed), parsed);
+    const gated = runCheck(graph, app, { gate: "new-only", base }).findings;
     expect(gated.length).toBeGreaterThanOrEqual(1);
     expect(gated.every((f) => f.file === "src/new.ts")).toBe(true);
   });

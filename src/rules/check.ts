@@ -39,10 +39,14 @@ function computeVerdict(summary: CheckSummary, config: CodebaseIntelligenceConfi
   return failing ? "fail" : "warn";
 }
 
-/** Files changed since baseRef (git, repo-relative paths). null when git/base is unavailable. */
+/**
+ * Files changed since baseRef, relative to rootDir (git --relative, so a check target
+ * that is a subdirectory of the repo still matches finding paths). Forward-slash
+ * normalized. null when git/base is unavailable.
+ */
 function changedFilesSince(rootDir: string, baseRef: string): Set<string> | null {
   try {
-    const out = execFileSync("git", ["diff", "--name-only", `${baseRef}...HEAD`], {
+    const out = execFileSync("git", ["diff", "--name-only", "--relative", `${baseRef}...HEAD`], {
       cwd: rootDir,
       encoding: "utf-8",
       timeout: 10000,
@@ -53,6 +57,11 @@ function changedFilesSince(rootDir: string, baseRef: string): Set<string> | null
   } catch {
     return null;
   }
+}
+
+/** Normalize a finding path to forward slashes for comparison with git output. */
+function toPosix(p: string): string {
+  return p.split(path.sep).join("/");
 }
 
 /**
@@ -107,7 +116,7 @@ export function runCheck(
       if (changed === null) {
         process.stderr.write(`Warning: could not diff against '${base}'; running full check.\n`);
       } else {
-        findings = findings.filter((f) => changed.has(f.file));
+        findings = findings.filter((f) => changed.has(toPosix(f.file)));
       }
     }
   }
