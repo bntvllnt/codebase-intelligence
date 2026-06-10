@@ -1,6 +1,6 @@
 # Spec: Config, Rules Engine & CI Gate
 
-Status: backlog · Created: 2026-06-02 · Depends on: `schema.json`, `codebase-intelligence.json`
+Status: shipped (2026-06-10, PR #42) · Created: 2026-06-02 · Depends on: `schema.json`, `codebase-intelligence.json`
 
 Adds a declarative config, an ESLint-style rules engine, and a CI gate so the tool can fail builds on policy violations (including a `no-comments` rule).
 

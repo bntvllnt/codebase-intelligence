@@ -1,7 +1,10 @@
 2026-02-18 | shipped | 3d-code-mapper-v1 | 10h→2h | 1d | 3D codebase visualizer with 6 views, 6 MCP tools, 75 tests
 2026-03-02 | shipped | mcp-parity-readme-sync | 3h→2h | 1d | 100% MCP-REST parity: +2 tools, enhanced 3 tools, 15 tool descriptions, README sync, 21 new tests
+2026-03-03 | shipped | mcp-only | 3h→- | - | Dropped web UI & REST API — MCP stdio only. PR #3. (archived retroactively)
 2026-03-11 | shipped | fix-dead-export-false-positives | 2h→1.5h | 1d | Fix 33% false positive rate: merge duplicate imports, include same-file calls, call graph consumption. 8 regression tests.
 2026-03-11 | shipped | fix-error-handling | 1h→0.5h | 1d | Consistent impact_analysis error handling, LOC off-by-one fix, empty file guard. 17 regression tests.
 2026-03-11 | shipped | fix-metrics-test-files | 2h→1.5h | 1d | Exclude test files from coverage/coupling metrics, isTestFile detection, coupling formula fix. 19 regression tests.
 2026-03-11 | shipped | feat-metric-quality | 3h→2h | 1d | LEAF verdict for single-file modules, tension suppression for type hubs/entry points, file_context path normalization. 20 regression tests.
+2026-03-12 | shipped | cli-mode | 8h→- | - | CLI parity with MCP: 15 commands, shared core extraction, AGENTS.md + llms.txt + cli-reference docs. PR #16. (archived retroactively)
 2026-05-30 | shipped | feat-agent-adoption-init | 3h→1h | 1d | `init` command: idempotent managed-block instructions for 6 agents + portable skill + registry SKILL.md. 18 tests, docs + CHANGELOG. PR #34.
+2026-06-10 | shipped | config-rules-engine | -→- | - | Declarative config + ESLint-style rules engine + `check` command CI gate. PR #42. (archived retroactively)

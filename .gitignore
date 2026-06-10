@@ -10,3 +10,17 @@ next-env.d.ts
 .vllnt/
 test-results/
 scripts/
+
+# analysis + coverage artifacts
+.code-visualizer/
+coverage/
+
+# local agent state
+.claude/
+
+# self-dogfood `init` outputs stay local (PR #35 closed unmerged)
+.cursor/
+.pi/
+GEMINI.md
+CONVENTIONS.md
+.github/copilot-instructions.md
