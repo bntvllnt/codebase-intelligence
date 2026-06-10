@@ -22,7 +22,7 @@ Core (shared computation)
   | result builders used by both MCP and CLI
   v
 MCP (stdio)                    CLI (terminal/CI)
-  | 15 tools, 2 prompts,        | 5 commands: overview, hotspots,
+  | 16 tools, 2 prompts,        | 5 commands: overview, hotspots,
   | 3 resources for LLMs        | file, search, changes + --json
 ```
 
@@ -35,7 +35,9 @@ src/
   graph/index.ts       <- graphology graph + circular dep detection
   analyzer/index.ts    <- All metric computation
   core/index.ts        <- Shared result computation (MCP + CLI)
-  mcp/index.ts         <- 15 MCP tools for LLM integration
+  config/index.ts      <- Config discovery + zod validation
+  rules/index.ts       <- Rules engine + registry (check command + MCP check tool)
+  mcp/index.ts         <- 16 MCP tools for LLM integration
   mcp/hints.ts         <- Next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
@@ -64,7 +66,7 @@ analyzeGraph(builtGraph, parsedFiles)
      }
 
 startMcpServer(codebaseGraph)
-  -> stdio MCP server with 15 tools, 2 prompts, 3 resources
+  -> stdio MCP server with 16 tools, 2 prompts, 3 resources
 ```
 
 ## Key Design Decisions

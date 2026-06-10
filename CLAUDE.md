@@ -12,7 +12,7 @@ src/
   parser/index.ts     <- TS Compiler API parser (files, functions, imports)
   graph/index.ts      <- graphology graph builder + circular dep detection
   analyzer/index.ts   <- Metrics engine (PageRank, betweenness, cohesion, tension, churn, complexity, blast radius, dead exports)
-  mcp/index.ts        <- MCP stdio server (15 tools, 2 prompts, 3 resources)
+  mcp/index.ts        <- MCP stdio server (16 tools, 2 prompts, 3 resources)
   mcp/hints.ts        <- Next-step hints for MCP tool responses
   server/graph-store.ts <- Global graph state (shared by CLI + MCP)
   impact/index.ts     <- Symbol-level impact analysis + rename planning
@@ -21,12 +21,14 @@ src/
   community/index.ts  <- Louvain clustering
   persistence/index.ts <- Graph export/import to .code-visualizer/
   install/index.ts    <- Agent adoption: managed-block engine + per-agent files + skill (init)
+  config/index.ts     <- Config discovery + zod validation (codebase-intelligence.json)
+  rules/index.ts      <- Rules engine + registry (check command + MCP check tool)
   cli.ts              <- CLI entry point (commander)
 docs/
   architecture.md     <- Pipeline, module map, data flow, design decisions
   data-model.md       <- All TypeScript interfaces with field descriptions
   metrics.md          <- Per-file + module metrics, force analysis, complexity scoring
-  mcp-tools.md        <- 15 MCP tools: inputs, outputs, use cases, selection guide
+  mcp-tools.md        <- 16 MCP tools: inputs, outputs, use cases, selection guide
 specs/
   active/             <- Current spec
 ```
@@ -149,7 +151,7 @@ LLM knowledge base for building this tool. Single source of truth per topic:
 | `docs/architecture.md` | Pipeline, module map, data flow, design decisions | New module or pipeline change |
 | `docs/data-model.md` | All TypeScript interfaces (mirrors `src/types/index.ts`) | Type changes |
 | `docs/metrics.md` | Per-file + module metrics, force analysis, complexity scoring | New metric added |
-| `docs/mcp-tools.md` | 15 MCP tools with inputs/outputs/use cases | New tool or param change |
+| `docs/mcp-tools.md` | 16 MCP tools with inputs/outputs/use cases | New tool or param change |
 
 ## Testing (BLOCKING)
 

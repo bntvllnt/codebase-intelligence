@@ -21,7 +21,7 @@ import { parseCodebase } from "./parser/index.js";
 import { buildGraph } from "./graph/index.js";
 import { analyzeGraph } from "./analyzer/index.js";
 import { startMcpServer } from "./mcp/index.js";
-import { setIndexedHead } from "./server/graph-store.js";
+import { setIndexedHead, setRoot } from "./server/graph-store.js";
 import { exportGraph, importGraph } from "./persistence/index.js";
 import {
   computeOverview,
@@ -47,7 +47,10 @@ import {
   ALL_AGENT_IDS,
 } from "./install/index.js";
 import { promptSelection } from "./install/prompt.js";
-import type { CodebaseGraph } from "./types/index.js";
+import { runCheck, exitCodeFor } from "./rules/check.js";
+import { formatResult, formatSummaryLine } from "./rules/format.js";
+import { ConfigError } from "./config/index.js";
+import type { CodebaseGraph, OutputFormat } from "./types/index.js";
 
 const INDEX_DIR_NAME = ".code-visualizer";
 
@@ -63,6 +66,7 @@ function getHeadHash(targetPath: string): string {
       cwd: path.resolve(targetPath),
       encoding: "utf-8",
       timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
     }).trim();
   } catch {
     return "unknown";
@@ -88,6 +92,7 @@ function loadGraph(targetPath: string, force = false): { graph: CodebaseGraph; h
     process.stderr.write(`Error: Path does not exist: ${targetPath}\n`);
     process.exit(1);
   }
+  setRoot(resolved);
 
   const indexDir = getIndexDir(targetPath);
   const headHash = getHeadHash(targetPath);
@@ -1011,6 +1016,90 @@ program
     output(`Re-run anytime — writes are idempotent (managed blocks only).`);
   });
 
+// ── Subcommand: check ──────────────────────────────────────
+
+interface CheckOptions extends CliCommandOptions {
+  config?: string;
+  format?: string;
+  failOn?: string;
+  gate?: string;
+  base?: string;
+  quiet?: boolean;
+  summary?: boolean;
+}
+
+function resolveCheckFormat(options: CheckOptions): OutputFormat | null {
+  if (options.json) return "json";
+  if (!options.format) return "text";
+  if (options.format === "json" || options.format === "sarif" || options.format === "text") {
+    return options.format;
+  }
+  return null;
+}
+
+function parseFailOn(value: string | undefined): "error" | "warn" | "never" | undefined | false {
+  if (value === undefined) return undefined;
+  if (value === "error" || value === "warn" || value === "never") return value;
+  return false;
+}
+
+function parseGate(value: string | undefined): "all" | "new-only" | undefined {
+  return value === "all" || value === "new-only" ? value : undefined;
+}
+
+program
+  .command("check")
+  .description("Run the rules engine and gate on findings (comments, circular deps, dead exports)")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--config <path>", "Config file path (overrides discovery)")
+  .option("--format <fmt>", "Output: text, json, or sarif (default: text)")
+  .option("--fail-on <severity>", "Severity that fails the gate: error, warn, never")
+  .option("--gate <mode>", "Gate mode: all or new-only")
+  .option("--base <ref>", "Base git ref for new-only gating")
+  .option("--quiet", "Suppress output when the result passes")
+  .option("--summary", "Print summary counts only")
+  .option("--json", "Shortcut for --format json")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: CheckOptions) => {
+    const format = resolveCheckFormat(options);
+    if (!format) {
+      process.stderr.write("Error: --format must be one of: text, json, sarif\n");
+      process.exit(2);
+    }
+
+    const failOn = parseFailOn(options.failOn);
+    if (failOn === false) {
+      process.stderr.write("Error: --fail-on must be one of: error, warn, never\n");
+      process.exit(2);
+    }
+
+    try {
+      const { graph } = loadGraph(targetPath, options.force);
+      const result = runCheck(graph, path.resolve(targetPath), {
+        configPath: options.config,
+        format,
+        failOn,
+        gate: parseGate(options.gate),
+        base: options.base,
+        quiet: options.quiet,
+        summary: options.summary,
+      });
+
+      const silent = options.quiet === true && result.verdict === "pass";
+      if (!silent) {
+        output(options.summary ? formatSummaryLine(result) : formatResult(result, format));
+      }
+
+      process.exit(exitCodeFor(result));
+    } catch (err) {
+      if (err instanceof ConfigError) {
+        process.stderr.write(`Config error: ${err.message}\n`);
+        process.exit(2);
+      }
+      throw err;
+    }
+  });
+
 // ── MCP fallback (backward compat) ──────────────────────────
 
 program
@@ -1025,6 +1114,7 @@ program
 
 async function runMcpMode(targetPath: string, options: McpOptions): Promise<void> {
   const indexDir = getIndexDir(targetPath);
+  setRoot(path.resolve(targetPath));
 
   if (options.clean) {
     if (fs.existsSync(indexDir)) {

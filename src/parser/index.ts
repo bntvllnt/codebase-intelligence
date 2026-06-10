@@ -442,7 +442,7 @@ function getGitChurn(rootDir: string): Map<string, number> {
     const output = execFileSync(
       "git",
       ["log", "--all", "--name-only", "--format="],
-      { cwd: rootDir, encoding: "utf-8", timeout: 30000, maxBuffer: 50 * 1024 * 1024 }
+      { cwd: rootDir, encoding: "utf-8", timeout: 30000, maxBuffer: 50 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"] }
     );
     for (const line of output.split("\n")) {
       const trimmed = line.trim();

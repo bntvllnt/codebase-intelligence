@@ -243,3 +243,96 @@ export interface CodebaseGraph {
     circularDeps: string[][];
   };
 }
+
+// ── Config + Rules Engine ────────────────────────────────
+
+export type Severity = "off" | "warn" | "error";
+export type FindingSeverity = "warn" | "error";
+
+export type RuleSetting =
+  | Severity
+  | 0
+  | 1
+  | 2
+  | [Exclude<Severity, "off"> | 1 | 2, Record<string, unknown>];
+
+export interface BoundaryZone {
+  name: string;
+  patterns: string[];
+  autoDiscover?: boolean;
+}
+
+export interface BoundaryRule {
+  from: string;
+  allow?: string[];
+  forbid?: string[];
+}
+
+export interface BoundariesConfig {
+  preset?: "bulletproof" | "layered" | "hexagonal" | "feature-sliced";
+  zones?: BoundaryZone[];
+  rules?: BoundaryRule[];
+}
+
+export type OutputFormat = "text" | "json" | "sarif";
+
+export interface CodebaseIntelligenceConfig {
+  root?: string;
+  include?: string[];
+  exclude?: string[];
+  entry?: string[];
+  ignore?: {
+    dependencies?: string[];
+    unresolvedImports?: string[];
+    exportsUsedInFile?: boolean;
+  };
+  rules?: Record<string, RuleSetting>;
+  boundaries?: BoundariesConfig;
+  thresholds?: { health?: { minScore?: number } };
+  output?: { format?: OutputFormat; quiet?: boolean; summary?: boolean };
+  baseline?: string;
+  ci?: {
+    gate?: "all" | "new-only";
+    failOn?: FindingSeverity | "never";
+    maxWarnings?: number;
+    tolerance?: number;
+    base?: string;
+  };
+}
+
+export type ActionKind = "remove-comment";
+
+export interface FindingAction {
+  kind: ActionKind;
+  /** snake_case is intentional — this is an agent-facing wire field. */
+  auto_fixable: boolean;
+  range?: { start: number; end: number };
+}
+
+export interface Finding {
+  ruleId: string;
+  severity: FindingSeverity;
+  file: string;
+  line: number;
+  column: number;
+  endLine?: number;
+  endColumn?: number;
+  message: string;
+  actions?: FindingAction[];
+  fingerprint: string;
+}
+
+export interface CheckSummary {
+  error: number;
+  warn: number;
+  rules: Record<string, number>;
+}
+
+export type Verdict = "pass" | "warn" | "fail";
+
+export interface CheckResult {
+  findings: Finding[];
+  summary: CheckSummary;
+  verdict: Verdict;
+  configPath: string | null;
+}
