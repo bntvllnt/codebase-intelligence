@@ -3,6 +3,8 @@
 > Deterministic, graph-native codebase intelligence for TypeScript & JavaScript.
 > Read-first, agent-native, architecture-aware. No invented findings — every claim is graph-backed evidence a human or agent can inspect.
 
+**Last updated:** 2026-06-10 · shipped through v2.4.1 + rules engine (#42)
+
 This roadmap has two tracks:
 
 - **Parity track** — ship the deterministic static-analysis baseline the TS/JS ecosystem expects, so adopting us is never a downgrade.
@@ -43,9 +45,14 @@ The bar: **isomorphic on the basics, materially better on architecture + reuse i
 
 CLI + MCP, single shared core (`src/core`) for parity:
 
-`overview` · `hotspots` · `file` · `search` (BM25) · `changes` · `dependents` · `modules` · `forces` · `dead-exports` · `groups` · `symbol` · `impact` · `rename` (dry-run) · `processes` · `clusters` (Louvain) · `init`
+`overview` · `hotspots` · `file` · `search` (BM25) · `changes` · `dependents` · `modules` · `forces` · `dead-exports` · `groups` · `symbol` · `impact` · `rename` (dry-run) · `processes` · `clusters` (Louvain) · `init` · `check`
 
 Graph engine: file dependency graph + call graph (`file::symbol`, type-resolved + text-inferred) + symbol nodes. Metrics: PageRank, betweenness, coupling, cohesion, tension, bridges, escape velocity, seams, locality risks, blast radius, churn (git), cyclomatic complexity, dead exports. Persisted index keyed by HEAD.
+
+**Shipped since this roadmap was written (June 2026):**
+
+- **Config + rules engine foundation** (#40–#42, v2.4.x) — `codebase-intelligence.json` config (JSON Schema in `schema.json`), ESLint-style rules engine (`src/rules/`: registry + per-rule modules) with three rules (`no-comments`, `no-dead-exports`, `no-circular-deps`), a `check` command, exhaustive CLI+MCP E2E tests, and a CI merge gate. This is the substrate §5.5 (boundaries), §5.6 (audit gate), and §5.8 (suppressions) build on.
+- **`init` opt-in agent selection** (#36, #38, v2.4.0–v2.4.1) — interactive picker, de-duplicated `--help`, init E2E coverage.
 
 ---
 
@@ -268,6 +275,19 @@ A Language Server Protocol server so findings appear **live in the editor as you
 
 This is the editor surface. It does **not** change how batch analysis runs — duplication and Highways still use the Compiler API directly (§7). The LSP is a thin presentation layer over the same engine.
 
+### 5.13 Operation registry — one engine, N surfaces  (P1 — enabler for §5.7 + §5.12)
+
+From the 2026-06-10 architecture sweep (self-analysis, graph-backed): the 15 analysis operations are exposed twice — CLI command + MCP tool — and each operation's lifecycle (input validation, analyzer call, error routing, next-step hints, serialization) is smeared across `cli.ts` (1205 LOC, fan-in 0 / fan-out 13, coupling 0.93 — the top hotspot), `mcp/index.ts` (446 LOC, cohesion 0.17 — JUNK_DRAWER verdict), and `src/core`. Concretely: validation exists twice (`parseInt`+`isNaN` guards in CLI, zod in MCP), error routing twice (`process.exit` vs `{ isError: true }`), hints are MCP-only with untyped string keys (a typo silently returns `[]`), and the parse→build→analyze→cache pipeline is duplicated verbatim inside `cli.ts` (`loadGraph` vs `runMcpMode`). Every new command (latest: `check`) re-smears the pattern.
+
+The fix is the shape `src/rules/` already paved in #42 — a registry of deep modules ("add a rule = add a file + an entry"). Apply it to operations:
+
+- **`Operation<TInput, TResult>` descriptor per analysis op** — one zod input schema (feeds both CLI option coercion and the MCP tool schema), compute fn returning a discriminated result/error union, hints, and a text formatter. The registry is the single seam; CLI and MCP collapse into two thin adapters over it.
+- **One graph-load pipeline** — single `loadGraph` returning a result (no internal `process.exit`), progress-callback seam so CLI logs and MCP stays silent.
+- **Typed hint keys** — hint key typed against the operation-name union; misspelling becomes a compile error.
+- **Fold core's presentational reshapers into op formatters** — `computeForces` (6 of 9 fields are verbatim pass-throughs), `computeGroups`/`computeProcesses`/`computeClusters` (filter+rename wrappers) stop being a middle layer.
+
+Payoff beyond hygiene: §5.7 output formats become *formatters over the same registry* — SARIF/CodeClimate/markdown written once cover all operations — and the §5.12 LSP server becomes a third thin adapter instead of a third hand-rolled surface. Tests target `op.run(graph, input)` directly instead of driving the CLI process or MCP server end-to-end.
+
 ---
 
 ## 6. Sequencing
@@ -284,6 +304,7 @@ P1  (parity bar + flagship H1/H2)
   ├─ Health + maintainability + CRAP         §5.4
   ├─ Architecture boundaries (+ presets)     §5.5
   ├─ Audit gate (+ diff-file)                §5.6
+  ├─ Operation registry (engine seam)        §5.13  (before 5.7 — formats ride on it)
   ├─ Output formats + actions[] (advisory)   §5.7
   ├─ Suppressions                            §5.8
   └─ Highways H2 (type-shape, drift, synth)  §4.1
