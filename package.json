@@ -13,6 +13,8 @@
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "test": "pnpm build && vitest run --pool forks --no-file-parallelism",
+    "test:coverage": "pnpm build && vitest run --coverage --pool threads --no-file-parallelism --exclude 'tests/*.e2e.test.ts'",
+    "verify:cli-real": "pnpm build && node tools/verify-cli-real-codebases.mjs",
     "test:watch": "vitest",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
