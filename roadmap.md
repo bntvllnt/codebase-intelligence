@@ -3,7 +3,7 @@
 > Future work only. Deterministic, graph-native codebase intelligence for TypeScript & JavaScript.
 > Read-first, agent-native, architecture-aware. No invented findings: every claim is graph-backed evidence a human or agent can inspect.
 
-**Last updated:** 2026-06-30
+**Last updated:** 2026-07-01
 
 ## Direction
 
@@ -60,7 +60,7 @@ Guiding constraints for all future work:
 
 | Item | Dev-ready contract |
 |---|---|
-| Cache migration | All cache states are covered by tests: only legacy, only canonical, both same signature, both different signature, neither. Scanner excludes both folders. Writes go only to `.codebase-intelligence/`. `init --gitignore` is idempotent. |
+| Cache migration | All cache states are covered by tests: only legacy, only canonical, both same signature, both different signature, neither. Scanner excludes both folders. Writes go only to `.codebase-intelligence/`. `init --gitignore` is idempotent. JSON surfaces expose `cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, and `warnings[]`. |
 | Docs/help alignment | README, CLI help, `docs/cli-reference.md`, `docs/mcp-tools.md`, `docs/data-model.md`, `llms.txt`, and `llms-full.txt` describe `.codebase-intelligence/` as canonical and `.code-visualizer/` as legacy migration input. |
 | Test-runner determinism | `pnpm test` exits 0 locally after assertions pass; the Vitest worker `onTaskUpdate` timeout is gone or the runner configuration is made deterministic. |
 | Targeted framework fixes | Any remaining framework/config false positive has a minimal fixture proving the bug and a focused fix. No broad plugin framework lands in `2.5.0`. |
@@ -144,7 +144,7 @@ Purpose: prove the CLI, MCP server, library outputs, docs, CI behavior, and agen
 
 | Chain | User story | Required actions |
 |---|---|---|
-| CH-P0-01 cache migration | As US-MIGRATOR, I can upgrade without losing or duplicating cache state. | Create fixture with only `.code-visualizer/` -> run real CLI command -> assert `.codebase-intelligence/` exists -> assert legacy handling warning -> rerun command -> assert canonical cache is used -> run `--status` -> run `--clean`. |
+| CH-P0-01 cache migration | As US-MIGRATOR, I can upgrade without losing or duplicating cache state. | Create fixture with only `.code-visualizer/` -> run real CLI command -> assert `.codebase-intelligence/` exists -> assert JSON `cache.migrated` -> rerun command -> assert canonical cache is used -> run `--status` -> run `--clean`. |
 | CH-P0-02 new cache gitignore | As US-CLI-HUMAN, I can initialize ignore rules safely. | Run init/gitignore command in temp repo -> assert `.gitignore` gets `.codebase-intelligence/` once -> rerun -> assert idempotent -> assert legacy folder is documented as migration input only. |
 | CH-P0-03 docs/help alignment | As US-CLI-AGENT, I can learn the canonical cache path from every surface. | Build CLI -> capture `--help` and command help -> scan README/docs/LLM docs -> assert `.codebase-intelligence/` canonical wording -> assert `.code-visualizer/` appears only in legacy migration context. |
 | CH-P0-04 deterministic test runner | As US-MAINTAINER, I can trust release gates. | Run `pnpm test` -> assert exit 0 -> assert no Vitest `onTaskUpdate` timeout -> rerun focused long E2E suite -> assert no open-handle/worker timeout. |
@@ -204,7 +204,7 @@ Purpose: prove the CLI, MCP server, library outputs, docs, CI behavior, and agen
 
 Rename the legacy index/cache folder from `.code-visualizer/` to `.codebase-intelligence/` without breaking existing users.
 
-**Status:** Partially shipped in the P0 canary PR.
+**Status:** Shipped across P0 canary PRs.
 
 **Shipped:**
 
@@ -215,10 +215,7 @@ Rename the legacy index/cache folder from `.code-visualizer/` to `.codebase-inte
 - Add `init --gitignore` to append `.codebase-intelligence/` idempotently.
 - Add `--clean` behavior that removes canonical and legacy cache directories.
 - Update docs, README, CLI help, tests, and fixtures to mention legacy auto-migration.
-
-**Remaining:**
-
-- Expose migration facts in JSON: `cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`.
+- Expose migration facts in JSON on analysis commands and `init --json`: `cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`.
 
 ### Docs + Help Alignment
 
@@ -243,6 +240,7 @@ Fix the repeated Vitest runner timeout so release gates are deterministic.
 - Switch `pnpm test` to `--pool threads --no-file-parallelism`.
 - Keep `429` assertions passing and make `pnpm test` exit 0 locally.
 - Bound non-blocking CI coverage collection so coverage hangs cannot block the release gate.
+- Bound `pnpm test` to one Vitest worker and disabled Vitest duration cache so host-level memory pressure and stale file ordering do not terminate the release gate.
 
 ### Targeted Framework Entry Fixes
 

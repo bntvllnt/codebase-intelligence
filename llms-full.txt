@@ -75,6 +75,7 @@ analyzeGraph(builtGraph, parsedFiles)
 - **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports.
 - **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.
 - **Auto-caching**: CLI commands always cache the graph index to `.codebase-intelligence/`. MCP mode requires `--index` to persist. Legacy `.code-visualizer/` is migrated when canonical cache is absent.
+- **Cache JSON facts**: Analysis commands with `--json` and `init --json` include top-level `cache`: `cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`.
 
 ---
 
@@ -426,6 +427,7 @@ Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, and summary
 ## Global Behavior
 
 - **Auto-caching**: First run parses and saves index to `.codebase-intelligence/`. Subsequent runs use cache only when HEAD, dirty/untracked file contents under the analyzed path, CLI version, and parser cache settings match. Legacy `.code-visualizer/` is migrated when canonical cache is absent.
+- **Cache JSON facts**: Analysis commands with `--json` and `init --json` include top-level `cache`: `cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`.
 - **Default scanner excludes**: `.git`, `node_modules`, `.codebase-intelligence`, legacy `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`.
 - **Monorepo imports**: Root tsconfig path aliases and local package.json package names resolve to source files before graph construction.
 - **Large repo mode**: Above 1500 TypeScript files, use AST-only extraction to avoid TypeScript program OOM. Override with `CBI_FULL_PROGRAM_FILE_LIMIT`.

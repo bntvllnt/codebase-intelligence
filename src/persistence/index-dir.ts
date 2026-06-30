@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { CANONICAL_INDEX_DIR_NAME, LEGACY_INDEX_DIR_NAME } from "./cache-key.js";
+import type { CacheFacts } from "../types/index.js";
 
 type IndexDirectoryMigration = "none" | "migrated-legacy" | "ignored-legacy";
 
@@ -47,6 +48,61 @@ export function prepareIndexDirectory(targetPath: string): IndexDirectoryResolut
     legacyDir,
     migration: canonicalExists && legacyExists ? "ignored-legacy" : "none",
   };
+}
+
+function getLegacyWarnings(resolution: IndexDirectoryResolution): string[] {
+  if (resolution.migration === "ignored-legacy") {
+    return [`Legacy cache directory exists but ${resolution.canonicalDir} is active: ${resolution.legacyDir}`];
+  }
+
+  if (!fs.existsSync(resolution.legacyDir)) return [];
+
+  try {
+    if (!fs.statSync(resolution.legacyDir).isDirectory()) {
+      return [`Legacy cache path exists but is not a directory and was left unchanged: ${resolution.legacyDir}`];
+    }
+  } catch {
+    return [`Legacy cache path could not be inspected and was left unchanged: ${resolution.legacyDir}`];
+  }
+
+  return [];
+}
+
+/**
+ * Convert cache path resolution into the stable JSON facts emitted by CLI surfaces.
+ *
+ * @param resolution - Cache directory resolution returned by `prepareIndexDirectory`.
+ * @param gitignoreUpdated - Whether the current command updated `.gitignore`.
+ * @returns Machine-readable cache migration facts.
+ */
+export function getCacheFacts(resolution: IndexDirectoryResolution, gitignoreUpdated = false): CacheFacts {
+  return {
+    cacheDir: resolution.canonicalDir,
+    legacyCacheDir: resolution.legacyDir,
+    migrated: resolution.migration === "migrated-legacy",
+    gitignoreUpdated,
+    warnings: getLegacyWarnings(resolution),
+  };
+}
+
+/**
+ * Return cache facts for commands that do not resolve or migrate the index first.
+ *
+ * @param targetPath - Repo/codebase root passed to the CLI.
+ * @param gitignoreUpdated - Whether the current command updated `.gitignore`.
+ * @returns Machine-readable cache facts with migration set to false.
+ */
+export function getCacheFactsForTarget(targetPath: string, gitignoreUpdated = false): CacheFacts {
+  const { canonicalDir, legacyDir } = getIndexDirs(targetPath);
+  return getCacheFacts(
+    {
+      activeDir: canonicalDir,
+      canonicalDir,
+      legacyDir,
+      migration: canonicalDir !== legacyDir && fs.existsSync(canonicalDir) && fs.existsSync(legacyDir) ? "ignored-legacy" : "none",
+    },
+    gitignoreUpdated,
+  );
 }
 
 /**

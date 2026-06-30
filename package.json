@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
-    "test": "pnpm build && vitest run --pool threads --no-file-parallelism",
+    "test": "pnpm build && vitest run --no-cache --pool threads --no-file-parallelism --maxWorkers=1",
     "test:coverage": "pnpm build && vitest run --coverage --pool threads --no-file-parallelism --exclude 'tests/*.e2e.test.ts'",
     "verify:cli-real": "pnpm build && node tools/verify-cli-real-codebases.mjs",
     "verify:cli-real:heavy": "pnpm build && CBI_REAL_PROFILE=heavy node tools/verify-cli-real-codebases.mjs",

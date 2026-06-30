@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { CANONICAL_INDEX_DIR_NAME, LEGACY_INDEX_DIR_NAME } from "../src/persistence/cache-key.js";
-import { cleanIndexDirectories, prepareIndexDirectory } from "../src/persistence/index-dir.js";
+import { cleanIndexDirectories, getCacheFacts, prepareIndexDirectory } from "../src/persistence/index-dir.js";
 
 function tempDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "ci-index-dir-"));
@@ -48,6 +48,13 @@ describe("index directory migration", () => {
       const result = prepareIndexDirectory(dir);
       expect(result.activeDir).toBe(canonical);
       expect(result.migration).toBe("migrated-legacy");
+      expect(getCacheFacts(result)).toEqual({
+        cacheDir: canonical,
+        legacyCacheDir: legacy,
+        migrated: true,
+        gitignoreUpdated: false,
+        warnings: [],
+      });
       expect(fs.existsSync(legacy)).toBe(false);
       expect(fs.readFileSync(path.join(canonical, "marker.txt"), "utf-8")).toBe("legacy\n");
     } finally {
@@ -70,6 +77,9 @@ describe("index directory migration", () => {
       const result = prepareIndexDirectory(dir);
       expect(result.activeDir).toBe(canonical);
       expect(result.migration).toBe("ignored-legacy");
+      expect(getCacheFacts(result).warnings).toEqual([
+        `Legacy cache directory exists but ${canonical} is active: ${legacy}`,
+      ]);
       expect(fs.readFileSync(path.join(canonical, "marker.txt"), "utf-8")).toBe("canonical\n");
       expect(fs.readFileSync(path.join(legacy, "marker.txt"), "utf-8")).toBe("legacy\n");
     } finally {
@@ -90,6 +100,9 @@ describe("index directory migration", () => {
       const result = prepareIndexDirectory(dir);
       expect(result.activeDir).toBe(canonical);
       expect(result.migration).toBe("ignored-legacy");
+      expect(getCacheFacts(result).warnings).toEqual([
+        `Legacy cache directory exists but ${canonical} is active: ${legacy}`,
+      ]);
       expect(JSON.parse(fs.readFileSync(path.join(canonical, "meta.json"), "utf-8"))).toEqual({ cacheKey: "canonical" });
       expect(JSON.parse(fs.readFileSync(path.join(legacy, "meta.json"), "utf-8"))).toEqual({ cacheKey: "legacy" });
     } finally {
