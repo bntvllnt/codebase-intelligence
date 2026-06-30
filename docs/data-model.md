@@ -116,3 +116,18 @@ CodebaseGraph {
   }
 }
 ```
+
+## CLI Cache Facts
+
+Analysis commands with `--json` and `init --json` include this top-level `cache`
+object. Paths are absolute.
+
+```typescript
+CacheFacts {
+  cacheDir: string          // Canonical .codebase-intelligence/ directory
+  legacyCacheDir: string    // Legacy .code-visualizer/ directory
+  migrated: boolean         // true when legacy-only cache moved this run
+  gitignoreUpdated: boolean // true when init --gitignore wrote/updated .gitignore
+  warnings: string[]        // Non-fatal legacy/cache state warnings
+}
+```

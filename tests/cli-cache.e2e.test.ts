@@ -10,6 +10,18 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
 const cli = path.join(repoRoot, "dist", "cli.js");
 
+interface CacheFacts {
+  cacheDir: string;
+  legacyCacheDir: string;
+  migrated: boolean;
+  gitignoreUpdated: boolean;
+  warnings: string[];
+}
+
+interface JsonWithCache {
+  cache: CacheFacts;
+}
+
 function run(args: readonly string[]): { status: number | null; stdout: string; stderr: string } {
   const res = spawnSync("node", [cli, ...args], {
     cwd: repoRoot,
@@ -35,6 +47,14 @@ describe("cache CLI lifecycle", () => {
     try {
       const overview = run(["overview", repo, "--json", "--force"]);
       expect(overview.status).toBe(0);
+      const overviewJson = JSON.parse(overview.stdout) as JsonWithCache;
+      expect(overviewJson.cache).toEqual({
+        cacheDir: path.join(repo, CANONICAL_INDEX_DIR_NAME),
+        legacyCacheDir: path.join(repo, LEGACY_INDEX_DIR_NAME),
+        migrated: false,
+        gitignoreUpdated: false,
+        warnings: [],
+      });
       expect(fs.existsSync(path.join(repo, CANONICAL_INDEX_DIR_NAME, "graph.json"))).toBe(true);
       expect(fs.existsSync(path.join(repo, LEGACY_INDEX_DIR_NAME))).toBe(false);
 
@@ -47,6 +67,7 @@ describe("cache CLI lifecycle", () => {
       const clean = run([repo, "--clean"]);
       expect(clean.status).toBe(0);
       expect(clean.stderr).toContain(CANONICAL_INDEX_DIR_NAME);
+      expect(clean.stderr).toContain(LEGACY_INDEX_DIR_NAME);
       expect(fs.existsSync(path.join(repo, CANONICAL_INDEX_DIR_NAME))).toBe(false);
       expect(fs.existsSync(path.join(repo, LEGACY_INDEX_DIR_NAME))).toBe(false);
     } finally {
@@ -65,9 +86,40 @@ describe("cache CLI lifecycle", () => {
       const overview = run(["overview", repo, "--json", "--force"]);
       expect(overview.status).toBe(0);
       expect(overview.stderr).toContain("Migrated legacy index");
+      const parsed = JSON.parse(overview.stdout) as JsonWithCache;
+      expect(parsed.cache).toEqual({
+        cacheDir: canonical,
+        legacyCacheDir: legacy,
+        migrated: true,
+        gitignoreUpdated: false,
+        warnings: [],
+      });
       expect(fs.existsSync(legacy)).toBe(false);
       expect(fs.readFileSync(path.join(canonical, "marker.txt"), "utf-8")).toBe("legacy\n");
       expect(fs.existsSync(path.join(canonical, "graph.json"))).toBe(true);
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("warns in JSON when canonical and legacy cache directories both exist", () => {
+    const repo = fixtureRepo();
+    try {
+      const canonical = path.join(repo, CANONICAL_INDEX_DIR_NAME);
+      const legacy = path.join(repo, LEGACY_INDEX_DIR_NAME);
+      fs.mkdirSync(canonical);
+      fs.mkdirSync(legacy);
+
+      const overview = run(["overview", repo, "--json", "--force"]);
+      expect(overview.status).toBe(0);
+      const parsed = JSON.parse(overview.stdout) as JsonWithCache;
+      expect(parsed.cache).toEqual({
+        cacheDir: canonical,
+        legacyCacheDir: legacy,
+        migrated: false,
+        gitignoreUpdated: false,
+        warnings: [`Legacy cache directory exists but ${canonical} is active: ${legacy}`],
+      });
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });
     }

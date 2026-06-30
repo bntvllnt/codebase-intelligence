@@ -43,6 +43,7 @@ codebase-intelligence init .                         # make AI agents use CI
 
 - CLI analysis commands cache to `.codebase-intelligence/`; legacy `.code-visualizer/` is migration input only. Run `codebase-intelligence init --gitignore` to ignore the canonical cache directory.
 - `overview --json` includes `analysis.mode`, `analysis.callGraphPrecision`, and `analysis.fullProgramFileLimit`.
+- Analysis commands with `--json` and `init --json` include `cache`: `cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`.
 - Repos above the full-program file limit use AST-only extraction; dependency metrics remain available, call graph precision becomes syntax-only.
 
 ## Optional

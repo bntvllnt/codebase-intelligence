@@ -286,6 +286,14 @@ export interface BoundariesConfig {
 
 export type OutputFormat = "text" | "json" | "sarif";
 
+export interface CacheFacts {
+  cacheDir: string;
+  legacyCacheDir: string;
+  migrated: boolean;
+  gitignoreUpdated: boolean;
+  warnings: string[];
+}
+
 export interface CodebaseIntelligenceConfig {
   root?: string;
   include?: string[];

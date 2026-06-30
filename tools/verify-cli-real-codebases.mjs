@@ -275,7 +275,7 @@ function assertNoBannedPaths(value, location) {
   }
 }
 
-function findBannedPath(value) {
+function findBannedPath(value, keyPath = []) {
   if (typeof value === "string") {
     const normalized = value.replaceAll("\\", "/");
     if (normalized.includes("package.json:")) return "";
@@ -289,15 +289,16 @@ function findBannedPath(value) {
 
   if (Array.isArray(value)) {
     for (const item of value) {
-      const result = findBannedPath(item);
+      const result = findBannedPath(item, keyPath);
       if (result) return result;
     }
     return "";
   }
 
   if (value && typeof value === "object") {
-    for (const item of Object.values(value)) {
-      const result = findBannedPath(item);
+    for (const [key, item] of Object.entries(value)) {
+      if (keyPath.length === 0 && key === "cache") continue;
+      const result = findBannedPath(item, [...keyPath, key]);
       if (result) return result;
     }
   }

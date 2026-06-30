@@ -24,7 +24,13 @@ import { startMcpServer } from "./mcp/index.js";
 import { setIndexedHead, setRoot } from "./server/graph-store.js";
 import { exportGraph, importGraph } from "./persistence/index.js";
 import { getCacheKey } from "./persistence/cache-key.js";
-import { cleanIndexDirectories, prepareIndexDirectory, type IndexDirectoryResolution } from "./persistence/index-dir.js";
+import {
+  cleanIndexDirectories,
+  getCacheFacts,
+  getCacheFactsForTarget,
+  prepareIndexDirectory,
+  type IndexDirectoryResolution,
+} from "./persistence/index-dir.js";
 import {
   computeOverview,
   computeFileContext,
@@ -58,9 +64,11 @@ import { promptSelection } from "./install/prompt.js";
 import { runCheck, exitCodeFor } from "./rules/check.js";
 import { formatResult, formatSummaryLine } from "./rules/format.js";
 import { ConfigError } from "./config/index.js";
-import type { CodebaseGraph, OutputFormat } from "./types/index.js";
+import type { CacheFacts, CodebaseGraph, OutputFormat } from "./types/index.js";
 
 // ── Helpers ─────────────────────────────────────────────────
+
+let activeCacheFacts: CacheFacts | null = null;
 
 function reportIndexMigration(resolution: IndexDirectoryResolution): void {
   if (resolution.migration === "migrated-legacy") {
@@ -92,8 +100,13 @@ function output(data: string): void {
   process.stdout.write(`${data}\n`);
 }
 
+function isJsonObject(data: unknown): data is Record<string, unknown> {
+  return typeof data === "object" && data !== null && !Array.isArray(data);
+}
+
 function outputJson(data: unknown): void {
-  process.stdout.write(`${JSON.stringify(data, null, 2)}\n`);
+  const payload = activeCacheFacts && isJsonObject(data) ? { ...data, cache: activeCacheFacts } : data;
+  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
 }
 
 /** Load (or parse+cache) the codebase graph for a target path. */
@@ -107,6 +120,7 @@ function loadGraph(targetPath: string, force = false): { graph: CodebaseGraph; h
 
   const indexResolution = prepareIndexDirectory(targetPath);
   reportIndexMigration(indexResolution);
+  activeCacheFacts = getCacheFacts(indexResolution);
   const indexDir = indexResolution.activeDir;
   const headHash = getHeadHash(targetPath);
   const cacheKey = getCacheKey(targetPath, { headHash, cliVersion: pkg.version });
@@ -1073,7 +1087,12 @@ program
     const skillResult = installSkill ? installGlobalSkill() : undefined;
 
     if (options.json) {
-      outputJson({ repoFiles: repoResults, gitignore: gitignoreResult ?? null, skill: skillResult ?? null });
+      outputJson({
+        repoFiles: repoResults,
+        gitignore: gitignoreResult ?? null,
+        skill: skillResult ?? null,
+        cache: getCacheFactsForTarget(resolved, gitignoreResult?.action === "created" || gitignoreResult?.action === "updated"),
+      });
       return;
     }
 
@@ -1220,6 +1239,7 @@ async function runMcpMode(targetPath: string, options: McpOptions): Promise<void
 
   const indexResolution = prepareIndexDirectory(targetPath);
   reportIndexMigration(indexResolution);
+  activeCacheFacts = getCacheFacts(indexResolution);
   const indexDir = indexResolution.activeDir;
 
   if (options.status) {

@@ -199,7 +199,7 @@ The global skill is never installed unless `--skill` is passed.
 codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitignore] [--yes] [--json]
 ```
 
-**Output:** per-file actions (created / updated / unchanged) and skill install status.
+**Output:** per-file actions (created / updated / unchanged), optional `.gitignore` action, skill install status, and cache facts in JSON mode.
 
 ## Flags
 
@@ -233,6 +233,18 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitigno
 ## Behavior
 
 **Auto-caching:** First CLI invocation parses the codebase and saves the index to `.codebase-intelligence/`. Subsequent commands use the cache only when `git HEAD`, dirty/untracked file contents under the analyzed path, the CLI version, and parser cache settings match. Legacy `.code-visualizer/` is migrated when `.codebase-intelligence/` is absent. Add `.codebase-intelligence/` to `.gitignore` manually or run `codebase-intelligence init --gitignore`.
+
+**Cache JSON facts:** Analysis commands with `--json` and `init --json` include a top-level `cache` object:
+
+```json
+{
+  "cacheDir": "/repo/.codebase-intelligence",
+  "legacyCacheDir": "/repo/.code-visualizer",
+  "migrated": false,
+  "gitignoreUpdated": false,
+  "warnings": []
+}
+```
 
 **Default scanner excludes:** The parser always skips `.git`, `node_modules`, `.codebase-intelligence`, legacy `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`, even if the target repo has no matching `.gitignore` entry.
 

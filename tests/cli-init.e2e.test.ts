@@ -92,10 +92,14 @@ describe("init lifecycle (e2e)", () => {
 
     const parsed = JSON.parse(stdout) as {
       repoFiles: { path: string; action: string }[];
+      cache: { cacheDir: string; legacyCacheDir: string; migrated: boolean; gitignoreUpdated: boolean; warnings: string[] };
       skill: unknown;
     };
     expect(parsed.repoFiles.map((r) => r.path).sort()).toEqual(["AGENTS.md", "CLAUDE.md"]);
     expect(parsed.repoFiles.every((r) => r.action === "created")).toBe(true);
+    expect(parsed.cache.gitignoreUpdated).toBe(false);
+    expect(parsed.cache.cacheDir).toBe(path.join(repo, ".codebase-intelligence"));
+    expect(parsed.cache.legacyCacheDir).toBe(path.join(repo, ".code-visualizer"));
     expect(parsed.skill).toBeNull();
 
     expect(read("AGENTS.md")).toContain(DEFAULT_MARKERS.start);
@@ -187,6 +191,26 @@ describe("init lifecycle (e2e)", () => {
     expect(second.status).toBe(0);
     expect(second.stdout).toContain("unchanged .gitignore");
     expect(read(".gitignore")).toBe(".codebase-intelligence/\n");
+  });
+
+  it("--json --gitignore emits cache facts with gitignoreUpdated", () => {
+    const { status, stdout } = run(["init", "--agents", "", "--gitignore", "--json", repo], home);
+    expect(status).toBe(0);
+
+    const parsed = JSON.parse(stdout) as {
+      repoFiles: unknown[];
+      gitignore: { path: string; action: string };
+      cache: { cacheDir: string; legacyCacheDir: string; migrated: boolean; gitignoreUpdated: boolean; warnings: string[] };
+    };
+    expect(parsed.repoFiles).toEqual([]);
+    expect(parsed.gitignore).toEqual({ path: ".gitignore", action: "created" });
+    expect(parsed.cache).toEqual({
+      cacheDir: path.join(repo, ".codebase-intelligence"),
+      legacyCacheDir: path.join(repo, ".code-visualizer"),
+      migrated: false,
+      gitignoreUpdated: true,
+      warnings: [],
+    });
   });
 
   it("exits 1 when the target path does not exist", () => {
