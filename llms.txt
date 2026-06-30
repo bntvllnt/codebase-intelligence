@@ -7,7 +7,7 @@
 - [Architecture](docs/architecture.md): Pipeline, module map, data flow, design decisions
 - [Data Model](docs/data-model.md): All TypeScript interfaces with field descriptions
 - [Metrics](docs/metrics.md): Per-file and module metrics, force analysis, complexity scoring
-- [MCP Tools](docs/mcp-tools.md): 15 MCP tools — inputs, outputs, use cases, selection guide
+- [MCP Tools](docs/mcp-tools.md): 16 MCP tools — inputs, outputs, use cases, selection guide
 - [CLI Reference](docs/cli-reference.md): CLI commands, flags, output formats, examples
 
 ## Quick Start
@@ -17,7 +17,7 @@ MCP mode (AI agents):
 codebase-intelligence ./path/to/project
 ```
 
-CLI mode (humans/CI) — 16 commands (15 analysis with MCP parity + `init` for agent adoption):
+CLI mode (humans/CI) — 17 commands (15 analysis with MCP parity + `check` + `init`):
 ```bash
 codebase-intelligence overview ./src
 codebase-intelligence hotspots ./src --metric coupling
@@ -34,6 +34,7 @@ codebase-intelligence impact ./src getUserById
 codebase-intelligence rename ./src oldName newName
 codebase-intelligence processes ./src --entry main
 codebase-intelligence clusters ./src --min-files 3
+codebase-intelligence check ./src                      # rules gate for CI
 codebase-intelligence init .                         # make AI agents use CI
 ```
 

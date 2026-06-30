@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import path from "node:path";
 import type { CodebaseGraph } from "../types/index.js";
 import { createSearchIndex, search, getSuggestions } from "../search/index.js";
 import type { SearchIndex } from "../search/index.js";
@@ -7,13 +8,17 @@ import { impactAnalysis, renameSymbol } from "../impact/index.js";
 // ── Path helpers ────────────────────────────────────────────
 
 export function normalizeFilePath(filePath: string): string {
-  let normalized = filePath.replace(/\\/g, "/");
-  normalized = normalized.replace(/^(src|lib|app)\//, "");
-  return normalized;
+  return filePath.replace(/\\/g, "/");
+}
+
+function stripCommonFilePrefix(normalizedPath: string): string {
+  return normalizedPath.replace(/^(src|lib|app)\//, "");
 }
 
 export function resolveFilePath(normalizedPath: string, graph: CodebaseGraph): string | undefined {
   if (graph.fileMetrics.has(normalizedPath)) return normalizedPath;
+  const stripped = stripCommonFilePrefix(normalizedPath);
+  if (stripped !== normalizedPath && graph.fileMetrics.has(stripped)) return stripped;
   return undefined;
 }
 
@@ -161,12 +166,13 @@ export function computeFileContext(
   const normalizedPath = normalizeFilePath(rawFilePath);
   const filePath = resolveFilePath(normalizedPath, graph);
   if (!filePath) {
-    return { error: `File not found in graph: ${normalizedPath}`, suggestions: suggestSimilarPaths(normalizedPath, graph) };
+    const lookupPath = stripCommonFilePrefix(normalizedPath);
+    return { error: `File not found in graph: ${lookupPath}`, suggestions: suggestSimilarPaths(lookupPath, graph) };
   }
 
   const metrics = graph.fileMetrics.get(filePath);
   if (!metrics) {
-    return { error: `File not found in graph: ${normalizedPath}`, suggestions: suggestSimilarPaths(normalizedPath, graph) };
+    return { error: `File not found in graph: ${filePath}`, suggestions: suggestSimilarPaths(filePath, graph) };
   }
 
   const nodeById = buildNodeById(graph);
@@ -217,6 +223,28 @@ export interface HotspotsResult {
   metric: string;
   hotspots: HotspotEntry[];
   summary: string;
+}
+
+export const HOTSPOT_METRICS = [
+  "coupling",
+  "pagerank",
+  "fan_in",
+  "fan_out",
+  "betweenness",
+  "tension",
+  "escape_velocity",
+  "churn",
+  "complexity",
+  "blast_radius",
+  "coverage",
+] as const;
+
+export type HotspotMetric = typeof HOTSPOT_METRICS[number];
+
+const HOTSPOT_METRIC_SET: ReadonlySet<string> = new Set(HOTSPOT_METRICS);
+
+export function isHotspotMetric(metric: string): metric is HotspotMetric {
+  return HOTSPOT_METRIC_SET.has(metric);
 }
 
 export function computeHotspots(
@@ -352,20 +380,31 @@ export interface ChangesResult {
 
 export type ChangesError = { error: string; scope: string };
 
+export const CHANGE_SCOPES = ["staged", "unstaged", "all"] as const;
+
+export type ChangeScope = typeof CHANGE_SCOPES[number];
+
+const CHANGE_SCOPE_SET: ReadonlySet<string> = new Set(CHANGE_SCOPES);
+
+export function isChangeScope(scope: string): scope is ChangeScope {
+  return CHANGE_SCOPE_SET.has(scope);
+}
+
 export function computeChanges(
   graph: CodebaseGraph,
   scope?: string,
+  rootDir = process.cwd(),
 ): ChangesResult | ChangesError {
   const diffScope = scope ?? "all";
   try {
     let diffCmd: string;
     switch (diffScope) {
-      case "staged": diffCmd = "git diff --cached --name-only"; break;
-      case "unstaged": diffCmd = "git diff --name-only"; break;
-      default: diffCmd = "git diff HEAD --name-only"; break;
+      case "staged": diffCmd = "git diff --relative --cached --name-only"; break;
+      case "unstaged": diffCmd = "git diff --relative --name-only"; break;
+      default: diffCmd = "git diff --relative HEAD --name-only"; break;
     }
 
-    const output = execSync(diffCmd, { encoding: "utf-8", timeout: 5000 }).trim();
+    const output = execSync(diffCmd, { cwd: path.resolve(rootDir), encoding: "utf-8", timeout: 5000 }).trim();
     const changedFiles = output ? output.split("\n").filter((f) => f.length > 0) : [];
 
     const changedSymbols: Array<{ file: string; symbols: string[] }> = [];

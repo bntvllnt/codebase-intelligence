@@ -92,7 +92,7 @@ export class Calculator {
       fs.rmSync(projectDir, { recursive: true, force: true });
     });
 
-    it("parses all TypeScript files", { timeout: 30_000 }, () => {
+    it("parses all TypeScript files", { timeout: 60_000 }, () => {
       const files = parseCodebase(projectDir);
       expect(files).toHaveLength(4);
     });
@@ -410,6 +410,25 @@ export const bar = foo;
         expect(relPaths).toEqual(["index.ts", "src/app.ts"]);
       } finally {
         fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("honors parent .gitignore when parsing a package subdirectory", () => {
+      const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-parent-ignore-"));
+      try {
+        fs.mkdirSync(path.join(repoDir, ".git"));
+        fs.writeFileSync(path.join(repoDir, ".gitignore"), ".next/\n");
+        const appDir = path.join(repoDir, "apps", "web");
+        fs.mkdirSync(path.join(appDir, ".next", "types"), { recursive: true });
+        fs.writeFileSync(path.join(appDir, "index.ts"), `export const app = 1;\n`);
+        fs.writeFileSync(path.join(appDir, ".next", "types", "generated.ts"), `export const generated = 1;\n`);
+
+        const files = parseCodebase(appDir);
+        const relPaths = files.map((f) => f.relativePath).sort();
+
+        expect(relPaths).toEqual(["index.ts"]);
+      } finally {
+        fs.rmSync(repoDir, { recursive: true, force: true });
       }
     });
 

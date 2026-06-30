@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0-canary] - 2026-06-30
+
+> Canary base for 2.5.0. Merging to `main` publishes `2.5.0-canary.<sha>` with
+> the npm `canary` tag; no stable 2.5.0 release has been cut.
+
+### Changed
+
+- **Base package version moved to `2.5.0` for canary publishing.** The publish
+  workflow derives canaries from `package.json`, so this produces
+  `2.5.0-canary.<sha>` artifacts while release creation remains manual.
+- **CLI docs now include the full 17-command surface.** `check` is documented
+  alongside the 15 analysis commands and `init`, matching `--help`.
+
+### Fixed
+
+- **`changes <target>` now analyzes the target repo, not the caller's cwd.** Git
+  diff commands run in the requested root with relative paths, so cross-repo
+  reviews no longer report the wrong files.
+- **`file` accepts paths returned by other commands.** Exact graph paths like
+  `src/...` or `app/...` are tried before common-prefix stripping.
+- **Subcommand `--force` now consistently bypasses cache.** Analysis commands
+  honor command-local and global `--force` flags.
+- **Monorepo package parsing honors parent `.gitignore` files.** Generated
+  directories such as `.next/` are excluded when the target path is a package
+  below the repo root.
+- **Invalid enum-like CLI options fail with exit code 2.** Unknown
+  `hotspots --metric`, `changes --scope`, and `check --gate` values now return a
+  clear usage error instead of silently producing misleading output.
+- **`pnpm test` now rebuilds before running dist-backed CLI E2E tests.** This
+  prevents stale `dist/cli.js` from masking source changes without parallel
+  rebuild churn, and runs Vitest with forked non-parallel file execution to avoid
+  worker progress RPC timeouts on the heavy real-codebase suites.
+
 ## [2.4.1] - 2026-06-01
 
 ### Fixed
@@ -59,6 +92,7 @@ Baseline for this changelog. For release history prior to and including 2.3.0, s
 [git tags](https://github.com/bntvllnt/codebase-intelligence/tags) and commit history.
 
 [Unreleased]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.4.1...HEAD
+[2.5.0-canary]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.4.1...HEAD
 [2.4.1]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.4.0...v2.4.1
 [2.4.0]: https://github.com/bntvllnt/codebase-intelligence/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/bntvllnt/codebase-intelligence/releases/tag/v2.3.0

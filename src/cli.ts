@@ -27,8 +27,12 @@ import {
   computeOverview,
   computeFileContext,
   computeHotspots,
+  HOTSPOT_METRICS,
+  isHotspotMetric,
   computeSearch,
   computeChanges,
+  CHANGE_SCOPES,
+  isChangeScope,
   computeDependents,
   computeModuleStructure,
   computeForces,
@@ -201,6 +205,10 @@ interface InitOptions {
 
 const program = new Command();
 
+function forceOption(options: CliCommandOptions): boolean {
+  return options.force === true || program.opts<{ force?: boolean }>().force === true;
+}
+
 program
   .name("codebase-intelligence")
   .description("Analyze TypeScript codebases — architecture, dependencies, metrics.")
@@ -225,7 +233,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: CliCommandOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const result = computeOverview(graph);
 
     if (options.json) {
@@ -268,13 +276,17 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: HotspotOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
     const metric = options.metric ?? "coupling";
+    if (!isHotspotMetric(metric)) {
+      process.stderr.write(`Error: --metric must be one of: ${HOTSPOT_METRICS.join(", ")}\n`);
+      process.exit(2);
+    }
     const limit = options.limit ? parseInt(options.limit, 10) : 10;
     if (isNaN(limit) || limit < 1) {
       process.stderr.write("Error: --limit must be a positive integer\n");
       process.exit(2);
     }
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const result = computeHotspots(graph, metric, limit);
 
     if (options.json) {
@@ -307,7 +319,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, filePath: string, options: CliCommandOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const result = computeFileContext(graph, filePath);
 
     if ("error" in result) {
@@ -386,7 +398,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, query: string, options: SearchOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const limit = options.limit ? parseInt(options.limit, 10) : 20;
     if (isNaN(limit) || limit < 1) {
       process.stderr.write("Error: --limit must be a positive integer\n");
@@ -427,8 +439,15 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: ChangesOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
-    const result = computeChanges(graph, options.scope);
+    const scope = options.scope;
+    if (scope !== undefined) {
+      if (!isChangeScope(scope)) {
+        process.stderr.write(`Error: --scope must be one of: ${CHANGE_SCOPES.join(", ")}\n`);
+        process.exit(2);
+      }
+    }
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = computeChanges(graph, scope, path.resolve(targetPath));
 
     if ("error" in result) {
       process.stderr.write(`Error: ${result.error}\n`);
@@ -493,7 +512,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, filePath: string, options: DependentsOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const depth = options.depth ? parseInt(options.depth, 10) : undefined;
     if (depth !== undefined && (isNaN(depth) || depth < 1)) {
       process.stderr.write("Error: --depth must be a positive integer\n");
@@ -542,7 +561,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: CliCommandOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const result = computeModuleStructure(graph);
 
     if (options.json) {
@@ -589,7 +608,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: ForcesOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const cohesion = options.cohesion ? parseFloat(options.cohesion) : undefined;
     const tension = options.tension ? parseFloat(options.tension) : undefined;
     const escape = options.escape ? parseFloat(options.escape) : undefined;
@@ -686,7 +705,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: DeadExportsOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const limit = options.limit ? parseInt(options.limit, 10) : undefined;
     if (limit !== undefined && (isNaN(limit) || limit < 1)) {
       process.stderr.write("Error: --limit must be a positive integer\n");
@@ -723,7 +742,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: CliCommandOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const result = computeGroups(graph);
 
     if (options.json) {
@@ -752,7 +771,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, symbolName: string, options: CliCommandOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const result = computeSymbolContext(graph, symbolName);
 
     if ("error" in result) {
@@ -804,7 +823,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, symbol: string, options: CliCommandOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const result = impactAnalysis(graph, symbol);
 
     if (result.notFound) {
@@ -844,7 +863,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, oldName: string, newName: string, options: RenameOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const dryRun = options.dryRun !== false;
     const result = renameSymbol(graph, oldName, newName, dryRun);
 
@@ -878,7 +897,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: ProcessesOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const limit = options.limit ? parseInt(options.limit, 10) : undefined;
     if (limit !== undefined && (isNaN(limit) || limit < 1)) {
       process.stderr.write("Error: --limit must be a positive integer\n");
@@ -919,7 +938,7 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: ClustersOptions) => {
-    const { graph } = loadGraph(targetPath, options.force);
+    const { graph } = loadGraph(targetPath, forceOption(options));
     const minFiles = options.minFiles ? parseInt(options.minFiles, 10) : undefined;
     if (minFiles !== undefined && (isNaN(minFiles) || minFiles < 1)) {
       process.stderr.write("Error: --min-files must be a positive integer\n");
@@ -1043,8 +1062,10 @@ function parseFailOn(value: string | undefined): "error" | "warn" | "never" | un
   return false;
 }
 
-function parseGate(value: string | undefined): "all" | "new-only" | undefined {
-  return value === "all" || value === "new-only" ? value : undefined;
+function parseGate(value: string | undefined): "all" | "new-only" | undefined | false {
+  if (value === undefined) return undefined;
+  if (value === "all" || value === "new-only") return value;
+  return false;
 }
 
 program
@@ -1073,13 +1094,19 @@ program
       process.exit(2);
     }
 
+    const gate = parseGate(options.gate);
+    if (gate === false) {
+      process.stderr.write("Error: --gate must be one of: all, new-only\n");
+      process.exit(2);
+    }
+
     try {
-      const { graph } = loadGraph(targetPath, options.force);
+      const { graph } = loadGraph(targetPath, forceOption(options));
       const result = runCheck(graph, path.resolve(targetPath), {
         configPath: options.config,
         format,
         failOn,
-        gate: parseGate(options.gate),
+        gate,
         base: options.base,
         quiet: options.quiet,
         summary: options.summary,

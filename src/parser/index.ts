@@ -86,13 +86,28 @@ export function parseCodebase(rootDir: string): ParsedFile[] {
 }
 
 function loadGitignorePatterns(rootDir: string): string[] {
-  const gitignorePath = path.join(rootDir, ".gitignore");
-  if (!fs.existsSync(gitignorePath)) return [];
-  const content = fs.readFileSync(gitignorePath, "utf-8");
-  return content
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith("#"));
+  const patterns: string[] = [];
+  let current = path.resolve(rootDir);
+
+  for (;;) {
+    const gitignorePath = path.join(current, ".gitignore");
+    if (fs.existsSync(gitignorePath)) {
+      const content = fs.readFileSync(gitignorePath, "utf-8");
+      patterns.push(
+        ...content
+          .split("\n")
+          .map((line) => line.trim())
+          .filter((line) => line && !line.startsWith("#")),
+      );
+    }
+
+    if (fs.existsSync(path.join(current, ".git"))) break;
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return patterns;
 }
 
 function isGitignored(relativePath: string, patterns: string[]): boolean {

@@ -256,7 +256,12 @@ describe("new-only gate", () => {
     GIT_COMMITTER_EMAIL: "t@example.com",
   };
   function git(dir: string, args: string[]): string {
-    return execFileSync("git", args, { cwd: dir, encoding: "utf-8", env: GIT_ENV, stdio: ["ignore", "pipe", "ignore"] }).trim();
+    return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+      cwd: dir,
+      encoding: "utf-8",
+      env: GIT_ENV,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
   }
 
   it("filters findings to files changed since base", () => {

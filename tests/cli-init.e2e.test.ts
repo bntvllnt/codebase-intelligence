@@ -33,11 +33,7 @@ function run(args: readonly string[], home: string): RunResult {
 }
 
 beforeAll(() => {
-  // E2E asserts against dist/ — the build gate runs before the test gate, but
-  // build here too if the artifact is missing so the suite is self-contained.
-  if (!fs.existsSync(cli)) {
-    execSync("npm run build", { cwd: repoRoot, stdio: "inherit" });
-  }
+  if (!fs.existsSync(cli)) execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
 }, 120_000);
 
 describe("codebase-intelligence --help", () => {
