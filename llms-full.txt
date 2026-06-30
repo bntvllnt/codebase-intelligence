@@ -44,7 +44,8 @@ src/
   search/index.ts      <- BM25 search engine
   process/index.ts     <- Entry point detection + call chain tracing
   community/index.ts   <- Louvain clustering
-  persistence/index.ts <- Graph export/import to .code-visualizer/
+  persistence/index.ts <- Graph export/import to .codebase-intelligence/
+  persistence/index-dir.ts <- Canonical cache path + legacy .code-visualizer/ migration
   persistence/cache-key.ts <- Cache signature from HEAD, worktree content, CLI version, parser settings
   server/graph-store.ts <- Global graph state (shared by CLI + MCP)
   cli.ts               <- Entry point, CLI commands + MCP fallback
@@ -73,7 +74,7 @@ analyzeGraph(builtGraph, parsedFiles)
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports.
 - **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.
-- **Auto-caching**: CLI commands always cache the graph index to `.code-visualizer/`. MCP mode requires `--index` to persist.
+- **Auto-caching**: CLI commands always cache the graph index to `.codebase-intelligence/`. MCP mode requires `--index` to persist. Legacy `.code-visualizer/` is migrated when canonical cache is absent.
 
 ---
 
@@ -403,7 +404,7 @@ Community-detected file clusters (Louvain algorithm).
 
 ### init
 ```bash
-codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [--json]
+codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitignore] [--yes] [--json]
 ```
 Set up AI agents to use codebase-intelligence. Writes an idempotent, marked
 instruction block ("query CI before grep/read") into each selected agent's repo file —
@@ -424,8 +425,8 @@ Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, and summary
 
 ## Global Behavior
 
-- **Auto-caching**: First run parses and saves index to `.code-visualizer/`. Subsequent runs use cache only when HEAD, dirty/untracked file contents under the analyzed path, CLI version, and parser cache settings match.
-- **Default scanner excludes**: `.git`, `node_modules`, `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`.
+- **Auto-caching**: First run parses and saves index to `.codebase-intelligence/`. Subsequent runs use cache only when HEAD, dirty/untracked file contents under the analyzed path, CLI version, and parser cache settings match. Legacy `.code-visualizer/` is migrated when canonical cache is absent.
+- **Default scanner excludes**: `.git`, `node_modules`, `.codebase-intelligence`, legacy `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`.
 - **Monorepo imports**: Root tsconfig path aliases and local package.json package names resolve to source files before graph construction.
 - **Large repo mode**: Above 1500 TypeScript files, use AST-only extraction to avoid TypeScript program OOM. Override with `CBI_FULL_PROGRAM_FILE_LIMIT`.
 - **Real-repo verification**: `pnpm verify:cli-real` runs the default matrix. `pnpm verify:cli-real:heavy` sets `CBI_REAL_PROFILE=heavy` and verifies large `/home/ubuntu` repos with minimum file/dependency thresholds.

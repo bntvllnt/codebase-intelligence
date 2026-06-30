@@ -43,7 +43,8 @@ src/
   search/index.ts      <- BM25 search engine
   process/index.ts     <- Entry point detection + call chain tracing
   community/index.ts   <- Louvain clustering
-  persistence/index.ts <- Graph export/import to .code-visualizer/
+  persistence/index.ts <- Graph export/import to .codebase-intelligence/
+  persistence/index-dir.ts <- Canonical cache path + legacy .code-visualizer/ migration
   persistence/cache-key.ts <- Cache signature from HEAD, worktree content, CLI version, parser settings
   install/index.ts     <- Agent adoption: managed-block engine + per-agent file targets + skill
   server/graph-store.ts <- Global graph state (shared by CLI + MCP)
@@ -80,7 +81,7 @@ startMcpServer(codebaseGraph)
 - **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports (known limitation).
 - **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.
 - **Built-in scanner excludes**: Generated indexes, build outputs, coverage, framework caches, and agent worktrees are skipped before TypeScript program creation.
-- **Graph persistence**: CLI commands always cache the graph index to `.code-visualizer/`. Cache reuse requires matching HEAD, dirty/untracked file-content fingerprint, CLI version, and parser cache settings. MCP mode (`codebase-intelligence <path>`) requires `--index` to persist the cache.
+- **Graph persistence**: CLI commands always cache the graph index to `.codebase-intelligence/`. A legacy `.code-visualizer/` cache is migrated when canonical cache is absent. Cache reuse requires matching HEAD, dirty/untracked file-content fingerprint, CLI version, and parser cache settings. MCP mode (`codebase-intelligence <path>`) requires `--index` to persist the cache.
 
 ## Adding a New Metric
 

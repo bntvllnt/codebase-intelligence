@@ -12,6 +12,7 @@ test-results/
 scripts/
 
 # analysis + coverage artifacts
+.codebase-intelligence/
 .code-visualizer/
 coverage/
 

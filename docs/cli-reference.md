@@ -1,6 +1,6 @@
 # CLI Reference
 
-18 commands for terminal and CI use. The 16 analysis commands have full parity with MCP tools and auto-cache the index to `.code-visualizer/`; `check` runs the rules gate; `init` sets up agent adoption.
+18 commands for terminal and CI use. The 16 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -196,7 +196,7 @@ preselected). Non-interactively (or with `--yes`/`--json`) it defaults to those 
 The global skill is never installed unless `--skill` is passed.
 
 ```bash
-codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [--json]
+codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitignore] [--yes] [--json]
 ```
 
 **Output:** per-file actions (created / updated / unchanged) and skill install status.
@@ -227,13 +227,14 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [-
 | `--agents <list>` | init | Comma-separated agents, non-interactive (default: agents,claude) |
 | `--all` | init | Target every agent (non-interactive) |
 | `--skill` | init | Also install the global Claude skill (opt-in) |
+| `--gitignore` | init | Add `.codebase-intelligence/` to `.gitignore` idempotently |
 | `-y, --yes` | init | Accept defaults without prompting |
 
 ## Behavior
 
-**Auto-caching:** First CLI invocation parses the codebase and saves the index to `.code-visualizer/`. Subsequent commands use the cache only when `git HEAD`, dirty/untracked file contents under the analyzed path, the CLI version, and parser cache settings match. Add `.code-visualizer/` to `.gitignore`.
+**Auto-caching:** First CLI invocation parses the codebase and saves the index to `.codebase-intelligence/`. Subsequent commands use the cache only when `git HEAD`, dirty/untracked file contents under the analyzed path, the CLI version, and parser cache settings match. Legacy `.code-visualizer/` is migrated when `.codebase-intelligence/` is absent. Add `.codebase-intelligence/` to `.gitignore` manually or run `codebase-intelligence init --gitignore`.
 
-**Default scanner excludes:** The parser always skips `.git`, `node_modules`, `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`, even if the target repo has no matching `.gitignore` entry.
+**Default scanner excludes:** The parser always skips `.git`, `node_modules`, `.codebase-intelligence`, legacy `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`, even if the target repo has no matching `.gitignore` entry.
 
 **Large repo mode:** Repos above 1500 TypeScript files use a lightweight AST parser by default to avoid TypeScript program OOM. File/import/export/dependency metrics remain available; type-resolved call graph details are reduced. Set `CBI_FULL_PROGRAM_FILE_LIMIT=<n>` to tune the cutoff.
 
@@ -245,7 +246,7 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [-
 - `2` — bad args or usage error
 
 **MCP mode:** Running `codebase-intelligence <path>` without a subcommand starts the MCP stdio server (backward compatible). MCP-specific flags:
-- `--index` — persist graph index to `.code-visualizer/` (CLI auto-caches, MCP requires this flag)
+- `--index` — persist graph index to `.codebase-intelligence/` (CLI auto-caches, MCP requires this flag)
 - `--status` — print index status and exit
-- `--clean` — remove `.code-visualizer/` index and exit
+- `--clean` — remove `.codebase-intelligence/` and legacy `.code-visualizer/` indexes and exit
 - `--force` — re-index even if the cache signature matches

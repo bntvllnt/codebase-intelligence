@@ -127,6 +127,8 @@ export interface InitFlags {
   all?: boolean;
   /** `--skill`: install the global skill (opt-in). */
   skill?: boolean;
+  /** `--gitignore`: add the cache directory to .gitignore. */
+  gitignore?: boolean;
   /** `--json`: machine output, implies non-interactive. */
   json?: boolean;
   /** `--yes`: accept defaults without prompting. */
@@ -140,6 +142,8 @@ export interface InitPlan {
   agents: AgentId[];
   /** Whether to install the global skill (default when mode is "interactive"). */
   installSkill: boolean;
+  /** Whether to add the canonical cache directory to .gitignore. */
+  installGitignore: boolean;
   /** How the selection was decided. "interactive" → caller should prompt. */
   mode: InitMode;
   /** Unknown ids passed to `--agents`. */
@@ -154,9 +158,10 @@ export interface InitPlan {
  */
 export function resolveInitPlan(flags: InitFlags, isTty: boolean): InitPlan {
   const installSkill = flags.skill === true;
+  const installGitignore = flags.gitignore === true;
 
   if (flags.all === true) {
-    return { agents: [...ALL_AGENT_IDS], installSkill, mode: "explicit", invalidAgents: [] };
+    return { agents: [...ALL_AGENT_IDS], installSkill, installGitignore, mode: "explicit", invalidAgents: [] };
   }
 
   if (flags.agents !== undefined) {
@@ -167,6 +172,7 @@ export function resolveInitPlan(flags: InitFlags, isTty: boolean): InitPlan {
     return {
       agents: requested.filter(isAgentId),
       installSkill,
+      installGitignore,
       mode: "explicit",
       invalidAgents: requested.filter((a) => !isAgentId(a)),
     };
@@ -176,6 +182,7 @@ export function resolveInitPlan(flags: InitFlags, isTty: boolean): InitPlan {
   return {
     agents: [...DEFAULT_AGENTS],
     installSkill,
+    installGitignore,
     mode: interactive ? "interactive" : "default",
     invalidAgents: [],
   };
@@ -264,6 +271,8 @@ export interface InstallRepoOptions {
   agents?: readonly AgentId[];
 }
 
+const GITIGNORE_ENTRY = ".codebase-intelligence/";
+
 /** Write the instruction block into each selected agent's repo file. */
 export function installRepoFiles(repoRoot: string, options: InstallRepoOptions = {}): InstallResult[] {
   const selected = options.agents ?? ALL_AGENT_IDS;
@@ -291,6 +300,29 @@ export function installRepoFiles(repoRoot: string, options: InstallRepoOptions =
   }
 
   return results;
+}
+
+/**
+ * Add the canonical cache directory to a repo .gitignore without duplicates.
+ *
+ * @param repoRoot - Repository root where `.gitignore` should be updated.
+ * @returns File action for CLI/user reporting.
+ */
+export function installGitignoreEntry(repoRoot: string): InstallResult {
+  const filePath = path.join(repoRoot, ".gitignore");
+  const existedBefore = fs.existsSync(filePath);
+  const original = existedBefore ? fs.readFileSync(filePath, "utf-8") : "";
+  const lines = original.split(/\r?\n/).map((line) => line.trim());
+
+  if (lines.includes(GITIGNORE_ENTRY) || lines.includes(GITIGNORE_ENTRY.replace(/\/$/, ""))) {
+    return { path: ".gitignore", action: "unchanged" };
+  }
+
+  const separator = original === "" || original.endsWith("\n") ? "" : "\n";
+  const next = `${original}${separator}${GITIGNORE_ENTRY}\n`;
+
+  fs.writeFileSync(filePath, next, "utf-8");
+  return { path: ".gitignore", action: existedBefore ? "updated" : "created" };
 }
 
 /** Install the portable skill into the per-user Claude skills directory. */

@@ -11,12 +11,13 @@ beforeAll(() => {
 });
 
 describe("6.1 — CLI persistence commands", () => {
-  it("--index writes graph.json and meta.json to .code-visualizer/", async () => {
+  it("--index writes graph.json and meta.json to .codebase-intelligence/", async () => {
     const { exportGraph } = await import("../src/persistence/index.js");
+    const { CANONICAL_INDEX_DIR_NAME } = await import("../src/persistence/cache-key.js");
     const { codebaseGraph } = getFixturePipeline();
 
     const tmpDir = path.join(os.tmpdir(), `cv-cli-test-${Date.now()}`);
-    const indexDir = path.join(tmpDir, ".code-visualizer");
+    const indexDir = path.join(tmpDir, CANONICAL_INDEX_DIR_NAME);
 
     try {
       exportGraph(codebaseGraph, indexDir, "test-head-hash", "test-cache-key");
@@ -39,12 +40,13 @@ describe("6.1 — CLI persistence commands", () => {
     }
   });
 
-  it("--status reads index info from .code-visualizer/", async () => {
+  it("--status reads index info from .codebase-intelligence/", async () => {
     const { exportGraph, importGraph } = await import("../src/persistence/index.js");
+    const { CANONICAL_INDEX_DIR_NAME } = await import("../src/persistence/cache-key.js");
     const { codebaseGraph } = getFixturePipeline();
 
     const tmpDir = path.join(os.tmpdir(), `cv-status-test-${Date.now()}`);
-    const indexDir = path.join(tmpDir, ".code-visualizer");
+    const indexDir = path.join(tmpDir, CANONICAL_INDEX_DIR_NAME);
 
     try {
       exportGraph(codebaseGraph, indexDir, "status-hash-abc", "status-cache-key");
@@ -61,12 +63,13 @@ describe("6.1 — CLI persistence commands", () => {
     }
   });
 
-  it("--clean removes .code-visualizer/ directory", async () => {
+  it("--clean removes .codebase-intelligence/ directory", async () => {
     const { exportGraph } = await import("../src/persistence/index.js");
+    const { CANONICAL_INDEX_DIR_NAME } = await import("../src/persistence/cache-key.js");
     const { codebaseGraph } = getFixturePipeline();
 
     const tmpDir = path.join(os.tmpdir(), `cv-clean-test-${Date.now()}`);
-    const indexDir = path.join(tmpDir, ".code-visualizer");
+    const indexDir = path.join(tmpDir, CANONICAL_INDEX_DIR_NAME);
 
     try {
       exportGraph(codebaseGraph, indexDir, "clean-hash");
@@ -81,10 +84,11 @@ describe("6.1 — CLI persistence commands", () => {
 
   it("--force re-indexes even when HEAD unchanged", async () => {
     const { exportGraph, importGraph } = await import("../src/persistence/index.js");
+    const { CANONICAL_INDEX_DIR_NAME } = await import("../src/persistence/cache-key.js");
     const { codebaseGraph } = getFixturePipeline();
 
     const tmpDir = path.join(os.tmpdir(), `cv-force-test-${Date.now()}`);
-    const indexDir = path.join(tmpDir, ".code-visualizer");
+    const indexDir = path.join(tmpDir, CANONICAL_INDEX_DIR_NAME);
 
     try {
       exportGraph(codebaseGraph, indexDir, "same-hash");

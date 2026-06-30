@@ -14,6 +14,7 @@ interface PathAlias {
 const BUILT_IN_IGNORE_PATTERNS = [
   ".git",
   "node_modules",
+  ".codebase-intelligence",
   ".code-visualizer",
   ".next",
   "dist",

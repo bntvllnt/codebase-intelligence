@@ -23,7 +23,8 @@ import { analyzeGraph } from "./analyzer/index.js";
 import { startMcpServer } from "./mcp/index.js";
 import { setIndexedHead, setRoot } from "./server/graph-store.js";
 import { exportGraph, importGraph } from "./persistence/index.js";
-import { getCacheKey, INDEX_DIR_NAME } from "./persistence/cache-key.js";
+import { getCacheKey } from "./persistence/cache-key.js";
+import { cleanIndexDirectories, prepareIndexDirectory, type IndexDirectoryResolution } from "./persistence/index-dir.js";
 import {
   computeOverview,
   computeFileContext,
@@ -49,6 +50,7 @@ import {
 import {
   installRepoFiles,
   installGlobalSkill,
+  installGitignoreEntry,
   resolveInitPlan,
   ALL_AGENT_IDS,
 } from "./install/index.js";
@@ -60,8 +62,13 @@ import type { CodebaseGraph, OutputFormat } from "./types/index.js";
 
 // ── Helpers ─────────────────────────────────────────────────
 
-function getIndexDir(targetPath: string): string {
-  return path.join(path.resolve(targetPath), INDEX_DIR_NAME);
+function reportIndexMigration(resolution: IndexDirectoryResolution): void {
+  if (resolution.migration === "migrated-legacy") {
+    progress(`Migrated legacy index ${resolution.legacyDir} to ${resolution.canonicalDir}`);
+  }
+  if (resolution.migration === "ignored-legacy") {
+    progress(`Using ${resolution.canonicalDir}; legacy index remains at ${resolution.legacyDir}`);
+  }
 }
 
 function getHeadHash(targetPath: string): string {
@@ -98,7 +105,9 @@ function loadGraph(targetPath: string, force = false): { graph: CodebaseGraph; h
   }
   setRoot(resolved);
 
-  const indexDir = getIndexDir(targetPath);
+  const indexResolution = prepareIndexDirectory(targetPath);
+  reportIndexMigration(indexResolution);
+  const indexDir = indexResolution.activeDir;
   const headHash = getHeadHash(targetPath);
   const cacheKey = getCacheKey(targetPath, { headHash, cliVersion: pkg.version });
 
@@ -204,6 +213,7 @@ interface InitOptions {
   agents?: string;
   all?: boolean;
   skill?: boolean;
+  gitignore?: boolean;
   yes?: boolean;
   json?: boolean;
 }
@@ -1018,6 +1028,7 @@ program
   .option("--agents <list>", `Comma-separated agents, non-interactive. Available: ${ALL_AGENT_IDS.join(", ")}`)
   .option("--all", "Target every agent (non-interactive)")
   .option("--skill", "Also install the global Claude skill (opt-in)")
+  .option("--gitignore", "Add .codebase-intelligence/ to .gitignore")
   .option("-y, --yes", "Accept defaults without prompting")
   .option("--json", "Output as JSON (implies non-interactive)")
   .action(async (targetPath: string, options: InitOptions) => {
@@ -1050,16 +1061,19 @@ program
       installSkill = selection.skill;
     }
 
-    if (agents.length === 0 && !installSkill) {
+    const installGitignore = plan.installGitignore;
+
+    if (agents.length === 0 && !installSkill && !installGitignore) {
       output("Nothing selected — nothing to do.");
       return;
     }
 
     const repoResults = installRepoFiles(resolved, { agents });
+    const gitignoreResult = installGitignore ? installGitignoreEntry(resolved) : undefined;
     const skillResult = installSkill ? installGlobalSkill() : undefined;
 
     if (options.json) {
-      outputJson({ repoFiles: repoResults, skill: skillResult ?? null });
+      outputJson({ repoFiles: repoResults, gitignore: gitignoreResult ?? null, skill: skillResult ?? null });
       return;
     }
 
@@ -1075,6 +1089,11 @@ program
       output(``);
       output(`Global skill:`);
       output(`  ${skillResult.action.padEnd(9)} ${skillResult.path}`);
+    }
+    if (gitignoreResult) {
+      output(``);
+      output(`Git ignore:`);
+      output(`  ${gitignoreResult.action.padEnd(9)} ${gitignoreResult.path}`);
     }
     output(``);
     output(`Done. Selected agents will be told to query codebase-intelligence first.`);
@@ -1187,18 +1206,21 @@ program
   });
 
 async function runMcpMode(targetPath: string, options: McpOptions): Promise<void> {
-  const indexDir = getIndexDir(targetPath);
   setRoot(path.resolve(targetPath));
 
   if (options.clean) {
-    if (fs.existsSync(indexDir)) {
-      fs.rmSync(indexDir, { recursive: true, force: true });
-      progress(`Removed index at ${indexDir}`);
-    } else {
+    const removed = cleanIndexDirectories(targetPath);
+    if (removed.length === 0) {
       progress("No index found.");
+    } else {
+      for (const dir of removed) progress(`Removed index at ${dir}`);
     }
     return;
   }
+
+  const indexResolution = prepareIndexDirectory(targetPath);
+  reportIndexMigration(indexResolution);
+  const indexDir = indexResolution.activeDir;
 
   if (options.status) {
     const result = importGraph(indexDir);
@@ -1267,10 +1289,10 @@ async function runMcpMode(targetPath: string, options: McpOptions): Promise<void
 program
   .argument("[path]", "Path to codebase (starts MCP mode)")
   .option("--mcp", "Start as MCP stdio server (backward compatibility)")
-  .option("--index", "Persist graph index to .code-visualizer/")
+  .option("--index", "Persist graph index to .codebase-intelligence/")
   .option("--force", "Re-index even if HEAD unchanged")
   .option("--status", "Print index status and exit")
-  .option("--clean", "Remove .code-visualizer/ index and exit")
+  .option("--clean", "Remove .codebase-intelligence/ and legacy .code-visualizer/ indexes and exit")
   .action(async (targetPath: string | undefined, options: McpOptions) => {
     if (!targetPath) {
       program.help();
