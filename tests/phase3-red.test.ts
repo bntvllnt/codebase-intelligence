@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { getFixturePipeline } from "./helpers/pipeline.js";
+import { createFixtureMcp } from "./helpers/mcp.js";
 import { setGraph } from "../src/server/graph-store.js";
 import path from "path";
 import fs from "fs";
@@ -160,6 +161,24 @@ describe("3.7 — detect_changes MCP tool", () => {
 });
 
 describe("3.8 — detect_changes without git", () => {
-  it.todo("detect_changes returns clear error when git unavailable");
-});
+  it("detect_changes returns clear error when git unavailable", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-detect-no-git-"));
+    try {
+      const { callToolWithMeta } = await createFixtureMcp(dir);
+      const { payload, isError } = await callToolWithMeta("detect_changes");
 
+      expect(isError).toBe(true);
+      expect(payload).toHaveProperty("scope", "all");
+      expect(payload).toHaveProperty("error");
+      expect(String(payload.error)).toContain("Git not available");
+      expect(payload).toHaveProperty("nextSteps");
+      const nextSteps = payload.nextSteps;
+      expect(Array.isArray(nextSteps)).toBe(true);
+      if (Array.isArray(nextSteps)) {
+        expect(nextSteps.join(" ")).toContain("git repository");
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

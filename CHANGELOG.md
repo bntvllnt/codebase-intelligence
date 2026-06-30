@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **MCP contract coverage now exercises the remaining explicit todo stories.**
+  Search responses are verified as file-grouped with symbol locations and
+  `nextSteps`; `symbol_context` is verified for `AuthService`; `detect_changes`
+  is verified against a real non-git directory.
+
+### Fixed
+
+- **`detect_changes` no-git errors no longer leak raw `git diff` usage output.**
+  The command now suppresses git stderr and returns the structured
+  `Git not available or not in a git repository` error with recovery steps.
+
 ## [2.5.0-canary] - 2026-06-30
 
 > Canary base for 2.5.0. Merging to `main` publishes `2.5.0-canary.<sha>` with

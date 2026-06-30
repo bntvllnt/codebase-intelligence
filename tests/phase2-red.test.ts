@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { getFixturePipeline } from "./helpers/pipeline.js";
 import { setGraph } from "../src/server/graph-store.js";
+import { createFixtureMcp } from "./helpers/mcp.js";
 
 beforeAll(() => {
   const { codebaseGraph } = getFixturePipeline();
@@ -71,7 +72,53 @@ describe("2.2 — BM25 empty results return suggestions", () => {
 });
 
 describe("2.3 — search MCP tool", () => {
-  it.todo("search tool returns file-grouped results with symbol locations and nextSteps");
+  it("search tool returns file-grouped results with symbol locations and nextSteps", async () => {
+    const { callTool } = await createFixtureMcp();
+    const result = await callTool("search", { query: "auth", limit: 5 });
+
+    expect(result).toHaveProperty("query", "auth");
+    expect(result).toHaveProperty("results");
+    expect(result).toHaveProperty("nextSteps");
+
+    const results = result.results;
+    expect(Array.isArray(results)).toBe(true);
+    if (!Array.isArray(results)) return;
+    expect(results.length).toBeGreaterThan(0);
+
+    const files = new Set<string>();
+    const first = results[0];
+    expect(typeof first).toBe("object");
+    expect(first).not.toBeNull();
+    if (typeof first !== "object" || first === null) return;
+    expect(first).toHaveProperty("file");
+    expect(first).toHaveProperty("symbols");
+
+    for (const item of results) {
+      expect(typeof item).toBe("object");
+      expect(item).not.toBeNull();
+      if (typeof item !== "object" || item === null) continue;
+      const file = "file" in item ? item.file : undefined;
+      const symbols = "symbols" in item ? item.symbols : undefined;
+      expect(typeof file).toBe("string");
+      if (typeof file === "string") files.add(file);
+      expect(Array.isArray(symbols)).toBe(true);
+      if (!Array.isArray(symbols) || symbols.length === 0) continue;
+      const symbol = symbols[0];
+      expect(typeof symbol).toBe("object");
+      expect(symbol).not.toBeNull();
+      if (typeof symbol !== "object" || symbol === null) continue;
+      expect(symbol).toHaveProperty("name");
+      expect(symbol).toHaveProperty("type");
+      expect(symbol).toHaveProperty("loc");
+      const loc = "loc" in symbol ? symbol.loc : undefined;
+      expect(typeof loc).toBe("number");
+    }
+
+    expect(files.size).toBe(results.length);
+    const nextSteps = result.nextSteps;
+    expect(Array.isArray(nextSteps)).toBe(true);
+    if (Array.isArray(nextSteps)) expect(nextSteps.length).toBeGreaterThan(0);
+  });
 });
 
 describe("2.6 — existing tools include nextSteps", () => {
