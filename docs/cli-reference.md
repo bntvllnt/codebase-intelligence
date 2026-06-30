@@ -1,6 +1,6 @@
 # CLI Reference
 
-17 commands for terminal and CI use. The 15 analysis commands have full parity with MCP tools and auto-cache the index to `.code-visualizer/`; `check` runs the rules gate; `init` sets up agent adoption.
+18 commands for terminal and CI use. The 16 analysis commands have full parity with MCP tools and auto-cache the index to `.code-visualizer/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -12,7 +12,7 @@ High-level codebase snapshot.
 codebase-intelligence overview <path> [--json] [--force]
 ```
 
-**Output:** file count, function count, dependency count, modules (path, files, LOC, coupling, cohesion), top 5 depended files, avg LOC, max depth, circular dep count.
+**Output:** file count, function count, dependency count, analysis mode/call graph precision, modules (path, files, LOC, coupling, cohesion), top 5 depended files, avg LOC, max depth, circular dep count.
 
 ### hotspots
 
@@ -94,7 +94,17 @@ Find unused exports across the codebase.
 codebase-intelligence dead-exports <path> [--module <module>] [--limit <n>] [--json] [--force]
 ```
 
-**Output:** dead export count, files with unused exports, summary.
+**Output:** dead export count, files with unused exports, confidence, package-entrypoint evidence, summary.
+
+### opportunities
+
+Rank code quality and refactoring opportunities for AI agents.
+
+```bash
+codebase-intelligence opportunities <path> [--limit <n>] [--json] [--force]
+```
+
+**Output:** ranked opportunities with kind, priority, confidence, score, target, evidence, and suggested follow-up commands.
 
 ### groups
 
@@ -198,7 +208,7 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [-
 | `--json` | All commands | Output stable JSON to stdout |
 | `--force` | All commands | Re-parse even if cached index matches HEAD |
 | `--metric <m>` | hotspots | Metric to rank by (default: coupling) |
-| `--limit <n>` | hotspots, search, dead-exports, processes | Max results |
+| `--limit <n>` | hotspots, search, dead-exports, opportunities, processes | Max results |
 | `--scope <s>` | changes | Git diff scope: staged, unstaged, all |
 | `--depth <n>` | dependents | Max traversal depth (default: 2) |
 | `--cohesion <n>` | forces | Min cohesion threshold (default: 0.6) |
@@ -221,7 +231,11 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [-
 
 ## Behavior
 
-**Auto-caching:** First CLI invocation parses the codebase and saves the index to `.code-visualizer/`. Subsequent commands use the cache if `git HEAD` hasn't changed. Add `.code-visualizer/` to `.gitignore`.
+**Auto-caching:** First CLI invocation parses the codebase and saves the index to `.code-visualizer/`. Subsequent commands use the cache only when `git HEAD`, dirty/untracked file contents under the analyzed path, the CLI version, and parser cache settings match. Add `.code-visualizer/` to `.gitignore`.
+
+**Default scanner excludes:** The parser always skips `.git`, `node_modules`, `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`, even if the target repo has no matching `.gitignore` entry.
+
+**Large repo mode:** Repos above 1500 TypeScript files use a lightweight AST parser by default to avoid TypeScript program OOM. File/import/export/dependency metrics remain available; type-resolved call graph details are reduced. Set `CBI_FULL_PROGRAM_FILE_LIMIT=<n>` to tune the cutoff.
 
 **stdout/stderr:** Results go to stdout. Progress messages go to stderr. Safe for piping (`| jq`, `> file.json`).
 
@@ -234,4 +248,4 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [-
 - `--index` — persist graph index to `.code-visualizer/` (CLI auto-caches, MCP requires this flag)
 - `--status` — print index status and exit
 - `--clean` — remove `.code-visualizer/` index and exit
-- `--force` — re-index even if HEAD unchanged
+- `--force` — re-index even if the cache signature matches

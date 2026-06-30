@@ -49,6 +49,7 @@ describe("CLI MCP stdio lifecycle (e2e)", () => {
       const tools = await client.listTools();
       const names = tools.tools.map((tool) => tool.name);
       expect(names).toContain("codebase_overview");
+      expect(names).toContain("find_opportunities");
       expect(names).toContain("check");
 
       const result = await client.callTool({ name: "codebase_overview", arguments: {} });

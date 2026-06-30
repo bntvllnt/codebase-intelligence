@@ -9,7 +9,11 @@ interface PersistedMeta {
   headHash: string;
   timestamp: string;
   version: number;
+  cacheKey?: string;
 }
+
+type PersistedStats = Omit<CodebaseGraph["stats"], "analysisMode" | "callGraphPrecision" | "fullProgramFileLimit"> &
+  Partial<Pick<CodebaseGraph["stats"], "analysisMode" | "callGraphPrecision" | "fullProgramFileLimit">>;
 
 interface PersistedGraph {
   nodes: CodebaseGraph["nodes"];
@@ -23,16 +27,17 @@ interface PersistedGraph {
   processes: CodebaseGraph["processes"];
   clusters: CodebaseGraph["clusters"];
   forceAnalysis: CodebaseGraph["forceAnalysis"];
-  stats: CodebaseGraph["stats"];
+  stats: PersistedStats;
 }
 
 interface ImportResult {
   graph: CodebaseGraph;
   headHash: string;
+  cacheKey?: string;
 }
 
 /** Export a CodebaseGraph to JSON files in the given directory. */
-export function exportGraph(graph: CodebaseGraph, dir: string, headHash: string): void {
+export function exportGraph(graph: CodebaseGraph, dir: string, headHash: string, cacheKey?: string): void {
   fs.mkdirSync(dir, { recursive: true });
 
   const persisted: PersistedGraph = {
@@ -53,8 +58,9 @@ export function exportGraph(graph: CodebaseGraph, dir: string, headHash: string)
   const meta: PersistedMeta = {
     headHash,
     timestamp: new Date().toISOString(),
-    version: 1,
+    version: 3,
   };
+  if (cacheKey) meta.cacheKey = cacheKey;
 
   fs.writeFileSync(path.join(dir, GRAPH_FILE), JSON.stringify(persisted));
   fs.writeFileSync(path.join(dir, META_FILE), JSON.stringify(meta));
@@ -72,6 +78,13 @@ export function importGraph(dir: string): ImportResult | null {
   const persisted = JSON.parse(fs.readFileSync(graphPath, "utf-8")) as PersistedGraph;
   const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8")) as PersistedMeta;
 
+  const stats: CodebaseGraph["stats"] = {
+    ...persisted.stats,
+    analysisMode: persisted.stats.analysisMode ?? "full-program",
+    callGraphPrecision: persisted.stats.callGraphPrecision ?? "type-resolved",
+    fullProgramFileLimit: persisted.stats.fullProgramFileLimit ?? 1500,
+  };
+
   const graph: CodebaseGraph = {
     nodes: persisted.nodes,
     edges: persisted.edges,
@@ -84,8 +97,8 @@ export function importGraph(dir: string): ImportResult | null {
     processes: persisted.processes,
     clusters: persisted.clusters,
     forceAnalysis: persisted.forceAnalysis,
-    stats: persisted.stats,
+    stats,
   };
 
-  return { graph, headHash: meta.headHash };
+  return { graph, headHash: meta.headHash, cacheKey: meta.cacheKey };
 }

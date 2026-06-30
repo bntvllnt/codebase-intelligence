@@ -20,6 +20,7 @@ import {
   computeModuleStructure,
   computeForces,
   computeDeadExports,
+  computeOpportunities,
   computeGroups,
   computeSymbolContext,
   computeProcesses,
@@ -154,7 +155,23 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
     }
   );
 
-  // Tool 8: get_groups
+  // Tool 8: find_opportunities
+  server.tool(
+    "find_opportunities",
+    "Rank code quality and refactoring opportunities with evidence, confidence, and suggested follow-up commands. Use when: 'what should I improve', 'find refactoring opportunities', 'what needs tests'. Not for: raw metrics only (use find_hotspots or analyze_forces)",
+    {
+      limit: z.number().optional().describe("Max opportunities (default: 20)"),
+    },
+    async ({ limit }) => {
+      const result = {
+        ...computeOpportunities(graph, limit),
+        nextSteps: getHints("find_opportunities"),
+      };
+      return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
+    },
+  );
+
+  // Tool 9: get_groups
   server.tool(
     "get_groups",
     "Get top-level directory groups with aggregate metrics: files, LOC, importance (PageRank), coupling. Use when: 'what are the main areas of this codebase', high-level grouping overview. Not for: detailed module metrics (use get_module_structure)",
@@ -391,13 +408,14 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
         modules: [...graph.moduleMetrics.keys()],
         availableTools: [
           "codebase_overview", "file_context", "get_dependents", "find_hotspots",
-          "get_module_structure", "analyze_forces", "find_dead_exports", "get_groups",
+          "get_module_structure", "analyze_forces", "find_dead_exports", "find_opportunities", "get_groups",
           "symbol_context", "search", "detect_changes", "impact_analysis", "rename_symbol",
           "get_processes", "get_clusters", "check",
         ],
         indexedHead,
         gettingStarted: [
           "Call codebase_overview for a high-level map",
+          "Use find_opportunities for a ranked improvement plan",
           "Use search to find specific files or symbols",
           "Use symbol_context to understand function call chains",
           "Use detect_changes to see what's changed since last index",

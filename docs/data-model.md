@@ -76,6 +76,9 @@ FileMetrics {
   cyclomaticComplexity: number  // Avg complexity of exports
   blastRadius: number           // Transitive dependent count
   deadExports: string[]         // Unused export names
+  totalExports: number          // Named export count used as dead-export denominator
+  isPackageEntrypoint: boolean  // package.json exports/main/types/bin point here
+  packageEntrypointReason: string // package.json field/path evidence
   isTestFile: boolean           // Whether this file is a test file
 }
 
@@ -107,6 +110,9 @@ CodebaseGraph {
     totalFunctions: number
     totalDependencies: number
     circularDeps: string[][]  // Each cycle = array of file paths
+    analysisMode: "full-program" | "ast-only"
+    callGraphPrecision: "type-resolved" | "syntax-only"
+    fullProgramFileLimit: number
   }
 }
 ```

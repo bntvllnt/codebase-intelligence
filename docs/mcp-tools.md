@@ -1,13 +1,13 @@
 # MCP Tools Reference
 
-16 tools available via MCP stdio.
+17 tools available via MCP stdio.
 
 ## 1. codebase_overview
 
 High-level summary of the entire codebase.
 
 **Input:** `{ depth?: number }`
-**Returns:** totalFiles, totalFunctions, totalDependencies, modules (sorted by size), topDependedFiles (top 5 by fanIn), globalMetrics (avgLOC, maxDepth, circularDepCount)
+**Returns:** totalFiles, totalFunctions, totalDependencies, modules (sorted by size), topDependedFiles (top 5 by fanIn), metrics (avgLOC, maxDepth, circularDeps), analysis (mode, callGraphPrecision, fullProgramFileLimit)
 
 **Use when:** First exploring a codebase. "What does this project look like?"
 **Not for:** Module details (use get_module_structure) or data flow (use analyze_forces).
@@ -17,7 +17,7 @@ High-level summary of the entire codebase.
 Detailed context for a single file.
 
 **Input:** `{ filePath: string }` (relative path)
-**Returns:** path, loc, exports, imports (with symbols, isTypeOnly, weight), dependents (with symbols, isTypeOnly, weight), metrics (all FileMetrics including churn, complexity, blastRadius, deadExports, hasTests, testFile)
+**Returns:** path, loc, exports, imports (with symbols, isTypeOnly, weight), dependents (with symbols, isTypeOnly, weight), metrics (all FileMetrics including churn, complexity, blastRadius, deadExports, totalExports, package-entrypoint metadata, hasTests, testFile)
 
 **Path normalization:** Backslashes are normalized to forward slashes. The exact graph path is tried first; if not found, common prefixes (`src/`, `lib/`, `app/`) are stripped once from the leading position and retried. If the file is not found, the error includes up to 3 suggested similar paths.
 
@@ -70,12 +70,24 @@ Architectural force analysis — module health, misplaced files, bridge files.
 Find unused exports across the codebase.
 
 **Input:** `{ module?: string, limit?: number }` (default limit: 20)
-**Returns:** totalDeadExports, files (with path, module, deadExports[], totalExports), summary
+**Returns:** totalDeadExports, files (with path, module, deadExports[], totalExports, confidence, package-entrypoint metadata), summary
+
+Package public entrypoints from `exports`, `main`, `types`, and `bin` are reported as low confidence because external consumers may use them.
 
 **Use when:** Cleaning up dead code, reducing API surface.
 **Not for:** Finding used exports (use file_context).
 
-## 8. get_groups
+## 8. find_opportunities
+
+Rank code quality and refactoring opportunities for AI agents.
+
+**Input:** `{ limit?: number }` (default limit: 20)
+**Returns:** totalOpportunities, opportunities[] (rank, kind, target, title, priority, score, confidence, why, evidence[], suggestedCommands[]), summary
+
+**Use when:** "What should I improve?" "Find refactoring opportunities." "Which files need tests?"
+**Not for:** Raw metric lists only (use find_hotspots or analyze_forces).
+
+## 9. get_groups
 
 Top-level directory groups with aggregate metrics.
 
@@ -85,7 +97,7 @@ Top-level directory groups with aggregate metrics.
 **Use when:** "What are the main areas of this codebase?" High-level grouping overview.
 **Not for:** Detailed module metrics (use get_module_structure).
 
-## 9. symbol_context
+## 10. symbol_context
 
 Callers, callees, and importance metrics for a function, class, or method.
 
@@ -95,7 +107,7 @@ Callers, callees, and importance metrics for a function, class, or method.
 **Use when:** "Who calls X?" "Trace this function." "What depends on this symbol?"
 **Not for:** Text search (use search) or file-level dependencies (use get_dependents).
 
-## 10. search
+## 11. search
 
 Search files and symbols by keyword.
 
@@ -105,7 +117,7 @@ Search files and symbols by keyword.
 **Use when:** "Find files related to auth." "Where is getUserById defined?"
 **Not for:** Structured call graph queries (use symbol_context).
 
-## 11. detect_changes
+## 12. detect_changes
 
 Detect changed files from git diff with risk metrics.
 
@@ -115,7 +127,7 @@ Detect changed files from git diff with risk metrics.
 **Use when:** Starting a review, triaging changes, "what changed?"
 **Not for:** Symbol-level impact (use impact_analysis).
 
-## 12. impact_analysis
+## 13. impact_analysis
 
 Symbol-level blast radius with depth-grouped risk labels.
 
@@ -125,7 +137,7 @@ Symbol-level blast radius with depth-grouped risk labels.
 **Use when:** "What breaks if I change getUserById?" Symbol-level impact assessment.
 **Not for:** File-level dependencies (use get_dependents).
 
-## 13. rename_symbol
+## 14. rename_symbol
 
 Read-only reference finder for rename planning.
 
@@ -135,7 +147,7 @@ Read-only reference finder for rename planning.
 **Use when:** Planning a rename, finding all usages of a symbol.
 **Not for:** Call graph analysis (use symbol_context).
 
-## 14. get_processes
+## 15. get_processes
 
 Trace execution flows from entry points through the call graph.
 
@@ -145,7 +157,7 @@ Trace execution flows from entry points through the call graph.
 **Use when:** "How does this app start?" "Trace request flow." "What are the entry points?"
 **Not for:** Static file dependencies (use get_dependents).
 
-## 15. get_clusters
+## 16. get_clusters
 
 Community-detected clusters of related files.
 
@@ -155,7 +167,7 @@ Community-detected clusters of related files.
 **Use when:** "What files are related?" "Find natural groupings." Discovering emergent groupings that differ from directory structure.
 **Not for:** Directory-based modules (use get_module_structure).
 
-## 16. check
+## 17. check
 
 Run the configurable rules engine and gate on findings.
 
@@ -192,6 +204,8 @@ Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-expo
 | "What breaks if I change function X?" | `impact_analysis` |
 | "What are the riskiest files?" | `find_hotspots` (coupling, churn, or blast_radius) |
 | "Which files need tests?" | `find_hotspots` (coverage) |
+| "What should I improve first?" | `find_opportunities` |
+| "Find refactoring opportunities." | `find_opportunities` |
 | "What can I safely delete?" | `find_dead_exports` |
 | "How are modules organized?" | `get_module_structure` |
 | "What's architecturally wrong?" | `analyze_forces` |

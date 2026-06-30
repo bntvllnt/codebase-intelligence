@@ -1,3 +1,6 @@
+export type AnalysisMode = "full-program" | "ast-only";
+export type CallGraphPrecision = "type-resolved" | "syntax-only";
+
 export interface ParsedFile {
   path: string;
   relativePath: string;
@@ -7,6 +10,7 @@ export interface ParsedFile {
   callSites: CallSite[];
   churn: number;
   isTestFile: boolean;
+  analysisMode?: AnalysisMode;
   testFile?: string;
 }
 
@@ -93,6 +97,9 @@ export interface FileMetrics {
   cyclomaticComplexity: number;
   blastRadius: number;
   deadExports: string[];
+  totalExports: number;
+  isPackageEntrypoint: boolean;
+  packageEntrypointReason: string;
   hasTests: boolean;
   testFile: string;
   isTestFile: boolean;
@@ -241,6 +248,9 @@ export interface CodebaseGraph {
     totalFunctions: number;
     totalDependencies: number;
     circularDeps: string[][];
+    analysisMode: AnalysisMode;
+    callGraphPrecision: CallGraphPrecision;
+    fullProgramFileLimit: number;
   };
 }
 

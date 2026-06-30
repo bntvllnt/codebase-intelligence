@@ -19,7 +19,7 @@ describe("6.1 — CLI persistence commands", () => {
     const indexDir = path.join(tmpDir, ".code-visualizer");
 
     try {
-      exportGraph(codebaseGraph, indexDir, "test-head-hash");
+      exportGraph(codebaseGraph, indexDir, "test-head-hash", "test-cache-key");
 
       expect(fs.existsSync(path.join(indexDir, "graph.json"))).toBe(true);
       expect(fs.existsSync(path.join(indexDir, "meta.json"))).toBe(true);
@@ -27,9 +27,13 @@ describe("6.1 — CLI persistence commands", () => {
       const meta = JSON.parse(fs.readFileSync(path.join(indexDir, "meta.json"), "utf-8")) as {
         headHash: string;
         timestamp: string;
+        version: number;
+        cacheKey: string;
       };
       expect(meta.headHash).toBe("test-head-hash");
       expect(meta.timestamp).toBeDefined();
+      expect(meta.version).toBe(3);
+      expect(meta.cacheKey).toBe("test-cache-key");
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -43,13 +47,14 @@ describe("6.1 — CLI persistence commands", () => {
     const indexDir = path.join(tmpDir, ".code-visualizer");
 
     try {
-      exportGraph(codebaseGraph, indexDir, "status-hash-abc");
+      exportGraph(codebaseGraph, indexDir, "status-hash-abc", "status-cache-key");
       const result = importGraph(indexDir);
 
       expect(result).not.toBeNull();
       if (!result) return;
 
       expect(result.headHash).toBe("status-hash-abc");
+      expect(result.cacheKey).toBe("status-cache-key");
       expect(result.graph.nodes.length).toBe(codebaseGraph.nodes.length);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
@@ -121,9 +126,7 @@ describe("6.2 — per-symbol PageRank/betweenness", () => {
   it("high fan-in symbols have higher pageRank", () => {
     const { codebaseGraph } = getFixturePipeline();
 
-    const withRank = [...codebaseGraph.symbolMetrics.values()]
-      .filter((m) => m.pageRank !== undefined)
-      .sort((a, b) => b.pageRank - a.pageRank);
+    const withRank = [...codebaseGraph.symbolMetrics.values()].sort((a, b) => b.pageRank - a.pageRank);
 
     expect(withRank.length).toBeGreaterThan(0);
 

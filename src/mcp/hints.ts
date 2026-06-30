@@ -35,6 +35,11 @@ const TOOL_HINTS: Record<string, string[]> = {
     "Use file_context on files with dead exports to check if they're truly unused",
     "Use codebase_overview to see overall API surface reduction opportunity",
   ],
+  find_opportunities: [
+    "Use file_context on the top opportunity target before editing",
+    "Use get_dependents for stabilize-hotspot or add-tests opportunities",
+    "Use analyze_forces for extract-seam, move-file, and split-module opportunities",
+  ],
   get_groups: [
     "Use get_module_structure for detailed per-module breakdown",
     "Use find_hotspots with metric='coupling' to find cross-group coupling",

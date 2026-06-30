@@ -67,6 +67,10 @@ describe("Tool 2: file_context", () => {
     expect(m).toHaveProperty("fanIn");
     expect(m).toHaveProperty("churn");
     expect(m).toHaveProperty("blastRadius");
+    expect(m).toHaveProperty("totalExports");
+    expect(m).toHaveProperty("isPackageEntrypoint");
+    expect(m).toHaveProperty("packageEntrypointReason");
+    expect(m).toHaveProperty("isTestFile");
   });
 
   it("returns error for unknown file", async () => {
@@ -262,7 +266,26 @@ describe("Tool 7: find_dead_exports", () => {
   });
 });
 
-describe("Tool 8: get_groups", () => {
+describe("Tool 8: find_opportunities", () => {
+  it("returns ranked opportunities with evidence and next steps", async () => {
+    const r = await callTool("find_opportunities", { limit: 5 });
+    expect(r).toHaveProperty("totalOpportunities");
+    expect(r).toHaveProperty("opportunities");
+    expect(r).toHaveProperty("summary");
+    expect(r).toHaveProperty("nextSteps");
+    const opportunities = r.opportunities as Array<Record<string, unknown>>;
+    expect(opportunities.length).toBeLessThanOrEqual(5);
+    if (opportunities.length > 0) {
+      expect(opportunities[0]).toHaveProperty("rank");
+      expect(opportunities[0]).toHaveProperty("kind");
+      expect(opportunities[0]).toHaveProperty("target");
+      expect(opportunities[0]).toHaveProperty("evidence");
+      expect(opportunities[0]).toHaveProperty("suggestedCommands");
+    }
+  });
+});
+
+describe("Tool 9: get_groups", () => {
   it("returns ranked directory groups", async () => {
     const r = await callTool("get_groups");
     expect(r).toHaveProperty("groups");
@@ -278,7 +301,7 @@ describe("Tool 8: get_groups", () => {
   });
 });
 
-describe("Tool 9: symbol_context", () => {
+describe("Tool 10: symbol_context", () => {
   it("returns callers, callees, metrics for a known symbol", async () => {
     const symbolName = [...graph.symbolMetrics.values()][0].name;
     const r = await callTool("symbol_context", { name: symbolName });
@@ -302,7 +325,7 @@ describe("Tool 9: symbol_context", () => {
   });
 });
 
-describe("Tool 10: search", () => {
+describe("Tool 11: search", () => {
   it("returns ranked results for a valid query", async () => {
     const r = await callTool("search", { query: "auth" });
     expect(r).toHaveProperty("query", "auth");
@@ -323,14 +346,14 @@ describe("Tool 10: search", () => {
   });
 });
 
-describe("Tool 11: detect_changes", () => {
+describe("Tool 12: detect_changes", () => {
   it("handles git not available gracefully", async () => {
     const r = await callTool("detect_changes");
     expect(r).toHaveProperty("scope");
   });
 });
 
-describe("Tool 12: impact_analysis", () => {
+describe("Tool 13: impact_analysis", () => {
   it("returns depth-grouped impact for a known symbol", async () => {
     const r = await callTool("impact_analysis", { symbol: "UserService.getUserById" });
     expect(r).toHaveProperty("symbol");
@@ -350,7 +373,7 @@ describe("Tool 12: impact_analysis", () => {
   });
 });
 
-describe("Tool 13: rename_symbol", () => {
+describe("Tool 14: rename_symbol", () => {
   it("returns references for a dry-run rename", async () => {
     const r = await callTool("rename_symbol", { oldName: "getUserById", newName: "findUserById" });
     expect(r).toHaveProperty("dryRun", true);
@@ -359,7 +382,7 @@ describe("Tool 13: rename_symbol", () => {
   });
 });
 
-describe("Tool 14: get_processes", () => {
+describe("Tool 15: get_processes", () => {
   it("returns execution flow traces", async () => {
     const r = await callTool("get_processes");
     expect(r).toHaveProperty("processes");
@@ -387,7 +410,7 @@ describe("Tool 14: get_processes", () => {
   });
 });
 
-describe("Tool 15: get_clusters", () => {
+describe("Tool 16: get_clusters", () => {
   it("returns community-detected clusters", async () => {
     const r = await callTool("get_clusters");
     expect(r).toHaveProperty("clusters");
@@ -459,7 +482,8 @@ describe("MCP Resources", () => {
     expect(setup).toHaveProperty("project", "codebase-intelligence");
     expect(setup).toHaveProperty("indexedHead", "abc123-test");
     expect(setup).toHaveProperty("availableTools");
-    expect((setup.availableTools as string[]).length).toBe(16);
+    expect((setup.availableTools as string[]).length).toBe(17);
+    expect(setup.availableTools as string[]).toContain("find_opportunities");
     expect(setup.availableTools as string[]).toContain("check");
   });
 });

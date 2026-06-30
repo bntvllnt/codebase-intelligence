@@ -25,8 +25,8 @@ Analyzer
   | produces: ForceAnalysis (tension files, bridges, extraction candidates)
   v
 MCP (stdio) + CLI
-  | MCP: 16 tools, 2 prompts, 3 resources for LLM agents
-  | CLI: 17 commands with formatted + JSON output for humans/CI
+  | MCP: 17 tools, 2 prompts, 3 resources for LLM agents
+  | CLI: 18 commands with formatted + JSON output for humans/CI
 ```
 
 ## Module Map
@@ -38,13 +38,14 @@ src/
   graph/index.ts       <- graphology graph + circular dep detection
   analyzer/index.ts    <- All metric computation
   core/index.ts        <- Shared result computation (MCP + CLI)
-  mcp/index.ts         <- 16 MCP tools for LLM integration
+  mcp/index.ts         <- 17 MCP tools for LLM integration
   mcp/hints.ts         <- Next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
   process/index.ts     <- Entry point detection + call chain tracing
   community/index.ts   <- Louvain clustering
   persistence/index.ts <- Graph export/import to .code-visualizer/
+  persistence/cache-key.ts <- Cache signature from HEAD, worktree content, CLI version, parser settings
   server/graph-store.ts <- Global graph state (shared by CLI + MCP)
   cli.ts               <- Entry point, CLI commands + MCP fallback
 ```
@@ -149,6 +150,9 @@ FileMetrics {
   cyclomaticComplexity: number  // Avg complexity of exports
   blastRadius: number           // Transitive dependent count
   deadExports: string[]         // Unused export names
+  totalExports: number          // Named export count used as dead-export denominator
+  isPackageEntrypoint: boolean  // package.json exports/main/types/bin point here
+  packageEntrypointReason: string // package.json field/path evidence
   isTestFile: boolean           // Whether this file is a test
 }
 
@@ -165,6 +169,8 @@ ModuleMetrics {
   dependedBy: string[]
 }
 ```
+
+Graph stats include `analysisMode` (`full-program` or `ast-only`), `callGraphPrecision` (`type-resolved` or `syntax-only`), and `fullProgramFileLimit`. In `ast-only` mode, file/import/export/dependency metrics remain available while type-resolved call graph detail is reduced.
 
 ---
 
@@ -185,6 +191,9 @@ ModuleMetrics {
 | cyclomaticComplexity | 1-N | Avg complexity of exports |
 | blastRadius | 0-N | Transitive dependents affected by change |
 | deadExports | list | Export names not consumed by any import |
+| totalExports | count | Named exports used as dead-export denominator |
+| isPackageEntrypoint | bool | True when package.json exports/main/types/bin point at file |
+| packageEntrypointReason | string | package.json entry evidence for public API confidence |
 | hasTests | bool | Matching test file exists |
 
 ## Module Metrics
@@ -212,10 +221,10 @@ The most dangerous files have: high churn + high coupling + low coverage.
 
 # MCP Tools Reference
 
-16 tools available via MCP stdio.
+17 tools available via MCP stdio.
 
 ## 1. codebase_overview
-High-level summary. Input: `{ depth?: number }`. Returns: totalFiles, totalFunctions, modules, topDependedFiles, metrics.
+High-level summary. Input: `{ depth?: number }`. Returns: totalFiles, totalFunctions, modules, topDependedFiles, metrics, and analysis mode/call graph precision.
 
 ## 2. file_context
 Detailed file context. Input: `{ filePath: string }`. Returns: exports, imports, dependents, all FileMetrics.
@@ -233,31 +242,37 @@ Module architecture. Input: `{ depth?: number }`. Returns: modules with metrics,
 Architectural force analysis. Input: `{ cohesionThreshold?, tensionThreshold?, escapeThreshold? }`. Returns: cohesion verdicts, tension files, bridge files, extraction candidates.
 
 ## 7. find_dead_exports
-Unused exports. Input: `{ module?: string, limit?: number }`. Returns: files with dead exports.
+Unused exports. Input: `{ module?: string, limit?: number }`. Returns: files with dead exports plus confidence. Package public entrypoints from `exports`, `main`, `types`, and `bin` are low confidence because external consumers may use them.
 
-## 8. get_groups
+## 8. find_opportunities
+Rank code quality and refactoring opportunities. Input: `{ limit?: number }`. Returns: ranked opportunities with priority, confidence, evidence, and suggested commands.
+
+## 9. get_groups
 Top-level directory groups. Input: `{}`. Returns: groups with rank, files, loc, importance, coupling.
 
-## 9. symbol_context
+## 10. symbol_context
 Function/class context. Input: `{ name: string }`. Returns: callers, callees, metrics.
 
-## 10. search
+## 11. search
 Keyword search (BM25). Input: `{ query: string, limit?: number }`. Returns: ranked files + symbols.
 
-## 11. detect_changes
+## 12. detect_changes
 Git diff analysis. Input: `{ scope?: "staged" | "unstaged" | "all" }`. Returns: changed files, affected files, risk metrics.
 
-## 12. impact_analysis
+## 13. impact_analysis
 Symbol-level blast radius. Input: `{ symbol: string }`. Returns: depth-grouped impact levels.
 
-## 13. rename_symbol
+## 14. rename_symbol
 Reference finder for rename planning. Input: `{ oldName: string, newName: string, dryRun?: boolean }`. Returns: references with confidence.
 
-## 14. get_processes
+## 15. get_processes
 Entry point execution flows. Input: `{ entryPoint?: string, limit?: number }`. Returns: processes with steps and depth.
 
-## 15. get_clusters
+## 16. get_clusters
 Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clusters with cohesion.
+
+## 17. check
+Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, config path, and summary counts.
 
 ## Tool Selection Guide
 
@@ -269,6 +284,8 @@ Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clust
 | What breaks if I change function X? | impact_analysis |
 | What are the riskiest files? | find_hotspots |
 | Which files need tests? | find_hotspots (coverage) |
+| What should I improve first? | find_opportunities |
+| Find refactoring opportunities | find_opportunities |
 | What can I safely delete? | find_dead_exports |
 | How are modules organized? | get_module_structure |
 | What's architecturally wrong? | analyze_forces |
@@ -278,12 +295,13 @@ Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clust
 | Find all references to X | rename_symbol |
 | How does data flow? | get_processes |
 | What files naturally belong together? | get_clusters |
+| What rule violations exist? | check |
 
 ---
 
 # CLI Reference
 
-17 commands — 15 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
+18 commands — 16 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
 
 ## Commands
 
@@ -340,6 +358,12 @@ Architectural force analysis: tension files, bridges, extraction candidates.
 codebase-intelligence dead-exports <path> [--module <m>] [--limit <n>] [--json] [--force]
 ```
 Find unused exports across the codebase.
+
+### opportunities
+```bash
+codebase-intelligence opportunities <path> [--limit <n>] [--json] [--force]
+```
+Rank code quality and refactoring opportunities with evidence, confidence, and suggested commands.
 
 ### groups
 ```bash
@@ -400,7 +424,11 @@ Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, and summary
 
 ## Global Behavior
 
-- **Auto-caching**: First run parses and saves index to `.code-visualizer/`. Subsequent runs use cache if HEAD unchanged.
+- **Auto-caching**: First run parses and saves index to `.code-visualizer/`. Subsequent runs use cache only when HEAD, dirty/untracked file contents under the analyzed path, CLI version, and parser cache settings match.
+- **Default scanner excludes**: `.git`, `node_modules`, `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`.
+- **Monorepo imports**: Root tsconfig path aliases and local package.json package names resolve to source files before graph construction.
+- **Large repo mode**: Above 1500 TypeScript files, use AST-only extraction to avoid TypeScript program OOM. Override with `CBI_FULL_PROGRAM_FILE_LIMIT`.
+- **Real-repo verification**: `pnpm verify:cli-real` runs the default matrix. `pnpm verify:cli-real:heavy` sets `CBI_REAL_PROFILE=heavy` and verifies large `/home/ubuntu` repos with minimum file/dependency thresholds.
 - **Progress**: All progress messages go to stderr. Results go to stdout.
 - **JSON mode**: `--json` outputs stable JSON schema to stdout.
 - **Exit codes**: 0 = success, 1 = runtime error, 2 = bad args/usage.

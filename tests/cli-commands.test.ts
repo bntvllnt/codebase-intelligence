@@ -1,4 +1,4 @@
-import { execFileSync, spawnSync } from "child_process";
+import { execFileSync, spawnSync, type SpawnSyncReturns } from "child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +15,7 @@ import {
   computeModuleStructure,
   computeForces,
   computeDeadExports,
+  computeOpportunities,
   computeGroups,
   computeSymbolContext,
   computeProcesses,
@@ -22,6 +23,30 @@ import {
   impactAnalysis,
   renameSymbol,
 } from "../src/core/index.js";
+import type { CodebaseGraph, FileMetrics } from "../src/types/index.js";
+
+function opportunityMetrics(overrides: Partial<FileMetrics>): FileMetrics {
+  return {
+    pageRank: 0,
+    betweenness: 0,
+    fanIn: 0,
+    fanOut: 0,
+    coupling: 0,
+    tension: 0,
+    isBridge: false,
+    churn: 0,
+    cyclomaticComplexity: 1,
+    blastRadius: 0,
+    deadExports: [],
+    totalExports: 0,
+    isPackageEntrypoint: false,
+    packageEntrypointReason: "",
+    hasTests: true,
+    testFile: "",
+    isTestFile: false,
+    ...overrides,
+  };
+}
 
 describe("CLI core commands (integration)", () => {
   describe("computeOverview", () => {
@@ -70,6 +95,9 @@ describe("CLI core commands (integration)", () => {
       expect(result.metrics.avgLOC).toBeGreaterThan(0);
       expect(result.metrics.maxDepth).toBeGreaterThan(0);
       expect(typeof result.metrics.circularDeps).toBe("number");
+      expect(result.analysis.mode).toBe("full-program");
+      expect(result.analysis.callGraphPrecision).toBe("type-resolved");
+      expect(result.analysis.fullProgramFileLimit).toBeGreaterThan(0);
     });
 
     it("JSON output is valid and stable schema", () => {
@@ -84,6 +112,7 @@ describe("CLI core commands (integration)", () => {
       expect(parsed).toHaveProperty("modules");
       expect(parsed).toHaveProperty("topDependedFiles");
       expect(parsed).toHaveProperty("metrics");
+      expect(parsed).toHaveProperty("analysis");
     });
   });
 
@@ -175,8 +204,12 @@ describe("CLI core commands (integration)", () => {
         expect(result.metrics).toHaveProperty("cyclomaticComplexity");
         expect(result.metrics).toHaveProperty("blastRadius");
         expect(result.metrics).toHaveProperty("deadExports");
+        expect(result.metrics).toHaveProperty("totalExports");
+        expect(result.metrics).toHaveProperty("isPackageEntrypoint");
+        expect(result.metrics).toHaveProperty("packageEntrypointReason");
         expect(result.metrics).toHaveProperty("hasTests");
         expect(result.metrics).toHaveProperty("testFile");
+        expect(result.metrics).toHaveProperty("isTestFile");
       }
     });
 
@@ -486,26 +519,81 @@ describe("CLI core commands (integration)", () => {
   });
 
   describe("overview CLI command", () => {
+    const TSX_BIN = path.join(process.cwd(), "node_modules", ".bin", "tsx");
+    const GIT_ENV = {
+      ...process.env,
+      GIT_AUTHOR_NAME: "t",
+      GIT_AUTHOR_EMAIL: "t@example.com",
+      GIT_COMMITTER_NAME: "t",
+      GIT_COMMITTER_EMAIL: "t@example.com",
+    };
+
+    function git(dir: string, args: string[]): string {
+      return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+        cwd: dir,
+        encoding: "utf-8",
+        env: GIT_ENV,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+    }
+
+    function initGitRepo(dir: string): void {
+      git(dir, ["init"]);
+      git(dir, ["config", "user.email", "t@example.com"]);
+      git(dir, ["config", "user.name", "t"]);
+      git(dir, ["add", "-A"]);
+      git(dir, ["commit", "-m", "base", "--no-gpg-sign"]);
+    }
+
+    function runOverview(
+      dir: string,
+      options: { args?: string[]; env?: NodeJS.ProcessEnv } = {},
+    ): SpawnSyncReturns<string> {
+      return spawnSync(
+        TSX_BIN,
+        ["src/cli.ts", "overview", dir, "--json", ...(options.args ?? [])],
+        { cwd: process.cwd(), encoding: "utf-8", env: options.env ?? process.env },
+      );
+    }
+
     it("--force reparses even when a matching cache exists", () => {
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-force-cache-"));
       try {
         fs.writeFileSync(path.join(dir, "index.ts"), "export const value = 1;\n");
-        const first = spawnSync(
-          "pnpm",
-          ["exec", "tsx", "src/cli.ts", "overview", dir, "--json"],
-          { cwd: process.cwd(), encoding: "utf-8" },
-        );
+        const first = runOverview(dir);
         expect(first.status).toBe(0);
 
-        const forced = spawnSync(
-          "pnpm",
-          ["exec", "tsx", "src/cli.ts", "overview", dir, "--json", "--force"],
-          { cwd: process.cwd(), encoding: "utf-8" },
-        );
+        const forced = runOverview(dir, { args: ["--force"] });
 
         expect(forced.status).toBe(0);
         expect(forced.stderr).toContain("Parsing");
         expect(forced.stderr).not.toContain("Using cached index");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it("invalidates cache when untracked TypeScript files appear without HEAD changing", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-untracked-cache-"));
+      try {
+        fs.writeFileSync(path.join(dir, "index.ts"), "export const value = 1;\n");
+        initGitRepo(dir);
+
+        const first = runOverview(dir);
+        expect(first.status).toBe(0);
+
+        const cached = runOverview(dir);
+        expect(cached.status).toBe(0);
+        expect(cached.stderr).toContain("Using cached index");
+
+        fs.writeFileSync(path.join(dir, "extra.ts"), "export const extra = 2;\n");
+        const changed = runOverview(dir);
+        expect(changed.status).toBe(0);
+        expect(changed.stderr).toContain("Parsing");
+        expect(changed.stderr).not.toContain("Using cached index");
+
+        const result = JSON.parse(changed.stdout) as { totalFiles: number };
+        expect(result.totalFiles).toBe(2);
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -596,6 +684,7 @@ describe("CLI core commands (integration)", () => {
         expect(f).toHaveProperty("deadExports");
         expect(f).toHaveProperty("totalExports");
         expect(f.deadExports.length).toBeGreaterThan(0);
+        expect(f.totalExports).toBeGreaterThanOrEqual(f.deadExports.length);
       }
     });
 
@@ -604,6 +693,150 @@ describe("CLI core commands (integration)", () => {
       const result = computeDeadExports(codebaseGraph, undefined, 2);
 
       expect(result.files.length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  describe("computeOpportunities", () => {
+    it("returns ranked, evidence-bearing opportunities", () => {
+      const { codebaseGraph } = getFixturePipeline();
+      const result = computeOpportunities(codebaseGraph);
+
+      expect(typeof result.totalOpportunities).toBe("number");
+      expect(Array.isArray(result.opportunities)).toBe(true);
+      expect(typeof result.summary).toBe("string");
+
+      for (let index = 1; index < result.opportunities.length; index += 1) {
+        expect(result.opportunities[index - 1].score).toBeGreaterThanOrEqual(result.opportunities[index].score);
+      }
+
+      if (result.opportunities.length > 0) {
+        const first = result.opportunities[0];
+        expect(first).toHaveProperty("rank", 1);
+        expect(first).toHaveProperty("kind");
+        expect(first).toHaveProperty("target");
+        expect(first).toHaveProperty("priority");
+        expect(first).toHaveProperty("confidence");
+        expect(first.evidence.length).toBeGreaterThan(0);
+        expect(first.suggestedCommands.length).toBeGreaterThan(0);
+      }
+    });
+
+    it("respects limit parameter", () => {
+      const { codebaseGraph } = getFixturePipeline();
+      const result = computeOpportunities(codebaseGraph, 2);
+
+      expect(result.opportunities.length).toBeLessThanOrEqual(2);
+    });
+
+    it("keeps short rankings diverse across targets", () => {
+      const graph: CodebaseGraph = {
+        nodes: [
+          { id: "src/a.ts", type: "file", path: "src/a.ts", label: "a.ts", loc: 400, module: "src/" },
+          { id: "src/b.ts", type: "file", path: "src/b.ts", label: "b.ts", loc: 20, module: "src/" },
+        ],
+        edges: [],
+        callEdges: [],
+        symbolNodes: [],
+        symbolMetrics: new Map(),
+        fileMetrics: new Map([
+          [
+            "src/a.ts",
+            opportunityMetrics({
+              fanIn: 50,
+              cyclomaticComplexity: 50,
+              blastRadius: 50,
+              deadExports: ["unusedA"],
+              totalExports: 1,
+              hasTests: false,
+            }),
+          ],
+          [
+            "src/b.ts",
+            opportunityMetrics({
+              fanIn: 1,
+              cyclomaticComplexity: 20,
+              blastRadius: 1,
+              hasTests: false,
+            }),
+          ],
+        ]),
+        moduleMetrics: new Map(),
+        groups: [],
+        processes: [],
+        clusters: [],
+        forceAnalysis: {
+          moduleCohesion: [],
+          tensionFiles: [],
+          bridgeFiles: [],
+          extractionCandidates: [],
+          shallowModules: [],
+          deepModules: [],
+          seamCandidates: [
+            {
+              target: "src/a.ts",
+              scope: "file",
+              exposedSymbols: 10,
+              fanIn: 20,
+              dependentModules: 5,
+              evidence: "a exports cross module boundaries",
+            },
+          ],
+          localityRisks: [
+            {
+              file: "src/a.ts",
+              kind: "ripple-zone",
+              tension: 1,
+              blastRadius: 50,
+              isBridge: false,
+              pulledByModuleCount: 5,
+              evidence: "a is pulled by many modules",
+            },
+          ],
+          summary: "",
+        },
+        stats: {
+          totalFiles: 2,
+          totalFunctions: 0,
+          totalDependencies: 0,
+          circularDeps: [],
+          analysisMode: "full-program",
+          callGraphPrecision: "type-resolved",
+          fullProgramFileLimit: 1500,
+        },
+      };
+
+      const result = computeOpportunities(graph, 3);
+
+      expect(result.opportunities.filter((opportunity) => opportunity.target === "src/a.ts")).toHaveLength(2);
+      expect(result.opportunities.some((opportunity) => opportunity.target === "src/b.ts")).toBe(true);
+    });
+  });
+
+  describe("opportunities CLI command", () => {
+    it("returns opportunities in JSON output", () => {
+      const stdout = execFileSync(
+        "pnpm",
+        ["exec", "tsx", "src/cli.ts", "opportunities", getFixtureSrcPath(), "--limit", "5", "--json", "--force"],
+        { cwd: process.cwd(), encoding: "utf8" },
+      );
+      const parsed = JSON.parse(stdout) as Record<string, unknown>;
+
+      expect(parsed).toHaveProperty("totalOpportunities");
+      expect(parsed).toHaveProperty("opportunities");
+      expect(parsed).toHaveProperty("summary");
+      expect((parsed.opportunities as unknown[]).length).toBeLessThanOrEqual(5);
+    });
+
+    it("prints human-readable ranked opportunities", () => {
+      const stdout = execFileSync(
+        "pnpm",
+        ["exec", "tsx", "src/cli.ts", "opportunities", getFixtureSrcPath(), "--limit", "3", "--force"],
+        { cwd: process.cwd(), encoding: "utf8" },
+      );
+
+      expect(stdout).toContain("Opportunities");
+      expect(stdout).toContain("Evidence:");
+      expect(stdout).toContain("Next:");
     });
   });
 
@@ -752,6 +985,9 @@ describe("CLI core commands (integration)", () => {
 
       const changes = computeChanges(codebaseGraph);
       expect("scope" in changes || "error" in changes).toBe(true);
+
+      const opportunities = computeOpportunities(codebaseGraph);
+      expect(typeof opportunities.totalOpportunities).toBe("number");
     });
   });
 });

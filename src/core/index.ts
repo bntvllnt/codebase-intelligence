@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import path from "node:path";
-import type { CodebaseGraph } from "../types/index.js";
+import type { AnalysisMode, CallGraphPrecision, CodebaseGraph } from "../types/index.js";
 import { createSearchIndex, search, getSuggestions } from "../search/index.js";
 import type { SearchIndex } from "../search/index.js";
 import { impactAnalysis, renameSymbol } from "../impact/index.js";
@@ -97,6 +97,11 @@ export interface OverviewResult {
   modules: Array<{ path: string; files: number; loc: number; avgCoupling: string; cohesion: number }>;
   topDependedFiles: string[];
   metrics: { avgLOC: number; maxDepth: number; circularDeps: number };
+  analysis: {
+    mode: AnalysisMode;
+    callGraphPrecision: CallGraphPrecision;
+    fullProgramFileLimit: number;
+  };
 }
 
 export function computeOverview(graph: CodebaseGraph): OverviewResult {
@@ -131,6 +136,11 @@ export function computeOverview(graph: CodebaseGraph): OverviewResult {
       maxDepth,
       circularDeps: graph.stats.circularDeps.length,
     },
+    analysis: {
+      mode: graph.stats.analysisMode,
+      callGraphPrecision: graph.stats.callGraphPrecision,
+      fullProgramFileLimit: graph.stats.fullProgramFileLimit,
+    },
   };
 }
 
@@ -152,8 +162,12 @@ export interface FileContextResult {
     cyclomaticComplexity: number;
     blastRadius: number;
     deadExports: string[];
+    totalExports: number;
+    isPackageEntrypoint: boolean;
+    packageEntrypointReason: string;
     hasTests: boolean;
     testFile: string;
+    isTestFile: boolean;
   };
 }
 
@@ -207,8 +221,12 @@ export function computeFileContext(
       cyclomaticComplexity: metrics.cyclomaticComplexity,
       blastRadius: metrics.blastRadius,
       deadExports: metrics.deadExports,
+      totalExports: metrics.totalExports,
+      isPackageEntrypoint: metrics.isPackageEntrypoint,
+      packageEntrypointReason: metrics.packageEntrypointReason,
       hasTests: metrics.hasTests,
       testFile: metrics.testFile,
+      isTestFile: metrics.isTestFile,
     },
   };
 }
@@ -628,7 +646,15 @@ export function computeForces(
 
 export interface DeadExportsResult {
   totalDeadExports: number;
-  files: Array<{ path: string; module: string; deadExports: string[]; totalExports: number }>;
+  files: Array<{
+    path: string;
+    module: string;
+    deadExports: string[];
+    totalExports: number;
+    confidence: OpportunityConfidence;
+    isPackageEntrypoint: boolean;
+    packageEntrypointReason: string;
+  }>;
   summary: string;
 }
 
@@ -639,18 +665,25 @@ export function computeDeadExports(
 ): DeadExportsResult {
   const maxResults = limit ?? 20;
   const nodeById = buildNodeById(graph);
-  const deadFiles: Array<{ path: string; module: string; deadExports: string[]; totalExports: number }> = [];
+  const deadFiles: DeadExportsResult["files"] = [];
 
   for (const [filePath, metrics] of graph.fileMetrics) {
     if (metrics.deadExports.length === 0) continue;
     const node = nodeById.get(filePath);
     if (!node) continue;
     if (module && node.module !== module) continue;
-    const totalExports = graph.nodes.filter((n) => n.parentFile === filePath).length;
-    deadFiles.push({ path: filePath, module: node.module, deadExports: metrics.deadExports, totalExports });
+    deadFiles.push({
+      path: filePath,
+      module: node.module,
+      deadExports: metrics.deadExports,
+      totalExports: metrics.totalExports,
+      confidence: metrics.isPackageEntrypoint ? "low" : "high",
+      isPackageEntrypoint: metrics.isPackageEntrypoint,
+      packageEntrypointReason: metrics.packageEntrypointReason,
+    });
   }
 
-  deadFiles.sort((a, b) => b.deadExports.length - a.deadExports.length);
+  deadFiles.sort((a, b) => confidenceSortValue(b.confidence) - confidenceSortValue(a.confidence) || b.deadExports.length - a.deadExports.length);
   const totalDead = deadFiles.reduce((sum, f) => sum + f.deadExports.length, 0);
   const sorted = deadFiles.slice(0, maxResults);
 
@@ -660,6 +693,322 @@ export function computeDeadExports(
     summary: totalDead > 0
       ? `${totalDead} unused exports across ${sorted.length} files. Consider removing to reduce API surface.`
       : "No dead exports found.",
+  };
+}
+
+function confidenceSortValue(confidence: OpportunityConfidence): number {
+  if (confidence === "high") return 3;
+  if (confidence === "medium") return 2;
+  return 1;
+}
+
+// ── Opportunities ──────────────────────────────────────────
+
+export type OpportunityKind =
+  | "add-tests"
+  | "split-file"
+  | "stabilize-hotspot"
+  | "extract-seam"
+  | "move-file"
+  | "split-module"
+  | "reduce-api-surface";
+
+export type OpportunityPriority = "critical" | "high" | "medium" | "low";
+export type OpportunityConfidence = "high" | "medium" | "low";
+
+export interface OpportunityEntry {
+  rank: number;
+  kind: OpportunityKind;
+  target: string;
+  title: string;
+  priority: OpportunityPriority;
+  score: number;
+  confidence: OpportunityConfidence;
+  why: string;
+  evidence: string[];
+  suggestedCommands: string[];
+}
+
+export interface OpportunitiesResult {
+  totalOpportunities: number;
+  opportunities: OpportunityEntry[];
+  summary: string;
+}
+
+type OpportunityDraft = Omit<OpportunityEntry, "rank" | "priority">;
+
+function roundScore(score: number): number {
+  return Math.round(score * 10) / 10;
+}
+
+function priorityForScore(score: number): OpportunityPriority {
+  if (score >= 80) return "critical";
+  if (score >= 45) return "high";
+  if (score >= 20) return "medium";
+  return "low";
+}
+
+function isFrameworkEntrypoint(filePath: string): boolean {
+  const normalized = filePath.replace(/\\/g, "/");
+  const basename = normalized.split("/").pop() ?? normalized;
+  return basename === "page.tsx"
+    || basename === "page.ts"
+    || basename === "layout.tsx"
+    || basename === "layout.ts"
+    || basename === "route.ts"
+    || basename === "route.tsx"
+    || basename === "template.tsx"
+    || basename === "error.tsx"
+    || basename === "loading.tsx"
+    || basename === "not-found.tsx"
+    || basename === "global-error.tsx"
+    || basename === "instrumentation.ts";
+}
+
+function addOpportunity(
+  opportunities: Map<string, OpportunityDraft>,
+  opportunity: OpportunityDraft,
+): void {
+  const key = `${opportunity.kind}\0${opportunity.target}`;
+  const existing = opportunities.get(key);
+  if (!existing || opportunity.score > existing.score) {
+    opportunities.set(key, {
+      ...opportunity,
+      score: roundScore(opportunity.score),
+    });
+  }
+}
+
+function selectDiverseOpportunities(sorted: OpportunityDraft[], maxResults: number): OpportunityDraft[] {
+  const selected: OpportunityDraft[] = [];
+  const overflow: OpportunityDraft[] = [];
+  const targetCounts = new Map<string, number>();
+
+  for (const opportunity of sorted) {
+    const targetCount = targetCounts.get(opportunity.target) ?? 0;
+    if (targetCount < 2) {
+      selected.push(opportunity);
+      targetCounts.set(opportunity.target, targetCount + 1);
+      if (selected.length === maxResults) return selected;
+    } else {
+      overflow.push(opportunity);
+    }
+  }
+
+  for (const opportunity of overflow) {
+    if (selected.length === maxResults) break;
+    selected.push(opportunity);
+  }
+
+  return selected.sort((left, right) => right.score - left.score);
+}
+
+export function computeOpportunities(graph: CodebaseGraph, limit?: number): OpportunitiesResult {
+  const maxResults = limit ?? 20;
+  const nodeById = buildNodeById(graph);
+  const opportunities = new Map<string, OpportunityDraft>();
+
+  for (const [filePath, metrics] of graph.fileMetrics) {
+    if (metrics.isTestFile) continue;
+
+    const node = nodeById.get(filePath);
+    const loc = node?.loc ?? 0;
+
+    if (!metrics.hasTests && (metrics.cyclomaticComplexity >= 8 || metrics.blastRadius >= 5 || metrics.fanIn >= 3)) {
+      addOpportunity(opportunities, {
+        kind: "add-tests",
+        target: filePath,
+        title: "Add regression coverage before refactoring",
+        score: metrics.cyclomaticComplexity * 2 + metrics.blastRadius + metrics.fanIn * 2 + metrics.churn,
+        confidence: "high",
+        why: "Important file has no matching test file.",
+        evidence: [
+          `complexity=${metrics.cyclomaticComplexity.toFixed(1)}`,
+          `blastRadius=${metrics.blastRadius}`,
+          `fanIn=${metrics.fanIn}`,
+          "hasTests=false",
+        ],
+        suggestedCommands: [
+          `codebase-intelligence file . ${filePath}`,
+          `codebase-intelligence dependents . ${filePath}`,
+        ],
+      });
+    }
+
+    if (metrics.cyclomaticComplexity >= 12 || loc >= 300) {
+      addOpportunity(opportunities, {
+        kind: "split-file",
+        target: filePath,
+        title: "Split complex file into smaller units",
+        score: metrics.cyclomaticComplexity * 3 + loc / 40 + metrics.tension * 20,
+        confidence: metrics.hasTests ? "high" : "medium",
+        why: "High complexity or large file size makes future changes risky.",
+        evidence: [
+          `complexity=${metrics.cyclomaticComplexity.toFixed(1)}`,
+          `loc=${loc}`,
+          `tension=${metrics.tension.toFixed(2)}`,
+        ],
+        suggestedCommands: [
+          `codebase-intelligence file . ${filePath}`,
+          "codebase-intelligence hotspots . --metric complexity --limit 10",
+        ],
+      });
+    }
+
+    if (metrics.blastRadius >= 15 || metrics.fanIn >= 10 || metrics.isBridge) {
+      addOpportunity(opportunities, {
+        kind: "stabilize-hotspot",
+        target: filePath,
+        title: "Stabilize high-blast-radius file",
+        score: metrics.blastRadius * 2 + metrics.fanIn * 2 + metrics.betweenness * 10 + (metrics.isBridge ? 15 : 0),
+        confidence: metrics.hasTests ? "high" : "medium",
+        why: "Many files depend on this file, so small changes can ripple broadly.",
+        evidence: [
+          `blastRadius=${metrics.blastRadius}`,
+          `fanIn=${metrics.fanIn}`,
+          `isBridge=${metrics.isBridge}`,
+        ],
+        suggestedCommands: [
+          `codebase-intelligence dependents . ${filePath} --depth 3`,
+          `codebase-intelligence file . ${filePath}`,
+        ],
+      });
+    }
+
+    if (metrics.deadExports.length > 0) {
+      const frameworkEntrypoint = isFrameworkEntrypoint(filePath);
+      const packageEntrypoint = metrics.isPackageEntrypoint;
+      const conventionEntrypoint = frameworkEntrypoint || packageEntrypoint;
+      addOpportunity(opportunities, {
+        kind: "reduce-api-surface",
+        target: filePath,
+        title: conventionEntrypoint ? "Audit public API surface" : "Review unused exports",
+        score: conventionEntrypoint
+          ? Math.min(metrics.deadExports.length, 30) + Math.min(metrics.fanIn, 10)
+          : metrics.deadExports.length * 6 + metrics.fanIn,
+        confidence: conventionEntrypoint ? "low" : "medium",
+        why: packageEntrypoint
+          ? "Exports look unused internally, but package consumers may rely on this public entrypoint."
+          : frameworkEntrypoint
+          ? "Exports look unused by imports, but framework entrypoints may be consumed by convention."
+          : "Unused exports increase API surface and rename/refactor cost.",
+        evidence: [
+          `deadExports=${metrics.deadExports.length}`,
+          `sample=${metrics.deadExports.slice(0, 5).join(", ")}`,
+          `frameworkEntrypoint=${frameworkEntrypoint}`,
+          `packageEntrypoint=${packageEntrypoint}`,
+          metrics.packageEntrypointReason ? `packageEntrypointReason=${metrics.packageEntrypointReason}` : "",
+        ].filter(Boolean),
+        suggestedCommands: [
+          `codebase-intelligence file . ${filePath}`,
+          packageEntrypoint ? "Review package.json exports/main/types/bin before removing symbols" : "codebase-intelligence dead-exports . --limit 20",
+        ],
+      });
+    }
+  }
+
+  for (const seam of graph.forceAnalysis.seamCandidates) {
+    addOpportunity(opportunities, {
+      kind: "extract-seam",
+      target: seam.target,
+      title: seam.scope === "module" ? "Extract module boundary seam" : "Extract file boundary seam",
+      score: seam.fanIn + seam.dependentModules * 5 + seam.exposedSymbols,
+      confidence: seam.dependentModules > 1 ? "high" : "medium",
+      why: "This target exposes symbols used across module boundaries.",
+      evidence: [
+        seam.evidence,
+        `scope=${seam.scope}`,
+        `fanIn=${seam.fanIn}`,
+        `dependentModules=${seam.dependentModules}`,
+      ],
+      suggestedCommands: [
+        "codebase-intelligence forces .",
+        seam.scope === "file"
+          ? `codebase-intelligence dependents . ${seam.target}`
+          : "codebase-intelligence modules .",
+      ],
+    });
+  }
+
+  for (const risk of graph.forceAnalysis.localityRisks) {
+    addOpportunity(opportunities, {
+      kind: "move-file",
+      target: risk.file,
+      title: "Review file placement and ownership",
+      score: risk.blastRadius * 2 + risk.tension * 25 + risk.pulledByModuleCount * 5 + (risk.isBridge ? 10 : 0),
+      confidence: risk.tension > 0.3 ? "high" : "medium",
+      why: "Dependency pulls suggest this file may sit in the wrong module or own too many concepts.",
+      evidence: [
+        risk.evidence,
+        `kind=${risk.kind}`,
+        `blastRadius=${risk.blastRadius}`,
+        `tension=${risk.tension.toFixed(2)}`,
+      ],
+      suggestedCommands: [
+        `codebase-intelligence file . ${risk.file}`,
+        "codebase-intelligence forces .",
+      ],
+    });
+  }
+
+  for (const module of graph.forceAnalysis.moduleCohesion) {
+    if (module.verdict !== "JUNK_DRAWER" || module.files < 3) continue;
+    addOpportunity(opportunities, {
+      kind: "split-module",
+      target: module.path,
+      title: "Split low-cohesion module",
+      score: module.files + module.externalDeps + (1 - module.cohesion) * 40,
+      confidence: "medium",
+      why: "Module files do not form a cohesive dependency group.",
+      evidence: [
+        `files=${module.files}`,
+        `cohesion=${module.cohesion.toFixed(2)}`,
+        `externalDeps=${module.externalDeps}`,
+      ],
+      suggestedCommands: [
+        "codebase-intelligence modules .",
+        "codebase-intelligence forces .",
+      ],
+    });
+  }
+
+  for (const candidate of graph.forceAnalysis.extractionCandidates) {
+    addOpportunity(opportunities, {
+      kind: "extract-seam",
+      target: candidate.target,
+      title: "Extract high-escape-velocity module",
+      score: candidate.escapeVelocity * 50 + candidate.dependedByModules * 5,
+      confidence: candidate.escapeVelocity >= 0.7 ? "high" : "medium",
+      why: candidate.recommendation,
+      evidence: [
+        `escapeVelocity=${candidate.escapeVelocity.toFixed(2)}`,
+        `internalDeps=${candidate.internalDeps}`,
+        `externalDeps=${candidate.externalDeps}`,
+        `dependedByModules=${candidate.dependedByModules}`,
+      ],
+      suggestedCommands: [
+        "codebase-intelligence forces .",
+        "codebase-intelligence modules .",
+      ],
+    });
+  }
+
+  const sorted = [...opportunities.values()].sort((left, right) => right.score - left.score);
+  const ranked = selectDiverseOpportunities(sorted, maxResults)
+    .map((opportunity, index): OpportunityEntry => ({
+      rank: index + 1,
+      priority: priorityForScore(opportunity.score),
+      ...opportunity,
+    }));
+
+  const summary = ranked.length > 0
+    ? `${ranked.length} ranked opportunities. Top: ${ranked[0].title} (${ranked[0].target}).`
+    : "No high-signal opportunities found.";
+
+  return {
+    totalOpportunities: opportunities.size,
+    opportunities: ranked,
+    summary,
   };
 }
 
