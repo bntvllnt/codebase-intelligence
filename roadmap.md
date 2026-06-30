@@ -242,6 +242,7 @@ Fix the repeated Vitest runner timeout so release gates are deterministic.
 - Isolate the issue to the Vitest fork worker pool used by the release gate.
 - Switch `pnpm test` to `--pool threads --no-file-parallelism`.
 - Keep `429` assertions passing and make `pnpm test` exit 0 locally.
+- Bound non-blocking CI coverage collection so coverage hangs cannot block the release gate.
 
 ### Targeted Framework Entry Fixes
 
