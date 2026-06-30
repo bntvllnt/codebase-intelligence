@@ -404,7 +404,12 @@ export function computeChanges(
       default: diffCmd = "git diff --relative HEAD --name-only"; break;
     }
 
-    const output = execSync(diffCmd, { cwd: path.resolve(rootDir), encoding: "utf-8", timeout: 5000 }).trim();
+    const output = execSync(diffCmd, {
+      cwd: path.resolve(rootDir),
+      encoding: "utf-8",
+      timeout: 5000,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
     const changedFiles = output ? output.split("\n").filter((f) => f.length > 0) : [];
 
     const changedSymbols: Array<{ file: string; symbols: string[] }> = [];
