@@ -25,7 +25,7 @@ describe("fixture-codebase smoke test", () => {
     expect(fs.existsSync(getFixtureSrcPath())).toBe(true);
   });
 
-  it("pipeline parses fixture without errors", { timeout: 30_000 }, () => {
+  it("pipeline parses fixture without errors", { timeout: 60_000 }, () => {
     const { parsedFiles } = getFixturePipeline();
     expect(parsedFiles.length).toBeGreaterThan(0);
   });

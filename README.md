@@ -55,7 +55,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 ## Features
 
-- **16 CLI commands** for architecture analysis, dependency impact, dead code detection, search, and agent setup
+- **17 CLI commands** for architecture analysis, dependency impact, dead code detection, search, CI rules, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.code-visualizer/` for fast repeat queries
 - **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
@@ -64,7 +64,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **Process tracing** — detect entry points and execution flows through the call graph
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
-- **MCP parity (secondary)** — same analysis available as 15 MCP tools, 2 prompts, and 3 resources
+- **MCP parity (secondary)** — same analysis and rules gate available as 16 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
 
@@ -106,6 +106,7 @@ codebase-intelligence <command> <path> [options]
 | `rename` | Reference discovery for rename planning |
 | `processes` | Entry-point execution flow tracing |
 | `clusters` | Community-detected file clusters |
+| `check` | Rules-engine gate for CI |
 | `init` | Set up AI agents to use CI — writes per-agent instruction files (skill opt-in via `--skill`) |
 
 ### Useful flags
@@ -116,6 +117,7 @@ codebase-intelligence <command> <path> [options]
 | `--force` | Rebuild index even if cache is valid |
 | `--limit <n>` | Limit results on supported commands |
 | `--metric <m>` | Select ranking metric for `hotspots` |
+| `--scope <s>` | Select git diff scope for `changes`: `staged`, `unstaged`, `all` |
 
 For full command details, see [docs/cli-reference.md](docs/cli-reference.md).
 

@@ -1,10 +1,14 @@
-import { execFileSync } from "child_process";
+import { execFileSync, spawnSync } from "child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { getFixturePipeline, getFixtureSrcPath } from "./helpers/pipeline.js";
 import {
   computeOverview,
   computeFileContext,
   computeHotspots,
+  HOTSPOT_METRICS,
   computeSearch,
   computeChanges,
   computeDependents,
@@ -120,21 +124,8 @@ describe("CLI core commands (integration)", () => {
 
     it("supports all valid metrics", () => {
       const { codebaseGraph } = getFixturePipeline();
-      const metrics = [
-        "coupling",
-        "pagerank",
-        "fan_in",
-        "fan_out",
-        "betweenness",
-        "tension",
-        "churn",
-        "complexity",
-        "blast_radius",
-        "coverage",
-        "escape_velocity",
-      ];
 
-      for (const metric of metrics) {
+      for (const metric of HOTSPOT_METRICS) {
         const result = computeHotspots(codebaseGraph, metric, 3);
         expect(result.metric).toBe(metric);
         expect(result.hotspots).toBeDefined();
@@ -209,6 +200,33 @@ describe("CLI core commands (integration)", () => {
       expect("error" in result).toBe(false);
     });
 
+    it("keeps src-prefixed paths when they exist in the graph", () => {
+      const { codebaseGraph } = getFixturePipeline();
+      const knownFile = [...codebaseGraph.fileMetrics.keys()][0];
+      const prefixedFile = `src/${knownFile}`;
+      const graph = {
+        ...codebaseGraph,
+        fileMetrics: new Map(
+          [...codebaseGraph.fileMetrics.entries()].map(([file, metrics]) => [
+            file === knownFile ? prefixedFile : file,
+            metrics,
+          ]),
+        ),
+        nodes: codebaseGraph.nodes.map((node) => {
+          if (node.id === knownFile) return { ...node, id: prefixedFile, path: prefixedFile };
+          if (node.parentFile === knownFile) return { ...node, parentFile: prefixedFile };
+          return node;
+        }),
+      };
+
+      const result = computeFileContext(graph, prefixedFile);
+
+      expect("error" in result).toBe(false);
+      if (!("error" in result)) {
+        expect(result.path).toBe(prefixedFile);
+      }
+    });
+
     it("JSON output is valid for success result", () => {
       const { codebaseGraph } = getFixturePipeline();
       const knownFile = [...codebaseGraph.fileMetrics.keys()][0];
@@ -280,6 +298,23 @@ describe("CLI core commands (integration)", () => {
   });
 
   describe("computeChanges", () => {
+    const GIT_ENV = {
+      ...process.env,
+      GIT_AUTHOR_NAME: "t",
+      GIT_AUTHOR_EMAIL: "t@example.com",
+      GIT_COMMITTER_NAME: "t",
+      GIT_COMMITTER_EMAIL: "t@example.com",
+    };
+
+    function git(dir: string, args: string[]): string {
+      return execFileSync("git", ["-c", "core.hooksPath=/dev/null", ...args], {
+        cwd: dir,
+        encoding: "utf-8",
+        env: GIT_ENV,
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim();
+    }
+
     it("returns changes result with scope", () => {
       const { codebaseGraph } = getFixturePipeline();
       const result = computeChanges(codebaseGraph);
@@ -311,6 +346,30 @@ describe("CLI core commands (integration)", () => {
       const parsed = JSON.parse(json) as Record<string, unknown>;
 
       expect(parsed).toHaveProperty("scope");
+    });
+
+    it("runs git diff in the requested target root", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-changes-target-"));
+      try {
+        fs.mkdirSync(path.join(dir, "src"), { recursive: true });
+        fs.writeFileSync(path.join(dir, "src", "target.ts"), "export const target = 1;\n");
+        git(dir, ["init"]);
+        git(dir, ["config", "user.email", "t@example.com"]);
+        git(dir, ["config", "user.name", "t"]);
+        git(dir, ["add", "-A"]);
+        git(dir, ["commit", "-m", "base", "--no-gpg-sign"]);
+        fs.writeFileSync(path.join(dir, "src", "target.ts"), "export const target = 2;\n");
+
+        const { codebaseGraph } = getFixturePipeline();
+        const result = computeChanges(codebaseGraph, "all", dir);
+
+        expect("error" in result).toBe(false);
+        if (!("error" in result)) {
+          expect(result.changedFiles).toEqual(["src/target.ts"]);
+        }
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 
@@ -423,6 +482,59 @@ describe("CLI core commands (integration)", () => {
       for (const item of result.deepModules) expect(item.evidence.length).toBeGreaterThan(0);
       for (const item of result.seamCandidates) expect(item.evidence.length).toBeGreaterThan(0);
       for (const item of result.localityRisks) expect(item.evidence.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("overview CLI command", () => {
+    it("--force reparses even when a matching cache exists", () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-force-cache-"));
+      try {
+        fs.writeFileSync(path.join(dir, "index.ts"), "export const value = 1;\n");
+        const first = spawnSync(
+          "pnpm",
+          ["exec", "tsx", "src/cli.ts", "overview", dir, "--json"],
+          { cwd: process.cwd(), encoding: "utf-8" },
+        );
+        expect(first.status).toBe(0);
+
+        const forced = spawnSync(
+          "pnpm",
+          ["exec", "tsx", "src/cli.ts", "overview", dir, "--json", "--force"],
+          { cwd: process.cwd(), encoding: "utf-8" },
+        );
+
+        expect(forced.status).toBe(0);
+        expect(forced.stderr).toContain("Parsing");
+        expect(forced.stderr).not.toContain("Using cached index");
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("CLI option validation", () => {
+    it("rejects unknown hotspot metrics before indexing", () => {
+      const result = spawnSync(
+        "pnpm",
+        ["exec", "tsx", "src/cli.ts", "hotspots", getFixtureSrcPath(), "--metric", "nope", "--json"],
+        { cwd: process.cwd(), encoding: "utf-8" },
+      );
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain("Error: --metric must be one of:");
+      expect(result.stderr).not.toContain("Parsing");
+    });
+
+    it("rejects unknown changes scopes before indexing", () => {
+      const result = spawnSync(
+        "pnpm",
+        ["exec", "tsx", "src/cli.ts", "changes", getFixtureSrcPath(), "--scope", "nope", "--json"],
+        { cwd: process.cwd(), encoding: "utf-8" },
+      );
+
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain("Error: --scope must be one of:");
+      expect(result.stderr).not.toContain("Parsing");
     });
   });
 

@@ -1,6 +1,6 @@
 # CLI Reference
 
-16 commands for terminal and CI use. The 15 analysis commands have full parity with MCP tools and auto-cache the index to `.code-visualizer/`; `init` sets up agent adoption.
+17 commands for terminal and CI use. The 15 analysis commands have full parity with MCP tools and auto-cache the index to `.code-visualizer/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -156,6 +156,22 @@ codebase-intelligence clusters <path> [--min-files <n>] [--json] [--force]
 
 **Output:** clusters with files, file count, cohesion.
 
+### check
+
+Rules-engine gate for CI.
+
+```bash
+codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on <severity>] [--gate <mode>] [--base <ref>] [--quiet] [--summary] [--json] [--force]
+```
+
+**Formats:** `text` (default), `json`, `sarif`.
+
+**Fail-on:** `error` (default), `warn`, `never`.
+
+**Gate modes:** `all` (default), `new-only`.
+
+**Output:** pass/warn/fail verdict, findings, and summary counts. Exit code `0` on pass, `1` when the configured gate fails, `2` for invalid config or arguments.
+
 ### init
 
 Set up AI agents to use codebase-intelligence by writing a managed instruction block
@@ -192,6 +208,12 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--yes] [-
 | `--entry <name>` | processes | Filter by entry point name |
 | `--min-files <n>` | clusters | Min files per cluster |
 | `--no-dry-run` | rename | Actually perform the rename (default: dry run) |
+| `--format <fmt>` | check | Output format: text, json, sarif |
+| `--fail-on <severity>` | check | Severity that fails the gate: error, warn, never |
+| `--gate <mode>` | check | Gate mode: all, new-only |
+| `--base <ref>` | check | Base git ref for new-only gating |
+| `--quiet` | check | Suppress output when the result passes |
+| `--summary` | check | Print summary counts only |
 | `--agents <list>` | init | Comma-separated agents, non-interactive (default: agents,claude) |
 | `--all` | init | Target every agent (non-interactive) |
 | `--skill` | init | Also install the global Claude skill (opt-in) |

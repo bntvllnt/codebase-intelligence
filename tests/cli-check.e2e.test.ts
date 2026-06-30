@@ -77,7 +77,7 @@ const DEAD = {
 };
 
 beforeAll(() => {
-  if (!fs.existsSync(cli)) execSync("npm run build", { cwd: repoRoot, stdio: "inherit" });
+  if (!fs.existsSync(cli)) execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
 }, 120_000);
 
 describe("check command (e2e)", () => {
@@ -161,6 +161,13 @@ describe("check command (e2e)", () => {
     const { status, stderr } = await run(["check", dir, "--format", "xml"]);
     expect(status).toBe(2);
     expect(stderr).toContain("--format must be one of");
+  });
+
+  it("exits 2 on an invalid --gate value", async () => {
+    const dir = makeProject(CLEAN, { rules: {} });
+    const { status, stderr } = await run(["check", dir, "--gate", "future-only"]);
+    expect(status).toBe(2);
+    expect(stderr).toContain("--gate must be one of");
   });
 
   it("--quiet wins over --summary on pass: no output, exit 0 (pinned contract)", async () => {

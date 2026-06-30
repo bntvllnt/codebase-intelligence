@@ -218,7 +218,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
       scope: z.enum(["staged", "unstaged", "all"]).optional().describe("Git diff scope (default: all)"),
     },
     async ({ scope }) => {
-      const result = computeChanges(graph, scope);
+      const result = computeChanges(graph, scope, getRoot());
       if ("error" in result) {
         return {
           content: [{
