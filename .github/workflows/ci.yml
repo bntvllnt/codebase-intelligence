@@ -41,13 +41,14 @@ jobs:
       - name: Test
         run: pnpm test
 
-      # Coverage is best-effort: vitest v3 + v8 provider has a known worker
-      # timeout bug (onTaskUpdate) on CI runners. Tests pass above; coverage
-      # collection may timeout without affecting correctness.
+      # Coverage is best-effort: vitest v3 + v8 provider can hang after tests
+      # pass on CI runners. The blocking Test step above proves correctness;
+      # this step is bounded so coverage cannot block the release gate.
       - name: Coverage
         if: matrix.node-version == 22
         continue-on-error: true
-        run: pnpm vitest run --coverage --pool forks --no-file-parallelism
+        timeout-minutes: 4
+        run: timeout 180s pnpm vitest run --coverage --pool forks --no-file-parallelism || true
 
       - name: Upload coverage
         if: matrix.node-version == 22 && always()

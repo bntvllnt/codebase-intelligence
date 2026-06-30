@@ -178,6 +178,17 @@ describe("init lifecycle (e2e)", () => {
     expect(read("AGENTS.md")).toBe(before);
   });
 
+  it("--gitignore adds the canonical cache directory once", () => {
+    const first = run(["init", "--agents", "", "--gitignore", repo], home);
+    const second = run(["init", "--agents", "", "--gitignore", repo], home);
+
+    expect(first.status).toBe(0);
+    expect(first.stdout).toContain("created   .gitignore");
+    expect(second.status).toBe(0);
+    expect(second.stdout).toContain("unchanged .gitignore");
+    expect(read(".gitignore")).toBe(".codebase-intelligence/\n");
+  });
+
   it("exits 1 when the target path does not exist", () => {
     const missing = path.join(os.tmpdir(), "ci-init-missing-zzz-do-not-create");
     const { status, stderr } = run(["init", missing], home);

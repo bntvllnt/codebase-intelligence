@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { getCacheKey, INDEX_DIR_NAME } from "../src/persistence/cache-key.js";
+import { CANONICAL_INDEX_DIR_NAME, getCacheKey, LEGACY_INDEX_DIR_NAME } from "../src/persistence/cache-key.js";
 
 const GIT_ENV = {
   ...process.env,
@@ -36,14 +36,32 @@ function cacheKey(dir: string, headHash: string): string {
 }
 
 describe("cache key", () => {
-  it("ignores generated index files", () => {
+  it("ignores generated canonical index files", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-cache-key-index-"));
     try {
       fs.writeFileSync(path.join(dir, "index.ts"), "export const value = 1;\n");
       const headHash = initRepo(dir);
       const before = cacheKey(dir, headHash);
 
-      const indexDir = path.join(dir, INDEX_DIR_NAME);
+      const indexDir = path.join(dir, CANONICAL_INDEX_DIR_NAME);
+      fs.mkdirSync(indexDir);
+      fs.writeFileSync(path.join(indexDir, "graph.json"), "{}\n");
+      fs.writeFileSync(path.join(indexDir, "meta.json"), "{}\n");
+
+      expect(cacheKey(dir, headHash)).toBe(before);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("ignores generated legacy index files", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-cache-key-index-"));
+    try {
+      fs.writeFileSync(path.join(dir, "index.ts"), "export const value = 1;\n");
+      const headHash = initRepo(dir);
+      const before = cacheKey(dir, headHash);
+
+      const indexDir = path.join(dir, LEGACY_INDEX_DIR_NAME);
       fs.mkdirSync(indexDir);
       fs.writeFileSync(path.join(indexDir, "graph.json"), "{}\n");
       fs.writeFileSync(path.join(indexDir, "meta.json"), "{}\n");

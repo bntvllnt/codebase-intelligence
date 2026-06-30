@@ -519,6 +519,7 @@ export { Runner };
         fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
 
         const ignoredFiles = [
+          [".codebase-intelligence", "graph.ts"],
           [".code-visualizer", "graph.ts"],
           [".next", "types", "generated.ts"],
           ["dist", "cli.ts"],

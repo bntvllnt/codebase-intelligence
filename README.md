@@ -58,7 +58,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 - **18 CLI commands** for architecture analysis, dependency impact, improvement opportunities, dead code detection, search, CI rules, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
-- **Auto-cached index** in `.code-visualizer/` for fast repeat queries
+- **Auto-cached index** in `.codebase-intelligence/` for fast repeat queries
 - **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
 - **Symbol-level analysis** — callers/callees, symbol importance, impact blast radius
 - **BM25 search** — ranked keyword search across files and symbols
@@ -121,7 +121,7 @@ codebase-intelligence <command> <path> [options]
 | `--metric <m>` | Select ranking metric for `hotspots` |
 | `--scope <s>` | Select git diff scope for `changes`: `staged`, `unstaged`, `all` |
 
-The scanner always excludes common generated and agent-workspace directories such as `.code-visualizer/`, `.next/`, `dist/`, `coverage/`, `.worktrees/`, and `.claude/worktrees/`.
+The scanner always excludes common generated and agent-workspace directories such as `.codebase-intelligence/`, legacy `.code-visualizer/`, `.next/`, `dist/`, `coverage/`, `.worktrees/`, and `.claude/worktrees/`.
 
 For full command details, see [docs/cli-reference.md](docs/cli-reference.md).
 

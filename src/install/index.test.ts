@@ -9,6 +9,7 @@ import {
   renderBlock,
   renderSkill,
   installRepoFiles,
+  installGitignoreEntry,
   installGlobalSkill,
   isAgentId,
   resolveInitPlan,
@@ -169,6 +170,24 @@ describe("installRepoFiles", () => {
     expect(after).toEqual(before);
   });
 
+  it("adds the canonical cache directory to .gitignore idempotently", () => {
+    const first = installGitignoreEntry(tmp);
+    const second = installGitignoreEntry(tmp);
+
+    expect(first).toEqual({ path: ".gitignore", action: "created" });
+    expect(second).toEqual({ path: ".gitignore", action: "unchanged" });
+    expect(fs.readFileSync(path.join(tmp, ".gitignore"), "utf-8")).toBe(".codebase-intelligence/\n");
+  });
+
+  it("preserves existing .gitignore content when adding the cache directory", () => {
+    fs.writeFileSync(path.join(tmp, ".gitignore"), "dist/\n", "utf-8");
+
+    const result = installGitignoreEntry(tmp);
+
+    expect(result).toEqual({ path: ".gitignore", action: "updated" });
+    expect(fs.readFileSync(path.join(tmp, ".gitignore"), "utf-8")).toBe("dist/\n.codebase-intelligence/\n");
+  });
+
   it("covers all registry ids in ALL_AGENT_IDS", () => {
     expect([...ALL_AGENT_IDS].sort()).toEqual(AGENT_TARGETS.map((t) => t.id).sort());
   });
@@ -207,6 +226,7 @@ describe("resolveInitPlan", () => {
     expect(plan.mode).toBe("explicit");
     expect(plan.agents).toEqual([...ALL_AGENT_IDS]);
     expect(plan.installSkill).toBe(false);
+    expect(plan.installGitignore).toBe(false);
   });
 
   it("--agents picks the listed agents", () => {
@@ -214,6 +234,12 @@ describe("resolveInitPlan", () => {
     expect(plan.mode).toBe("explicit");
     expect(plan.agents).toEqual(["claude", "gemini"]);
     expect(plan.invalidAgents).toEqual([]);
+    expect(plan.installGitignore).toBe(false);
+  });
+
+  it("--gitignore requests .gitignore installation", () => {
+    const plan = resolveInitPlan({ gitignore: true }, false);
+    expect(plan.installGitignore).toBe(true);
   });
 
   it("--agents reports unknown ids and keeps valid ones", () => {

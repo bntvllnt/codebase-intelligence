@@ -4,13 +4,15 @@ import { execFileSync } from "child_process";
 import { createHash } from "crypto";
 import { getFullProgramFileLimit } from "../parser/index.js";
 
-export const INDEX_DIR_NAME = ".code-visualizer";
+export const CANONICAL_INDEX_DIR_NAME = ".codebase-intelligence";
+export const LEGACY_INDEX_DIR_NAME = ".code-visualizer";
 
 const CACHE_SCHEMA_VERSION = 3;
 const CACHE_FINGERPRINT_IGNORE_PATTERNS = [
   ".git",
   "node_modules",
-  INDEX_DIR_NAME,
+  CANONICAL_INDEX_DIR_NAME,
+  LEGACY_INDEX_DIR_NAME,
   ".next",
   "dist",
   "coverage",
