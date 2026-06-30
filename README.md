@@ -26,6 +26,7 @@ Common workflows:
 
 ```bash
 npx codebase-intelligence hotspots ./src --metric complexity --limit 10
+npx codebase-intelligence opportunities ./src --limit 10
 npx codebase-intelligence impact ./src parseCodebase
 npx codebase-intelligence dead-exports ./src --limit 20
 npx codebase-intelligence changes ./src --json
@@ -55,7 +56,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 ## Features
 
-- **17 CLI commands** for architecture analysis, dependency impact, dead code detection, search, CI rules, and agent setup
+- **18 CLI commands** for architecture analysis, dependency impact, improvement opportunities, dead code detection, search, CI rules, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.code-visualizer/` for fast repeat queries
 - **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
@@ -64,7 +65,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **Process tracing** — detect entry points and execution flows through the call graph
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
-- **MCP parity (secondary)** — same analysis and rules gate available as 16 MCP tools, 2 prompts, and 3 resources
+- **MCP parity (secondary)** — same analysis and rules gate available as 17 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
 
@@ -100,6 +101,7 @@ codebase-intelligence <command> <path> [options]
 | `modules` | Module architecture + cross-dependencies |
 | `forces` | Cohesion/tension/escape-velocity analysis |
 | `dead-exports` | Unused export detection |
+| `opportunities` | Ranked code-quality and refactoring opportunities |
 | `groups` | Top-level directory groups + aggregate metrics |
 | `symbol` | Callers/callees and symbol metrics |
 | `impact` | Symbol-level blast radius |
@@ -118,6 +120,8 @@ codebase-intelligence <command> <path> [options]
 | `--limit <n>` | Limit results on supported commands |
 | `--metric <m>` | Select ranking metric for `hotspots` |
 | `--scope <s>` | Select git diff scope for `changes`: `staged`, `unstaged`, `all` |
+
+The scanner always excludes common generated and agent-workspace directories such as `.code-visualizer/`, `.next/`, `dist/`, `coverage/`, `.worktrees/`, and `.claude/worktrees/`.
 
 For full command details, see [docs/cli-reference.md](docs/cli-reference.md).
 
@@ -304,6 +308,8 @@ pnpm test         # vitest
 pnpm lint         # eslint
 pnpm typecheck    # tsc --noEmit
 pnpm build        # production build
+pnpm verify:cli-real        # default real-repo CLI matrix
+pnpm verify:cli-real:heavy  # large /home/ubuntu repo matrix
 ```
 
 ## License

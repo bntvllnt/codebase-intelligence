@@ -109,6 +109,29 @@ describe("check command (e2e)", () => {
     expect(parsed.summary.error).toBeGreaterThanOrEqual(1);
   });
 
+  it("flushes large JSON output before exiting", async () => {
+    const files: Record<string, string> = {};
+    for (let fileIndex = 0; fileIndex < 180; fileIndex += 1) {
+      const exports = [];
+      for (let exportIndex = 0; exportIndex < 20; exportIndex += 1) {
+        exports.push(`export const dead_${fileIndex}_${exportIndex} = ${fileIndex + exportIndex};`);
+      }
+      files[`src/file-${fileIndex}.ts`] = `${exports.join("\n")}\n`;
+    }
+
+    const dir = makeProject(files, { rules: { "no-circular-deps": "off" } });
+    const { status, stdout } = await run(["check", dir, "--json"]);
+    expect(status).toBe(0);
+    const parsed = JSON.parse(stdout) as {
+      verdict: string;
+      findings: { ruleId: string }[];
+      summary: { warn: number };
+    };
+    expect(parsed.verdict).toBe("warn");
+    expect(parsed.findings.length).toBe(3600);
+    expect(parsed.summary.warn).toBe(3600);
+  }, 90_000);
+
   it("--format sarif emits SARIF 2.1.0", async () => {
     const dir = makeProject(CIRCULAR, { rules: { "no-dead-exports": "off" } });
     const { stdout } = await run(["check", dir, "--format", "sarif"]);

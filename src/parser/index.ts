@@ -5,8 +5,33 @@ import { execFileSync } from "child_process";
 import type { ParsedFile, ParsedExport, ParsedImport, CallSite } from "../types/index.js";
 
 interface PathAlias {
+  pattern: string;
   prefix: string;
   baseDir: string;
+  exact: boolean;
+}
+
+const BUILT_IN_IGNORE_PATTERNS = [
+  ".git",
+  "node_modules",
+  ".code-visualizer",
+  ".next",
+  "dist",
+  "coverage",
+  ".turbo",
+  ".cache",
+  ".worktrees",
+  ".claude/worktrees",
+];
+
+const DEFAULT_FULL_PROGRAM_FILE_LIMIT = 1500;
+
+export function getFullProgramFileLimit(): number {
+  const rawLimit = process.env.CBI_FULL_PROGRAM_FILE_LIMIT;
+  if (!rawLimit) return DEFAULT_FULL_PROGRAM_FILE_LIMIT;
+
+  const parsed = Number.parseInt(rawLimit, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_FULL_PROGRAM_FILE_LIMIT;
 }
 
 function loadTsconfigPaths(rootDir: string): PathAlias[] {
@@ -27,16 +52,17 @@ function loadTsconfigPaths(rootDir: string): PathAlias[] {
 
     for (const [pattern, targets] of Object.entries(paths)) {
       if (targets.length === 0) continue;
-      const prefix = pattern.replace(/\*$/, "");
-      const target = targets[0].replace(/\*$/, "");
+      const exact = !pattern.includes("*");
+      const prefix = exact ? pattern : pattern.replace(/\*$/, "");
+      const target = exact ? targets[0] : targets[0].replace(/\*$/, "");
       const baseDir = path.resolve(rootDir, baseUrl, target);
-      aliases.push({ prefix, baseDir });
+      aliases.push({ pattern, prefix, baseDir, exact });
     }
   } catch {
     /* malformed tsconfig — skip alias resolution */
   }
 
-  return aliases;
+  return sortAliasesBySpecificity(aliases);
 }
 
 export function parseCodebase(rootDir: string): ParsedFile[] {
@@ -52,7 +78,33 @@ export function parseCodebase(rootDir: string): ParsedFile[] {
     throw new Error(`No TypeScript files found in ${rootDir}`);
   }
 
-  const pathAliases = loadTsconfigPaths(absoluteRoot);
+  const pathAliases = loadPathAliases(absoluteRoot);
+  const parsed: ParsedFile[] = [];
+
+  if (tsFiles.length > getFullProgramFileLimit()) {
+    for (const filePath of tsFiles) {
+      try {
+        const sourceText = fs.readFileSync(filePath, "utf-8");
+        const sourceFile = ts.createSourceFile(
+          filePath,
+          sourceText,
+          ts.ScriptTarget.ES2022,
+          true,
+          filePath.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+        );
+        parsed.push({ ...parseFile(sourceFile, undefined, absoluteRoot, pathAliases), analysisMode: "ast-only" });
+      } catch {
+        console.warn(`Skipped ${path.relative(absoluteRoot, filePath)}: parse error`);
+      }
+    }
+
+    const resolved = resolveImportPaths(parsed, absoluteRoot, pathAliases);
+    const churnMap = getGitChurn(absoluteRoot);
+    return matchTestFiles(resolved).map((f) => ({
+      ...f,
+      churn: churnMap.get(f.relativePath) ?? 0,
+    }));
+  }
 
   const program = ts.createProgram(tsFiles, {
     target: ts.ScriptTarget.ES2022,
@@ -61,16 +113,14 @@ export function parseCodebase(rootDir: string): ParsedFile[] {
     allowJs: false,
     noEmit: true,
   });
-
   const checker = program.getTypeChecker();
-  const parsed: ParsedFile[] = [];
 
   for (const filePath of tsFiles) {
     const sourceFile = program.getSourceFile(filePath);
     if (!sourceFile) continue;
 
     try {
-      const result = parseFile(sourceFile, checker, absoluteRoot, pathAliases);
+      const result: ParsedFile = { ...parseFile(sourceFile, checker, absoluteRoot, pathAliases), analysisMode: "full-program" };
       parsed.push(result);
     } catch {
       console.warn(`Skipped ${path.relative(absoluteRoot, filePath)}: parse error`);
@@ -85,8 +135,76 @@ export function parseCodebase(rootDir: string): ParsedFile[] {
   }));
 }
 
+function loadPathAliases(rootDir: string): PathAlias[] {
+  return sortAliasesBySpecificity([
+    ...loadTsconfigPaths(rootDir),
+    ...loadWorkspacePackageAliases(rootDir),
+  ]);
+}
+
+function sortAliasesBySpecificity(aliases: PathAlias[]): PathAlias[] {
+  return aliases.sort((left, right) => {
+    if (left.exact !== right.exact) return left.exact ? -1 : 1;
+    return right.prefix.length - left.prefix.length;
+  });
+}
+
+function loadWorkspacePackageAliases(rootDir: string): PathAlias[] {
+  const aliases: PathAlias[] = [];
+  for (const packageJsonPath of findPackageJsonFiles(rootDir)) {
+    try {
+      const pkg: unknown = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+      if (!isRecord(pkg) || typeof pkg.name !== "string" || pkg.name.length === 0) continue;
+
+      const packageDir = path.dirname(packageJsonPath);
+      const sourceDir = path.join(packageDir, "src");
+      if (!fs.existsSync(sourceDir)) continue;
+
+      const sourceIndex = resolveExistingModulePath(path.join(sourceDir, "index"));
+      if (sourceIndex) {
+        aliases.push({ pattern: pkg.name, prefix: pkg.name, baseDir: sourceIndex, exact: true });
+      }
+      aliases.push({ pattern: `${pkg.name}/*`, prefix: `${pkg.name}/`, baseDir: sourceDir, exact: false });
+    } catch {
+      continue;
+    }
+  }
+  return aliases;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function findPackageJsonFiles(rootDir: string): string[] {
+  const files: string[] = [];
+  const visited = new Set<string>();
+  const ignorePatterns = loadGitignorePatterns(rootDir);
+
+  function walk(dir: string): void {
+    const realDir = fs.realpathSync(dir);
+    if (visited.has(realDir)) return;
+    visited.add(realDir);
+
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const fullPath = path.join(dir, entry.name);
+      const relPath = path.relative(rootDir, fullPath);
+      if (isGitignored(relPath, ignorePatterns)) continue;
+
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile() && entry.name === "package.json") {
+        files.push(fullPath);
+      }
+    }
+  }
+
+  walk(rootDir);
+  return files;
+}
+
 function loadGitignorePatterns(rootDir: string): string[] {
-  const patterns: string[] = [];
+  const patterns = [...BUILT_IN_IGNORE_PATTERNS];
   let current = path.resolve(rootDir);
 
   for (;;) {
@@ -111,15 +229,24 @@ function loadGitignorePatterns(rootDir: string): string[] {
 }
 
 function isGitignored(relativePath: string, patterns: string[]): boolean {
+  const normalizedPath = relativePath.split(path.sep).join("/");
+  const segments = normalizedPath.split("/");
+
   for (const pattern of patterns) {
-    const clean = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
-    // Match directory name at any level
-    const segments = relativePath.split(path.sep);
-    for (const seg of segments) {
-      if (seg === clean) return true;
+    const clean = pattern.replaceAll("\\", "/").replace(/\/+$/, "");
+    if (!clean) continue;
+
+    if (clean.includes("/")) {
+      const patternSegments = clean.split("/");
+      for (let index = 0; index <= segments.length - patternSegments.length; index += 1) {
+        if (patternSegments.every((segment, offset) => segments[index + offset] === segment)) return true;
+      }
+      if (normalizedPath === clean || normalizedPath.startsWith(`${clean}/`)) return true;
+      continue;
     }
-    // Match leading path
-    if (relativePath.startsWith(clean + path.sep) || relativePath === clean) return true;
+
+    if (segments.includes(clean)) return true;
+    if (normalizedPath === clean || normalizedPath.startsWith(`${clean}/`)) return true;
   }
   return false;
 }
@@ -143,10 +270,6 @@ function walkDir(dir: string, rootDir: string, results: string[], visited: Set<s
     const fullPath = path.join(dir, entry.name);
     const relPath = path.relative(rootDir, fullPath);
 
-    // Always skip these regardless of .gitignore
-    if (entry.name === ".git" || entry.name === "node_modules") continue;
-
-    // Check gitignore patterns
     if (isGitignored(relPath, ignorePatterns)) continue;
 
     if (entry.isSymbolicLink()) {
@@ -169,13 +292,13 @@ function walkDir(dir: string, rootDir: string, results: string[], visited: Set<s
   }
 }
 
-function parseFile(sourceFile: ts.SourceFile, checker: ts.TypeChecker, rootDir: string, aliases: PathAlias[]): ParsedFile {
+function parseFile(sourceFile: ts.SourceFile, checker: ts.TypeChecker | undefined, rootDir: string, aliases: PathAlias[]): ParsedFile {
   const filePath = sourceFile.fileName;
   const relativePath = path.relative(rootDir, filePath);
   const loc = sourceFile.getEnd() === 0 ? 0 : sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd() - 1).line + 1;
-  const exports = extractExports(sourceFile, checker);
+  const exports = checker ? extractExports(sourceFile, checker) : extractExportsSyntax(sourceFile);
   const imports = extractImports(sourceFile, aliases);
-  const callSites = extractCallSites(sourceFile, checker, rootDir);
+  const callSites = checker ? extractCallSites(sourceFile, checker, rootDir) : [];
 
   return { path: filePath, relativePath, loc, exports, imports, callSites, churn: 0, isTestFile: false };
 }
@@ -222,6 +345,78 @@ function extractExports(sourceFile: ts.SourceFile, checker: ts.TypeChecker): Par
   return exports;
 }
 
+function extractExportsSyntax(sourceFile: ts.SourceFile): ParsedExport[] {
+  const exports: ParsedExport[] = [];
+  const seen = new Set<string>();
+
+  function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
+    return ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((modifier) => modifier.kind === kind) ?? false);
+  }
+
+  function addExport(name: string, type: ParsedExport["type"], node: ts.Node, isDefault = false): void {
+    if (seen.has(name)) return;
+    seen.add(name);
+
+    const startLine = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line;
+    const endLine = sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line;
+    exports.push({
+      name,
+      type,
+      loc: endLine - startLine + 1,
+      isDefault,
+      complexity: computeComplexity(node),
+    });
+  }
+
+  ts.forEachChild(sourceFile, (node) => {
+    const isExported = hasModifier(node, ts.SyntaxKind.ExportKeyword);
+    const isDefault = hasModifier(node, ts.SyntaxKind.DefaultKeyword);
+
+    if (ts.isFunctionDeclaration(node) && isExported) {
+      addExport(isDefault ? "default" : (node.name?.text ?? "default"), "function", node, isDefault);
+      return;
+    }
+    if (ts.isClassDeclaration(node) && isExported) {
+      addExport(isDefault ? "default" : (node.name?.text ?? "default"), "class", node, isDefault);
+      return;
+    }
+    if (ts.isInterfaceDeclaration(node) && isExported) {
+      addExport(node.name.text, "interface", node);
+      return;
+    }
+    if (ts.isTypeAliasDeclaration(node) && isExported) {
+      addExport(node.name.text, "type", node);
+      return;
+    }
+    if (ts.isEnumDeclaration(node) && isExported) {
+      addExport(node.name.text, "enum", node);
+      return;
+    }
+    if (ts.isVariableStatement(node) && isExported) {
+      for (const declaration of node.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)) continue;
+        addExport(declaration.name.text, getExportType(declaration), declaration);
+      }
+      return;
+    }
+    if (ts.isExportAssignment(node)) {
+      addExport("default", "variable", node, true);
+      return;
+    }
+    if (ts.isExportDeclaration(node)) {
+      if (node.exportClause && ts.isNamedExports(node.exportClause)) {
+        for (const element of node.exportClause.elements) {
+          addExport(element.name.text, "variable", element);
+        }
+      } else if (!node.exportClause) {
+        addExport("*", "variable", node);
+      }
+    }
+  });
+
+  return exports;
+}
+
 function getExportType(node: ts.Declaration): ParsedExport["type"] {
   if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node)) {
     return "function";
@@ -249,7 +444,7 @@ function extractImports(sourceFile: ts.SourceFile, aliases: PathAlias[]): Parsed
 
       const from = node.moduleSpecifier.text;
       const isRelative = from.startsWith(".") || from.startsWith("/");
-      const isAliased = aliases.some((a) => from.startsWith(a.prefix));
+      const isAliased = findMatchingAlias(from, aliases) !== undefined;
       if (!isRelative && !isAliased) return;
 
       // eslint-disable-next-line @typescript-eslint/no-deprecated
@@ -280,7 +475,7 @@ function extractImports(sourceFile: ts.SourceFile, aliases: PathAlias[]): Parsed
     if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
       const from = node.moduleSpecifier.text;
       const isRelative = from.startsWith(".") || from.startsWith("/");
-      const isAliased = aliases.some((a) => from.startsWith(a.prefix));
+      const isAliased = findMatchingAlias(from, aliases) !== undefined;
       if (!isRelative && !isAliased) return;
 
       const isTypeOnly = node.isTypeOnly;
@@ -412,12 +607,31 @@ function resolveImportPaths(files: ParsedFile[], rootDir: string, aliases: PathA
 }
 
 function expandAlias(importPath: string, aliases: PathAlias[], rootDir: string): string | null {
-  for (const alias of aliases) {
-    if (importPath.startsWith(alias.prefix)) {
-      const rest = importPath.slice(alias.prefix.length);
-      const absolute = path.join(alias.baseDir, rest);
-      return "./" + path.relative(rootDir, absolute);
-    }
+  const alias = findMatchingAlias(importPath, aliases);
+  if (!alias) return null;
+
+  const rest = alias.exact ? "" : importPath.slice(alias.prefix.length);
+  const absolute = alias.exact ? alias.baseDir : path.join(alias.baseDir, rest);
+  return "./" + path.relative(rootDir, absolute);
+}
+
+function findMatchingAlias(importPath: string, aliases: PathAlias[]): PathAlias | undefined {
+  return aliases.find((alias) => alias.exact ? importPath === alias.pattern : importPath.startsWith(alias.prefix));
+}
+
+function resolveExistingModulePath(basePath: string): string | null {
+  const candidates = [
+    basePath,
+    `${basePath}.ts`,
+    `${basePath}.tsx`,
+    basePath.endsWith(".js") ? basePath.slice(0, -3) + ".ts" : "",
+    basePath.endsWith(".js") ? basePath.slice(0, -3) + ".tsx" : "",
+    path.join(basePath, "index.ts"),
+    path.join(basePath, "index.tsx"),
+  ].filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
   }
   return null;
 }

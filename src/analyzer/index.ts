@@ -2,6 +2,7 @@ import type Graph from "graphology";
 import pagerank from "graphology-metrics/centrality/pagerank.js";
 import betweennessCentrality from "graphology-metrics/centrality/betweenness.js";
 import path from "path";
+import fs from "fs";
 import type {
   ParsedFile,
   FileMetrics,
@@ -18,15 +19,22 @@ import type {
   CodebaseGraph,
   GraphNode,
   SymbolMetrics,
+  AnalysisMode,
+  CallGraphPrecision,
 } from "../types/index.js";
 import { type BuiltGraph, detectCircularDeps } from "../graph/index.js";
 import { cloudGroup } from "../cloud-group.js";
 import { traceProcesses } from "../process/index.js";
 import { detectCommunities } from "../community/index.js";
+import { getFullProgramFileLimit } from "../parser/index.js";
 
 export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): CodebaseGraph {
   const { graph, nodes, edges } = built;
   const fileNodes = nodes.filter((n) => n.type === "file");
+  const analysisMode: AnalysisMode = parsedFiles?.some((file) => file.analysisMode === "ast-only")
+    ? "ast-only"
+    : "full-program";
+  const callGraphPrecision: CallGraphPrecision = analysisMode === "ast-only" ? "syntax-only" : "type-resolved";
 
   // Build lookup from parsed files
   const parsedByPath = new Map<string, ParsedFile>();
@@ -35,6 +43,7 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
       parsedByPath.set(f.relativePath, f);
     }
   }
+  const packageEntrypoints = detectPackageEntrypoints(parsedFiles);
 
   // Build set of all consumed symbols (for dead export detection)
   const consumedSymbols = new Map<string, Set<string>>();
@@ -83,6 +92,8 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
           .filter((e) => !e.isDefault && !consumed.has(e.name))
           .map((e) => e.name)
       : [];
+    const totalExports = parsed?.exports.filter((e) => !e.isDefault).length ?? 0;
+    const packageEntrypointReason = packageEntrypoints.get(node.id) ?? "";
 
     fileMetrics.set(node.id, {
       pageRank: pr,
@@ -96,6 +107,9 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
       cyclomaticComplexity: Math.round(avgComplexity * 100) / 100,
       blastRadius: 0, // computed after all nodes are processed
       deadExports,
+      totalExports,
+      isPackageEntrypoint: packageEntrypointReason.length > 0,
+      packageEntrypointReason,
       hasTests: parsed?.testFile !== undefined,
       testFile: parsed?.testFile ?? "",
       isTestFile: parsed?.isTestFile ?? false,
@@ -165,6 +179,9 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
       totalFunctions: nodes.filter((n) => n.type === "function" || n.type === "class").length,
       totalDependencies: edges.length,
       circularDeps,
+      analysisMode,
+      callGraphPrecision,
+      fullProgramFileLimit: getFullProgramFileLimit(),
     },
   };
 
@@ -173,6 +190,169 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
   partialGraph.clusters = detectCommunities(partialGraph);
 
   return partialGraph;
+}
+
+interface PackageJsonShape {
+  main?: unknown;
+  module?: unknown;
+  types?: unknown;
+  typings?: unknown;
+  bin?: unknown;
+  exports?: unknown;
+}
+
+function detectPackageEntrypoints(parsedFiles?: ParsedFile[]): Map<string, string> {
+  const entrypoints = new Map<string, string>();
+  if (!parsedFiles || parsedFiles.length === 0) return entrypoints;
+
+  const rootDir = inferRootDir(parsedFiles[0]);
+  if (!rootDir) return entrypoints;
+
+  const parsedPaths = new Set(parsedFiles.map((file) => file.relativePath));
+  const packageDirs = findPackageDirs(rootDir, parsedFiles);
+
+  for (const packageDir of packageDirs) {
+    const packageJsonPath = path.join(packageDir, "package.json");
+    const packageJson = readPackageJson(packageJsonPath);
+    if (!packageJson) continue;
+
+    const entries = collectPackageEntryPaths(packageJson);
+    for (const entry of entries) {
+      const matchedPath = resolveEntrypointPath(rootDir, packageDir, entry, parsedPaths);
+      if (matchedPath && !entrypoints.has(matchedPath)) {
+        const packageRelative = normalizePath(path.relative(rootDir, packageJsonPath));
+        entrypoints.set(matchedPath, `${packageRelative}:${entry}`);
+      }
+    }
+  }
+
+  return entrypoints;
+}
+
+function inferRootDir(file: ParsedFile): string {
+  const absolutePath = path.resolve(file.path);
+  const relativePath = file.relativePath.split("/").join(path.sep);
+  if (absolutePath.endsWith(relativePath)) {
+    return absolutePath.slice(0, absolutePath.length - relativePath.length).replace(/[\\/]+$/, "");
+  }
+  return path.dirname(absolutePath);
+}
+
+function findPackageDirs(rootDir: string, parsedFiles: ParsedFile[]): Set<string> {
+  const packageDirs = new Set<string>();
+  const root = path.resolve(rootDir);
+
+  for (const file of parsedFiles) {
+    let current = path.dirname(path.resolve(file.path));
+    while (current.startsWith(root)) {
+      if (fs.existsSync(path.join(current, "package.json"))) packageDirs.add(current);
+      if (current === root) break;
+      current = path.dirname(current);
+    }
+  }
+
+  return packageDirs;
+}
+
+function readPackageJson(packageJsonPath: string): PackageJsonShape | null {
+  try {
+    const parsed: unknown = JSON.parse(fs.readFileSync(packageJsonPath, "utf-8"));
+    return isPackageJsonShape(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isPackageJsonShape(value: unknown): value is PackageJsonShape {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function collectPackageEntryPaths(packageJson: PackageJsonShape): string[] {
+  const entries = new Set<string>();
+  collectEntryValue(packageJson.main, entries);
+  collectEntryValue(packageJson.module, entries);
+  collectEntryValue(packageJson.types, entries);
+  collectEntryValue(packageJson.typings, entries);
+  collectEntryValue(packageJson.bin, entries);
+  collectEntryValue(packageJson.exports, entries);
+  return [...entries];
+}
+
+function collectEntryValue(value: unknown, entries: Set<string>): void {
+  if (typeof value === "string") {
+    if (value.length > 0 && !value.startsWith("#")) entries.add(value);
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) collectEntryValue(item, entries);
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) collectEntryValue(item, entries);
+  }
+}
+
+function resolveEntrypointPath(
+  rootDir: string,
+  packageDir: string,
+  entry: string,
+  parsedPaths: Set<string>,
+): string | null {
+  for (const candidate of entrypointCandidates(entry)) {
+    const absoluteCandidate = path.resolve(packageDir, candidate);
+    if (!isInsideDir(rootDir, absoluteCandidate)) continue;
+
+    const relativeCandidate = normalizePath(path.relative(rootDir, absoluteCandidate));
+    if (parsedPaths.has(relativeCandidate)) return relativeCandidate;
+  }
+
+  return null;
+}
+
+function entrypointCandidates(entry: string): string[] {
+  const normalized = normalizePath(entry)
+    .replace(/^[.]\//, "")
+    .replace(/[?#].*$/, "");
+  if (!normalized || normalized === ".") return ["index.ts", "index.tsx", "src/index.ts", "src/index.tsx"];
+
+  const withoutExtension = stripKnownExtension(normalized);
+  const candidates = new Set<string>([
+    normalized,
+    `${withoutExtension}.ts`,
+    `${withoutExtension}.tsx`,
+    path.posix.join(withoutExtension, "index.ts"),
+    path.posix.join(withoutExtension, "index.tsx"),
+  ]);
+
+  for (const prefix of ["dist/", "build/", "lib/"]) {
+    if (!withoutExtension.startsWith(prefix)) continue;
+    const withoutPrefix = withoutExtension.slice(prefix.length);
+    candidates.add(`${withoutPrefix}.ts`);
+    candidates.add(`${withoutPrefix}.tsx`);
+    candidates.add(path.posix.join(withoutPrefix, "index.ts"));
+    candidates.add(path.posix.join(withoutPrefix, "index.tsx"));
+    candidates.add(`src/${withoutPrefix}.ts`);
+    candidates.add(`src/${withoutPrefix}.tsx`);
+    candidates.add(path.posix.join("src", withoutPrefix, "index.ts"));
+    candidates.add(path.posix.join("src", withoutPrefix, "index.tsx"));
+  }
+
+  return [...candidates];
+}
+
+function stripKnownExtension(filePath: string): string {
+  return filePath.replace(/\.(?:d\.)?(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/, "");
+}
+
+function normalizePath(filePath: string): string {
+  return filePath.replace(/\\/g, "/");
+}
+
+function isInsideDir(parent: string, child: string): boolean {
+  const relative = path.relative(path.resolve(parent), path.resolve(child));
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 const GROUP_COLORS = [

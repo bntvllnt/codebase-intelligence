@@ -6,6 +6,26 @@ import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
 const cli = path.join(root, "dist", "cli.js");
+const expectedVersion = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf-8")).version;
+const profile = process.env.CBI_REAL_PROFILE ?? "default";
+const timeoutMs = Number.parseInt(
+  process.env.CBI_REAL_TIMEOUT_MS ?? (profile === "heavy" ? "180000" : "60000"),
+  10,
+);
+const maxBufferBytes = Number.parseInt(process.env.CBI_REAL_MAX_BUFFER ?? String(64 * 1024 * 1024), 10);
+const parsedToTrackedTolerance = 1.25;
+const parsedToTrackedSlack = 20;
+const minLargeRepoDependencyDensity = 0.05;
+const largeRepoFileThreshold = 300;
+const bannedPathSegments = new Set([
+  ".code-visualizer",
+  ".next",
+  "dist",
+  "coverage",
+  ".turbo",
+  ".cache",
+  ".worktrees",
+]);
 
 const defaultTargets = [
   { name: "codebase-intelligence", path: root, file: "src/install/index.ts", symbol: "upsertManagedBlock" },
@@ -23,6 +43,33 @@ const defaultTargets = [
   },
 ];
 
+const heavyProfileTargets = [
+  {
+    name: "heavy-harness",
+    path: "/home/ubuntu/harness",
+    file: "harnesses/cli/src/cli-args/list-models.ts",
+    symbol: "listModels",
+    minFiles: 800,
+    minDependencies: 500,
+  },
+  {
+    name: "heavy-ui",
+    path: "/home/ubuntu/ui",
+    file: "",
+    symbol: "",
+    minFiles: 1500,
+    minDependencies: 1000,
+  },
+  {
+    name: "heavy-songtrivia",
+    path: "/home/ubuntu/anthm/songtrivia",
+    file: "",
+    symbol: "",
+    minFiles: 2500,
+    minDependencies: 2500,
+  },
+];
+
 const extraTargets = (process.env.CBI_REAL_TARGETS ?? "")
   .split(",")
   .map((value) => value.trim())
@@ -34,7 +81,18 @@ const extraTargets = (process.env.CBI_REAL_TARGETS ?? "")
     symbol: "",
   }));
 
-const targets = [...defaultTargets, ...extraTargets].filter((target) => fs.existsSync(target.path));
+const profileTargets = profile === "heavy" ? heavyProfileTargets : [];
+if (profile !== "default" && profile !== "heavy") {
+  console.error(`Unknown CBI_REAL_PROFILE=${profile}; expected default or heavy`);
+  process.exit(2);
+}
+
+const shouldDiscoverHome = process.env.CBI_REAL_DISCOVER_HOME === "1" || profile === "heavy";
+const discoveredTargets = shouldDiscoverHome
+  ? discoverHomeTargets(process.env.CBI_REAL_HOME ?? "/home/ubuntu", profile === "heavy" ? largeRepoFileThreshold : 1)
+  : [];
+
+const targets = uniqueTargets([...defaultTargets, ...profileTargets, ...extraTargets, ...discoveredTargets]);
 
 let pass = 0;
 let fail = 0;
@@ -43,7 +101,8 @@ function run(args, okCodes = [0]) {
   const result = spawnSync("node", [cli, ...args], {
     encoding: "utf-8",
     cwd: root,
-    timeout: 30_000,
+    timeout: timeoutMs,
+    maxBuffer: maxBufferBytes,
   });
   if (result.error) throw result.error;
   if (!okCodes.includes(result.status)) {
@@ -55,7 +114,9 @@ function run(args, okCodes = [0]) {
 }
 
 function json(args, okCodes = [0]) {
-  return JSON.parse(run([...args, "--json"], okCodes).stdout);
+  const result = JSON.parse(run([...args, "--json"], okCodes).stdout);
+  assertNoBannedPaths(result, args.join(" "));
+  return result;
 }
 
 function record(name, fn) {
@@ -77,6 +138,173 @@ function arrayAt(value, keys) {
   return [];
 }
 
+function uniqueTargets(candidates) {
+  const seen = new Set();
+  const targets = [];
+
+  for (const target of candidates) {
+    if (!fs.existsSync(target.path)) continue;
+    const realPath = fs.realpathSync(target.path);
+    if (seen.has(realPath)) continue;
+    seen.add(realPath);
+    targets.push(target);
+  }
+
+  return targets;
+}
+
+function discoverHomeTargets(homeDir, minTrackedFiles) {
+  const repos = [];
+  const maxDepth = Number.parseInt(process.env.CBI_REAL_DISCOVER_DEPTH ?? "5", 10);
+  const limit = Number.parseInt(process.env.CBI_REAL_DISCOVER_LIMIT ?? "6", 10);
+  const queue = [{ dir: homeDir, depth: 0 }];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (!current || current.depth > maxDepth || !fs.existsSync(current.dir)) continue;
+
+    if (fs.existsSync(path.join(current.dir, ".git"))) {
+      const trackedFiles = trackedTypeScriptCount(current.dir);
+      if (trackedFiles >= minTrackedFiles) {
+        repos.push({ path: current.dir, trackedFiles });
+      }
+      continue;
+    }
+
+    for (const entry of fs.readdirSync(current.dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (shouldSkipDiscoveryDir(entry.name)) continue;
+      queue.push({ dir: path.join(current.dir, entry.name), depth: current.depth + 1 });
+    }
+  }
+
+  return repos
+    .sort((left, right) => right.trackedFiles - left.trackedFiles)
+    .slice(0, limit)
+    .map((repo, index) => ({
+      name: `home-${index + 1}-${path.basename(repo.path)}`,
+      path: repo.path,
+      file: "",
+      symbol: "",
+    }));
+}
+
+function shouldSkipDiscoveryDir(name) {
+  return name === ".git"
+    || name === "node_modules"
+    || name === ".code-visualizer"
+    || name === ".next"
+    || name === "dist"
+    || name === "coverage"
+    || name === ".turbo"
+    || name === ".cache"
+    || name === ".worktrees"
+    || name === ".claude";
+}
+
+function trackedTypeScriptCount(targetPath) {
+  const target = path.resolve(targetPath);
+  const rootResult = spawnSync("git", ["-C", target, "rev-parse", "--show-toplevel"], {
+    encoding: "utf-8",
+  });
+  if (rootResult.status !== 0) return 0;
+
+  const repoRoot = rootResult.stdout.trim();
+  const filesResult = spawnSync("git", ["-C", repoRoot, "ls-files", "--", "*.ts", "*.tsx"], {
+    encoding: "utf-8",
+  });
+  if (filesResult.status !== 0) return 0;
+
+  return filesResult.stdout
+    .split("\n")
+    .filter(Boolean)
+    .map((file) => path.resolve(repoRoot, file))
+    .filter((file) => file.startsWith(`${target}${path.sep}`) || file === target)
+    .filter((file) => !file.endsWith(".d.ts"))
+    .length;
+}
+
+function overviewFileCount(overview) {
+  const files = overview.files ?? overview.fileCount ?? overview.totalFiles;
+  if (typeof files !== "number") throw new Error("missing file count");
+  return files;
+}
+
+function assertParsedToTrackedRatio(target, parsedFiles) {
+  const trackedFiles = trackedTypeScriptCount(target.path);
+  if (trackedFiles === 0) return;
+
+  const allowed = Math.ceil(trackedFiles * parsedToTrackedTolerance + parsedToTrackedSlack);
+  if (parsedFiles > allowed) {
+    throw new Error(
+      `parsed ${parsedFiles} files but git tracks ${trackedFiles}; likely generated/worktree pollution`,
+    );
+  }
+}
+
+function assertDependencyDensity(overview) {
+  const files = overviewFileCount(overview);
+  const dependencies = overview.totalDependencies;
+  if (files < largeRepoFileThreshold || typeof dependencies !== "number") return;
+
+  const minDependencies = Math.floor(files * minLargeRepoDependencyDensity);
+  if (dependencies < minDependencies) {
+    throw new Error(
+      `only ${dependencies} dependencies for ${files} files; likely unresolved workspace imports`,
+    );
+  }
+}
+
+function assertTargetThresholds(target, overview) {
+  const files = overviewFileCount(overview);
+  const dependencies = overview.totalDependencies;
+
+  if (typeof target.minFiles === "number" && files < target.minFiles) {
+    throw new Error(`expected at least ${target.minFiles} files for ${target.name}, got ${files}`);
+  }
+
+  if (typeof target.minDependencies === "number" && typeof dependencies === "number" && dependencies < target.minDependencies) {
+    throw new Error(`expected at least ${target.minDependencies} dependencies for ${target.name}, got ${dependencies}`);
+  }
+}
+
+function assertNoBannedPaths(value, location) {
+  const violation = findBannedPath(value);
+  if (violation) {
+    throw new Error(`banned generated/worktree path in ${location}: ${violation}`);
+  }
+}
+
+function findBannedPath(value) {
+  if (typeof value === "string") {
+    const normalized = value.replaceAll("\\", "/");
+    if (normalized.includes("package.json:")) return "";
+    const segments = normalized.split("/");
+    if (segments.includes(".claude") && segments.includes("worktrees")) return value;
+    for (const segment of segments) {
+      if (bannedPathSegments.has(segment)) return value;
+    }
+    return "";
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const result = findBannedPath(item);
+      if (result) return result;
+    }
+    return "";
+  }
+
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value)) {
+      const result = findBannedPath(item);
+      if (result) return result;
+    }
+  }
+
+  return "";
+}
+
 function discoverFileAndSymbol(target) {
   if (target.file && target.symbol) return target;
   const hotspots = json(["hotspots", target.path, "--metric", "tension", "--limit", "12"]);
@@ -92,7 +320,7 @@ function discoverFileAndSymbol(target) {
 
 record("version", () => {
   const version = run(["--version"]).stdout.trim();
-  if (!/^2\.\d+\.\d+/.test(version)) throw new Error(`unexpected version ${version}`);
+  if (version !== expectedVersion) throw new Error(`expected version ${expectedVersion}, got ${version}`);
   return version;
 });
 
@@ -101,8 +329,10 @@ for (const inputTarget of targets) {
 
   record(`${target.name}: overview`, () => {
     const overview = json(["overview", target.path]);
-    const files = overview.files ?? overview.fileCount ?? overview.totalFiles;
-    if (typeof files !== "number") throw new Error("missing file count");
+    const files = overviewFileCount(overview);
+    assertParsedToTrackedRatio(target, files);
+    assertDependencyDensity(overview);
+    assertTargetThresholds(target, overview);
     return `${files} files`;
   });
 
@@ -141,7 +371,7 @@ for (const inputTarget of targets) {
     return `${result.totalAffected} affected`;
   });
 
-  for (const command of ["modules", "forces", "dead-exports", "groups", "processes", "clusters"]) {
+  for (const command of ["modules", "forces", "dead-exports", "opportunities", "groups", "processes", "clusters"]) {
     record(`${target.name}: ${command}`, () => {
       const result = json([command, target.path]);
       if (!result || typeof result !== "object") throw new Error("invalid JSON object");

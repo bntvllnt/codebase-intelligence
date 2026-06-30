@@ -245,6 +245,56 @@ export const bar = foo;
     });
   });
 
+  describe("large-repo lightweight parsing", () => {
+    it("keeps imports and direct exports when full TypeScript program is disabled", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-lightweight-"));
+      const previousLimit = process.env.CBI_FULL_PROGRAM_FILE_LIMIT;
+      process.env.CBI_FULL_PROGRAM_FILE_LIMIT = "1";
+
+      try {
+        fs.writeFileSync(
+          path.join(projectDir, "utils.ts"),
+          `export function add(a: number, b: number): number {
+  if (a > b) return a + b;
+  return b + a;
+}
+
+export const VERSION = "1.0.0";
+export default class Runner {}
+`
+        );
+        fs.writeFileSync(
+          path.join(projectDir, "main.ts"),
+          `import Runner, { add, VERSION } from "./utils.js";
+export const value = add(1, 2) + VERSION.length;
+export { Runner };
+`
+        );
+
+        const files = parseCodebase(projectDir);
+        const utils = files.find((f) => f.relativePath === "utils.ts");
+        const main = files.find((f) => f.relativePath === "main.ts");
+
+        expect(files).toHaveLength(2);
+        expect(utils?.exports).toContainEqual(expect.objectContaining({ name: "add", type: "function" }));
+        expect(utils?.exports).toContainEqual(expect.objectContaining({ name: "VERSION", type: "variable" }));
+        expect(utils?.exports).toContainEqual(expect.objectContaining({ name: "default", type: "class", isDefault: true }));
+        expect(utils?.exports.find((exp) => exp.name === "add")?.complexity).toBeGreaterThan(1);
+        expect(utils?.analysisMode).toBe("ast-only");
+        expect(main?.analysisMode).toBe("ast-only");
+        expect(main?.imports[0].resolvedFrom).toBe("utils.ts");
+        expect(main?.callSites).toHaveLength(0);
+      } finally {
+        if (previousLimit === undefined) {
+          delete process.env.CBI_FULL_PROGRAM_FILE_LIMIT;
+        } else {
+          process.env.CBI_FULL_PROGRAM_FILE_LIMIT = previousLimit;
+        }
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+  });
+
   describe("tsconfig path alias resolution", () => {
     it("resolves @/ alias imports using tsconfig paths", () => {
       const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-alias-"));
@@ -304,6 +354,76 @@ export const bar = foo;
         const index = files.find((f) => f.relativePath === "src/index.ts");
         expect(index?.imports).toHaveLength(1);
         expect(index?.imports[0].from).toBe("@/lib/utils");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("prefers specific aliases over catch-all aliases", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-alias-specific-"));
+      try {
+        fs.writeFileSync(
+          path.join(projectDir, "tsconfig.json"),
+          JSON.stringify({
+            compilerOptions: {
+              paths: {
+                "*": ["./types/*"],
+                "@scope/core/*": ["./packages/core/src/*"],
+              },
+            },
+          }),
+        );
+        fs.mkdirSync(path.join(projectDir, "packages", "core", "src"), { recursive: true });
+        fs.mkdirSync(path.join(projectDir, "app"), { recursive: true });
+        fs.writeFileSync(
+          path.join(projectDir, "packages", "core", "src", "util.ts"),
+          `export function util(): string { return "ok"; }\n`,
+        );
+        fs.writeFileSync(
+          path.join(projectDir, "app", "index.ts"),
+          `import { util } from "@scope/core/util";\nexport const value = util();\n`,
+        );
+
+        const files = parseCodebase(projectDir);
+        const app = files.find((f) => f.relativePath === "app/index.ts");
+        expect(app?.imports[0].resolvedFrom).toBe("packages/core/src/util.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("resolves local workspace package imports from package.json names", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-workspace-alias-"));
+      try {
+        fs.writeFileSync(
+          path.join(projectDir, "package.json"),
+          JSON.stringify({ private: true, workspaces: ["packages/*"] }),
+        );
+        fs.mkdirSync(path.join(projectDir, "packages", "core", "src"), { recursive: true });
+        fs.mkdirSync(path.join(projectDir, "app"), { recursive: true });
+        fs.writeFileSync(
+          path.join(projectDir, "packages", "core", "package.json"),
+          JSON.stringify({ name: "@scope/core" }),
+        );
+        fs.writeFileSync(
+          path.join(projectDir, "packages", "core", "src", "index.ts"),
+          `export const root = "root";\n`,
+        );
+        fs.writeFileSync(
+          path.join(projectDir, "packages", "core", "src", "util.ts"),
+          `export const util = "util";\n`,
+        );
+        fs.writeFileSync(
+          path.join(projectDir, "app", "index.ts"),
+          `import { root } from "@scope/core";\nimport { util } from "@scope/core/util.js";\nexport const value = root + util;\n`,
+        );
+
+        const files = parseCodebase(projectDir);
+        const app = files.find((f) => f.relativePath === "app/index.ts");
+        const rootImport = app?.imports.find((imp) => imp.from === "@scope/core");
+        const utilImport = app?.imports.find((imp) => imp.from === "@scope/core/util.js");
+        expect(rootImport?.resolvedFrom).toBe("packages/core/src/index.ts");
+        expect(utilImport?.resolvedFrom).toBe("packages/core/src/util.ts");
       } finally {
         fs.rmSync(projectDir, { recursive: true, force: true });
       }
@@ -384,6 +504,36 @@ export const bar = foo;
         fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
         fs.mkdirSync(path.join(projectDir, ".git", "objects"), { recursive: true });
         fs.writeFileSync(path.join(projectDir, ".git", "hook.ts"), `export const h = 1;\n`);
+
+        const files = parseCodebase(projectDir);
+        expect(files).toHaveLength(1);
+        expect(files[0].relativePath).toBe("index.ts");
+      } finally {
+        fs.rmSync(projectDir, { recursive: true, force: true });
+      }
+    });
+
+    it("skips built-in generated and agent workspace directories without .gitignore", () => {
+      const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codebase-viz-built-in-ignore-"));
+      try {
+        fs.writeFileSync(path.join(projectDir, "index.ts"), `export const x = 1;\n`);
+
+        const ignoredFiles = [
+          [".code-visualizer", "graph.ts"],
+          [".next", "types", "generated.ts"],
+          ["dist", "cli.ts"],
+          ["coverage", "report.ts"],
+          [".turbo", "cache.ts"],
+          [".cache", "artifact.ts"],
+          [".worktrees", "pr-1", "copy.ts"],
+          [".claude", "worktrees", "agent-run", "copy.ts"],
+        ];
+
+        for (const segments of ignoredFiles) {
+          const filePath = path.join(projectDir, ...segments);
+          fs.mkdirSync(path.dirname(filePath), { recursive: true });
+          fs.writeFileSync(filePath, `export const ignored = 1;\n`);
+        }
 
         const files = parseCodebase(projectDir);
         expect(files).toHaveLength(1);

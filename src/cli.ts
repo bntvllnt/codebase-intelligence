@@ -23,6 +23,7 @@ import { analyzeGraph } from "./analyzer/index.js";
 import { startMcpServer } from "./mcp/index.js";
 import { setIndexedHead, setRoot } from "./server/graph-store.js";
 import { exportGraph, importGraph } from "./persistence/index.js";
+import { getCacheKey, INDEX_DIR_NAME } from "./persistence/cache-key.js";
 import {
   computeOverview,
   computeFileContext,
@@ -37,6 +38,7 @@ import {
   computeModuleStructure,
   computeForces,
   computeDeadExports,
+  computeOpportunities,
   computeGroups,
   computeSymbolContext,
   computeProcesses,
@@ -55,8 +57,6 @@ import { runCheck, exitCodeFor } from "./rules/check.js";
 import { formatResult, formatSummaryLine } from "./rules/format.js";
 import { ConfigError } from "./config/index.js";
 import type { CodebaseGraph, OutputFormat } from "./types/index.js";
-
-const INDEX_DIR_NAME = ".code-visualizer";
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -100,10 +100,11 @@ function loadGraph(targetPath: string, force = false): { graph: CodebaseGraph; h
 
   const indexDir = getIndexDir(targetPath);
   const headHash = getHeadHash(targetPath);
+  const cacheKey = getCacheKey(targetPath, { headHash, cliVersion: pkg.version });
 
   if (!force && headHash !== "unknown") {
     const cached = importGraph(indexDir);
-    if (cached?.headHash === headHash) {
+    if (cached?.headHash === headHash && cached.cacheKey === cacheKey) {
       progress(`Using cached index (HEAD: ${headHash.slice(0, 7)})`);
       setIndexedHead(cached.headHash);
       return { graph: cached.graph, headHash };
@@ -134,7 +135,7 @@ function loadGraph(targetPath: string, force = false): { graph: CodebaseGraph; h
 
   setIndexedHead(headHash);
 
-  exportGraph(graph, indexDir, headHash);
+  exportGraph(graph, indexDir, headHash, cacheKey);
   progress(`Index saved to ${indexDir}`);
 
   return { graph, headHash };
@@ -172,6 +173,10 @@ interface ForcesOptions extends CliCommandOptions {
 
 interface DeadExportsOptions extends CliCommandOptions {
   module?: string;
+  limit?: string;
+}
+
+interface OpportunitiesOptions extends CliCommandOptions {
   limit?: string;
 }
 
@@ -246,6 +251,7 @@ program
     output(`Files:        ${result.totalFiles}`);
     output(`Functions:    ${result.totalFunctions}`);
     output(`Dependencies: ${result.totalDependencies}`);
+    output(`Analysis:     ${result.analysis.mode} (${result.analysis.callGraphPrecision} call graph)`);
     output(`Avg LOC:      ${result.metrics.avgLOC}`);
     output(`Max Depth:    ${result.metrics.maxDepth}`);
     output(`Circular:     ${result.metrics.circularDeps}`);
@@ -725,11 +731,51 @@ program
     if (result.files.length > 0) {
       output(``);
       for (const f of result.files) {
-        output(`${f.path} (${f.deadExports.length}/${f.totalExports} unused):`);
+        output(`${f.path} (${f.deadExports.length}/${f.totalExports} unused, ${f.confidence} confidence):`);
+        if (f.packageEntrypointReason) output(`  public API: ${f.packageEntrypointReason}`);
         for (const e of f.deadExports) {
           output(`  - ${e}`);
         }
       }
+    }
+  });
+
+// ── Subcommand: opportunities ──────────────────────────────
+
+program
+  .command("opportunities")
+  .description("Rank code quality and refactoring opportunities for AI agents")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--limit <n>", "Max opportunities (default: 20)")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: OpportunitiesOptions) => {
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const limit = options.limit ? parseInt(options.limit, 10) : undefined;
+    if (limit !== undefined && (isNaN(limit) || limit < 1)) {
+      process.stderr.write("Error: --limit must be a positive integer\n");
+      process.exit(2);
+    }
+    const result = computeOpportunities(graph, limit);
+
+    if (options.json) {
+      outputJson(result);
+      return;
+    }
+
+    output(`Opportunities (${result.opportunities.length} of ${result.totalOpportunities})`);
+    output("─".repeat(40));
+    output(result.summary);
+
+    for (const opportunity of result.opportunities) {
+      output(``);
+      output(`#${opportunity.rank} [${opportunity.priority}] ${opportunity.title}`);
+      output(`  Target:     ${opportunity.target}`);
+      output(`  Kind:       ${opportunity.kind}`);
+      output(`  Score:      ${opportunity.score.toFixed(1)} (${opportunity.confidence} confidence)`);
+      output(`  Why:        ${opportunity.why}`);
+      output(`  Evidence:   ${opportunity.evidence.join("; ")}`);
+      output(`  Next:       ${opportunity.suggestedCommands[0] ?? "Review target manually"}`);
     }
   });
 
@@ -1117,7 +1163,8 @@ program
         output(options.summary ? formatSummaryLine(result) : formatResult(result, format));
       }
 
-      process.exit(exitCodeFor(result));
+      process.exitCode = exitCodeFor(result);
+      return;
     } catch (err) {
       if (err instanceof ConfigError) {
         process.stderr.write(`Config error: ${err.message}\n`);
@@ -1163,10 +1210,12 @@ async function runMcpMode(targetPath: string, options: McpOptions): Promise<void
     const meta = JSON.parse(fs.readFileSync(metaPath, "utf-8")) as {
       headHash: string;
       timestamp: string;
+      cacheKey?: string;
     };
     progress(`Index status:`);
     progress(`  Head:      ${meta.headHash}`);
     progress(`  Indexed:   ${meta.timestamp}`);
+    progress(`  Cache key: ${meta.cacheKey ? meta.cacheKey.slice(0, 12) : "legacy"}`);
     progress(`  Files:     ${result.graph.nodes.filter((n) => n.type === "file").length}`);
     progress(`  Symbols:   ${result.graph.symbolNodes.length}`);
     progress(`  Edges:     ${result.graph.edges.length}`);
@@ -1174,10 +1223,11 @@ async function runMcpMode(targetPath: string, options: McpOptions): Promise<void
   }
 
   const headHash = getHeadHash(targetPath);
+  const cacheKey = getCacheKey(targetPath, { headHash, cliVersion: pkg.version });
 
   if (!options.force && headHash !== "unknown") {
     const cached = importGraph(indexDir);
-    if (cached?.headHash === headHash) {
+    if (cached?.headHash === headHash && cached.cacheKey === cacheKey) {
       progress(`Using cached index (HEAD: ${headHash.slice(0, 7)})`);
       setIndexedHead(cached.headHash);
       await startMcpServer(cached.graph);
@@ -1205,7 +1255,7 @@ async function runMcpMode(targetPath: string, options: McpOptions): Promise<void
   setIndexedHead(headHash);
 
   if (options.index) {
-    exportGraph(codebaseGraph, indexDir, headHash);
+    exportGraph(codebaseGraph, indexDir, headHash, cacheKey);
     progress(`Index saved to ${indexDir}`);
   }
 
