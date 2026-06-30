@@ -111,6 +111,24 @@ describe("init lifecycle (e2e)", () => {
     expect(exists("GEMINI.md")).toBe(false);
   });
 
+  it("TTY picker confirms default agents on enter", () => {
+    const command = `node ${JSON.stringify(cli)} init ${JSON.stringify(repo)}`;
+    const result = spawnSync("script", ["-qfec", command, "/dev/null"], {
+      cwd: repoRoot,
+      env: { ...process.env, HOME: home, USERPROFILE: home },
+      input: "\n",
+      encoding: "utf-8",
+    });
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("Select what to set up");
+    expect(result.stdout).toContain("created   AGENTS.md");
+    expect(result.stdout).toContain("created   CLAUDE.md");
+    expect(exists("AGENTS.md")).toBe(true);
+    expect(exists("CLAUDE.md")).toBe(true);
+    expect(exists("GEMINI.md")).toBe(false);
+  });
+
   it("--all writes every agent file", () => {
     const { status } = run(["init", "--all", repo], home);
     expect(status).toBe(0);

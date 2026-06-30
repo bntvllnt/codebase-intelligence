@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Search responses are verified as file-grouped with symbol locations and
   `nextSteps`; `symbol_context` is verified for `AuthService`; `detect_changes`
   is verified against a real non-git directory.
+- **Durable verification scripts and e2e coverage now replace one-off checks.**
+  `verify:cli-real` runs the real compiled CLI against this repo plus available
+  sibling real codebases, `test:coverage` uses the stable Vitest runner flags,
+  MCP stdio starts through the compiled CLI in an e2e test, and the `init` TTY
+  picker is exercised through a pseudo-terminal.
 
 ### Fixed
 
