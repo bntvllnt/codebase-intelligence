@@ -92,8 +92,8 @@ function printOperationError(result: { error: string; data?: unknown }): never {
   process.exit(1);
 }
 
-function parseCliOperationInput<TInput extends object>(
-  operation: Operation<TInput, unknown>,
+function parseCliOperationInput<TInput extends object, TResult>(
+  operation: Operation<TInput, TResult>,
   input: unknown,
 ): TInput {
   const parsed = parseOperationInput(operation, input);
@@ -113,6 +113,14 @@ function runCliOperation<TInput extends object, TResult>(
   const result: OperationRunResult<TResult> = runOperation(operation, graph, input, context);
   if (!result.ok) printOperationError(result);
   return result.data;
+}
+
+function outputOperationText<TInput extends object, TResult>(
+  operation: Operation<TInput, TResult>,
+  result: TResult,
+  input: TInput,
+): void {
+  output(operation.formatText(result, input));
 }
 
 function reportGraphLoadProgress(event: GraphLoadProgress): void {
@@ -250,29 +258,7 @@ program
       return;
     }
 
-    output(`Codebase Overview`);
-    output(`─────────────────`);
-    output(`Files:        ${result.totalFiles}`);
-    output(`Functions:    ${result.totalFunctions}`);
-    output(`Dependencies: ${result.totalDependencies}`);
-    output(`Analysis:     ${result.analysis.mode} (${result.analysis.callGraphPrecision} call graph)`);
-    output(`Avg LOC:      ${result.metrics.avgLOC}`);
-    output(`Max Depth:    ${result.metrics.maxDepth}`);
-    output(`Circular:     ${result.metrics.circularDeps}`);
-    output(``);
-    output(`Modules`);
-    output(`${"Path".padEnd(40)} ${"Files".padStart(6)} ${"LOC".padStart(8)} ${"Coupling".padStart(10)} ${"Cohesion".padStart(10)}`);
-    output(`${"─".repeat(40)} ${"─".repeat(6)} ${"─".repeat(8)} ${"─".repeat(10)} ${"─".repeat(10)}`);
-    for (const m of result.modules) {
-      output(
-        `${m.path.padEnd(40)} ${String(m.files).padStart(6)} ${String(m.loc).padStart(8)} ${m.avgCoupling.padStart(10)} ${m.cohesion.toFixed(2).padStart(10)}`,
-      );
-    }
-    output(``);
-    output(`Top Depended Files`);
-    for (const f of result.topDependedFiles) {
-      output(`  ${f}`);
-    }
+    outputOperationText(operations.overview, result, input);
   });
 
 // ── Subcommand: hotspots ────────────────────────────────────
@@ -302,15 +288,7 @@ program
       progress(`Showing coupling (default). Use --metric to change.`);
     }
 
-    output(`Hotspots: ${result.metric}`);
-    output(`──────────${"─".repeat(result.metric.length)}`);
-    output(`${"Path".padEnd(50)} ${"Score".padStart(10)} Reason`);
-    output(`${"─".repeat(50)} ${"─".repeat(10)} ${"─".repeat(30)}`);
-    for (const h of result.hotspots) {
-      output(`${h.path.padEnd(50)} ${h.score.toFixed(2).padStart(10)} ${h.reason}`);
-    }
-    output(``);
-    output(result.summary);
+    outputOperationText(operations.hotspots, result, input);
   });
 
 // ── Subcommand: file ────────────────────────────────────────
@@ -333,53 +311,7 @@ program
       return;
     }
 
-    output(`File: ${result.path}`);
-    output("─".repeat(6 + result.path.length));
-    output(`LOC: ${result.loc}`);
-    output(``);
-
-    if (result.exports.length > 0) {
-      output(`Exports (${result.exports.length})`);
-      for (const e of result.exports) {
-        output(`  ${e.type.padEnd(12)} ${e.name} (${e.loc} LOC)`);
-      }
-      output(``);
-    }
-
-    if (result.imports.length > 0) {
-      output(`Imports (${result.imports.length})`);
-      for (const i of result.imports) {
-        const typeTag = i.isTypeOnly ? " [type]" : "";
-        output(`  ${i.from} → {${i.symbols.join(", ")}}${typeTag}`);
-      }
-      output(``);
-    }
-
-    if (result.dependents.length > 0) {
-      output(`Dependents (${result.dependents.length})`);
-      for (const d of result.dependents) {
-        const typeTag = d.isTypeOnly ? " [type]" : "";
-        output(`  ${d.path} → {${d.symbols.join(", ")}}${typeTag}`);
-      }
-      output(``);
-    }
-
-    output(`Metrics`);
-    output(`  PageRank:    ${result.metrics.pageRank}`);
-    output(`  Betweenness: ${result.metrics.betweenness}`);
-    output(`  Fan-in:      ${result.metrics.fanIn}`);
-    output(`  Fan-out:     ${result.metrics.fanOut}`);
-    output(`  Coupling:    ${result.metrics.coupling}`);
-    output(`  Tension:     ${result.metrics.tension}`);
-    output(`  Bridge:      ${result.metrics.isBridge ? "yes" : "no"}`);
-    output(`  Churn:       ${result.metrics.churn}`);
-    output(`  Complexity:  ${result.metrics.cyclomaticComplexity}`);
-    output(`  Blast radius: ${result.metrics.blastRadius}`);
-    output(`  Has tests:   ${result.metrics.hasTests ? `yes (${result.metrics.testFile})` : "no"}`);
-
-    if (result.metrics.deadExports.length > 0) {
-      output(`  Dead exports: ${result.metrics.deadExports.join(", ")}`);
-    }
+    outputOperationText(operations.fileContext, result, input);
   });
 
 // ── Subcommand: search ──────────────────────────────────────
@@ -405,22 +337,7 @@ program
       return;
     }
 
-    if (result.results.length === 0) {
-      output(`No results for "${query}"`);
-      if (result.suggestions && result.suggestions.length > 0) {
-        output(`\nDid you mean: ${result.suggestions.join(", ")}?`);
-      }
-      return;
-    }
-
-    output(`Search: "${query}" (${result.results.length} results)`);
-    output("─".repeat(40));
-    for (const r of result.results) {
-      output(`${r.file} (score: ${r.score.toFixed(2)})`);
-      for (const s of r.symbols) {
-        output(`  ${s.type.padEnd(12)} ${s.name} (${s.loc} LOC, relevance: ${s.relevance.toFixed(2)})`);
-      }
-    }
+    outputOperationText(operations.search, result, input);
   });
 
 // ── Subcommand: changes ─────────────────────────────────────
@@ -443,46 +360,7 @@ program
       return;
     }
 
-    output(`Changes (${result.scope})`);
-    output("─".repeat(20));
-
-    if (result.changedFiles.length === 0) {
-      output(`No changes detected.`);
-      return;
-    }
-
-    output(`Changed files (${result.changedFiles.length}):`);
-    for (const f of result.changedFiles) {
-      output(`  ${f}`);
-    }
-
-    if (result.changedSymbols.length > 0) {
-      output(``);
-      output(`Changed symbols:`);
-      for (const cs of result.changedSymbols) {
-        output(`  ${cs.file}: ${cs.symbols.join(", ")}`);
-      }
-    }
-
-    if (result.affectedFiles.length > 0) {
-      output(``);
-      output(`Affected files (${result.affectedFiles.length}):`);
-      for (const f of result.affectedFiles) {
-        output(`  ${f}`);
-      }
-    }
-
-    if (result.fileRiskMetrics.length > 0) {
-      output(``);
-      output(`Risk Metrics`);
-      output(`${"File".padEnd(50)} ${"Blast".padStart(8)} ${"Cmplx".padStart(8)} ${"Churn".padStart(8)}`);
-      output(`${"─".repeat(50)} ${"─".repeat(8)} ${"─".repeat(8)} ${"─".repeat(8)}`);
-      for (const m of result.fileRiskMetrics) {
-        output(
-          `${m.file.padEnd(50)} ${String(m.blastRadius).padStart(8)} ${m.complexity.toFixed(1).padStart(8)} ${String(m.churn).padStart(8)}`,
-        );
-      }
-    }
+    outputOperationText(operations.changes, result, input);
   });
 
 // ── Subcommand: dependents ──────────────────────────────────
@@ -509,26 +387,7 @@ program
       return;
     }
 
-    output(`Dependents: ${result.file}`);
-    output("─".repeat(13 + result.file.length));
-    output(`Risk level: ${result.riskLevel}`);
-    output(`Total affected: ${result.totalAffected}`);
-    output(``);
-
-    if (result.directDependents.length > 0) {
-      output(`Direct dependents (${result.directDependents.length}):`);
-      for (const d of result.directDependents) {
-        output(`  ${d.path} → {${d.symbols.join(", ")}}`);
-      }
-      output(``);
-    }
-
-    if (result.transitiveDependents.length > 0) {
-      output(`Transitive dependents (${result.transitiveDependents.length}):`);
-      for (const t of result.transitiveDependents) {
-        output(`  ${t.path} (depth ${t.depth}, via ${t.throughPath.join(" → ")})`);
-      }
-    }
+    outputOperationText(operations.dependents, result, input);
   });
 
 // ── Subcommand: modules ────────────────────────────────────
@@ -549,31 +408,7 @@ program
       return;
     }
 
-    output(`Module Structure`);
-    output(`────────────────`);
-    output(`${"Path".padEnd(30)} ${"Files".padStart(6)} ${"LOC".padStart(8)} ${"Cohesion".padStart(10)} ${"EscVel".padStart(8)}`);
-    output(`${"─".repeat(30)} ${"─".repeat(6)} ${"─".repeat(8)} ${"─".repeat(10)} ${"─".repeat(8)}`);
-    for (const m of result.modules) {
-      output(
-        `${m.path.padEnd(30)} ${String(m.files).padStart(6)} ${String(m.loc).padStart(8)} ${m.cohesion.toFixed(2).padStart(10)} ${m.escapeVelocity.toFixed(2).padStart(8)}`,
-      );
-    }
-
-    if (result.crossModuleDeps.length > 0) {
-      output(``);
-      output(`Cross-Module Dependencies (${result.crossModuleDeps.length}):`);
-      for (const d of result.crossModuleDeps.slice(0, 20)) {
-        output(`  ${d.from} → ${d.to} (weight: ${d.weight})`);
-      }
-    }
-
-    if (result.circularDeps.length > 0) {
-      output(``);
-      output(`Circular Dependencies (${result.circularDeps.length}):`);
-      for (const c of result.circularDeps) {
-        output(`  [${c.severity}] ${c.cycle.map((p) => p.join(" → ")).join("; ")}`);
-      }
-    }
+    outputOperationText(operations.moduleStructure, result, input);
   });
 
 // ── Subcommand: forces ─────────────────────────────────────
@@ -601,79 +436,7 @@ program
       return;
     }
 
-    output(`Force Analysis`);
-    output(`──────────────`);
-    output(result.summary);
-    output(``);
-
-    output(`Module Cohesion:`);
-    for (const m of result.moduleCohesion) {
-      output(`  ${m.path.padEnd(30)} ${m.verdict.padEnd(14)} cohesion: ${m.cohesion.toFixed(2)}`);
-    }
-
-    if (result.tensionFiles.length > 0) {
-      output(``);
-      output(`Tension Files (${result.tensionFiles.length}):`);
-      for (const t of result.tensionFiles) {
-        output(`  ${t.file} (tension: ${t.tension.toFixed(2)})`);
-        for (const p of t.pulledBy) {
-          output(`    ← ${p.module} (strength: ${p.strength.toFixed(2)}, symbols: ${p.symbols.join(", ")})`);
-        }
-      }
-    }
-
-    if (result.bridgeFiles.length > 0) {
-      output(``);
-      output(`Bridge Files (${result.bridgeFiles.length}):`);
-      for (const b of result.bridgeFiles) {
-        output(`  ${b.file} (betweenness: ${b.betweenness.toFixed(3)}, role: ${b.role})`);
-      }
-    }
-
-    if (result.extractionCandidates.length > 0) {
-      output(``);
-      output(`Extraction Candidates (${result.extractionCandidates.length}):`);
-      for (const e of result.extractionCandidates) {
-        output(`  ${e.target} (escape velocity: ${e.escapeVelocity.toFixed(2)})`);
-        output(`    ${e.recommendation}`);
-      }
-    }
-
-    if (result.shallowModules.length > 0) {
-      output(``);
-      output(`Shallow Modules (${result.shallowModules.length}):`);
-      for (const m of result.shallowModules) {
-        output(`  ${m.module} (${m.exports} exports, cohesion: ${m.cohesion.toFixed(2)})`);
-        output(`    ${m.evidence}`);
-      }
-    }
-
-    if (result.deepModules.length > 0) {
-      output(``);
-      output(`Deep Modules (${result.deepModules.length}):`);
-      for (const m of result.deepModules) {
-        output(`  ${m.module} (${m.exports} exports, depended by: ${m.dependedByModules})`);
-        output(`    ${m.evidence}`);
-      }
-    }
-
-    if (result.seamCandidates.length > 0) {
-      output(``);
-      output(`Seam Candidates (${result.seamCandidates.length}):`);
-      for (const seam of result.seamCandidates) {
-        output(`  ${seam.target} [${seam.scope}] (dependents: ${seam.dependentModules}, fan-in: ${seam.fanIn})`);
-        output(`    ${seam.evidence}`);
-      }
-    }
-
-    if (result.localityRisks.length > 0) {
-      output(``);
-      output(`Locality Risks (${result.localityRisks.length}):`);
-      for (const risk of result.localityRisks) {
-        output(`  ${risk.file} [${risk.kind}] (blast radius: ${risk.blastRadius}, tension: ${risk.tension.toFixed(2)})`);
-        output(`    ${risk.evidence}`);
-      }
-    }
+    outputOperationText(operations.forces, result, input);
   });
 
 // ── Subcommand: dead-exports ───────────────────────────────
@@ -699,20 +462,7 @@ program
       return;
     }
 
-    output(`Dead Exports`);
-    output(`────────────`);
-    output(result.summary);
-
-    if (result.files.length > 0) {
-      output(``);
-      for (const f of result.files) {
-        output(`${f.path} (${f.deadExports.length}/${f.totalExports} unused, ${f.confidence} confidence):`);
-        if (f.packageEntrypointReason) output(`  public API: ${f.packageEntrypointReason}`);
-        for (const e of f.deadExports) {
-          output(`  - ${e}`);
-        }
-      }
-    }
+    outputOperationText(operations.deadExports, result, input);
   });
 
 // ── Subcommand: opportunities ──────────────────────────────
@@ -736,20 +486,7 @@ program
       return;
     }
 
-    output(`Opportunities (${result.opportunities.length} of ${result.totalOpportunities})`);
-    output("─".repeat(40));
-    output(result.summary);
-
-    for (const opportunity of result.opportunities) {
-      output(``);
-      output(`#${opportunity.rank} [${opportunity.priority}] ${opportunity.title}`);
-      output(`  Target:     ${opportunity.target}`);
-      output(`  Kind:       ${opportunity.kind}`);
-      output(`  Score:      ${opportunity.score.toFixed(1)} (${opportunity.confidence} confidence)`);
-      output(`  Why:        ${opportunity.why}`);
-      output(`  Evidence:   ${opportunity.evidence.join("; ")}`);
-      output(`  Next:       ${opportunity.suggestedCommands[0] ?? "Review target manually"}`);
-    }
+    outputOperationText(operations.opportunities, result, input);
   });
 
 // ── Subcommand: groups ─────────────────────────────────────
@@ -770,15 +507,7 @@ program
       return;
     }
 
-    output(`Groups`);
-    output(`──────`);
-    output(`${"#".padStart(3)} ${"Name".padEnd(20)} ${"Files".padStart(6)} ${"LOC".padStart(8)} ${"Importance".padStart(12)} ${"Coupling".padStart(10)}`);
-    output(`${"─".repeat(3)} ${"─".repeat(20)} ${"─".repeat(6)} ${"─".repeat(8)} ${"─".repeat(12)} ${"─".repeat(10)}`);
-    for (const g of result.groups) {
-      output(
-        `${String(g.rank).padStart(3)} ${g.name.padEnd(20)} ${String(g.files).padStart(6)} ${String(g.loc).padStart(8)} ${g.importance.padStart(12)} ${String(g.coupling.total).padStart(10)}`,
-      );
-    }
+    outputOperationText(operations.groups, result, input);
   });
 
 // ── Subcommand: symbol ─────────────────────────────────────
@@ -801,33 +530,7 @@ program
       return;
     }
 
-    output(`Symbol: ${result.name}`);
-    output("─".repeat(8 + result.name.length));
-    output(`File:       ${result.file}`);
-    output(`Type:       ${result.type}`);
-    output(`LOC:        ${result.loc}`);
-    output(`Default:    ${result.isDefault ? "yes" : "no"}`);
-    output(`Complexity: ${result.complexity}`);
-    output(`Fan-in:     ${result.fanIn}`);
-    output(`Fan-out:    ${result.fanOut}`);
-    output(`PageRank:   ${result.pageRank}`);
-    output(`Betweenness:${result.betweenness}`);
-
-    if (result.callers.length > 0) {
-      output(``);
-      output(`Callers (${result.callers.length}):`);
-      for (const c of result.callers) {
-        output(`  ${c.symbol} (${c.file}) [${c.confidence}]`);
-      }
-    }
-
-    if (result.callees.length > 0) {
-      output(``);
-      output(`Callees (${result.callees.length}):`);
-      for (const c of result.callees) {
-        output(`  ${c.symbol} (${c.file}) [${c.confidence}]`);
-      }
-    }
+    outputOperationText(operations.symbolContext, result, input);
   });
 
 // ── Subcommand: impact ─────────────────────────────────────
@@ -849,19 +552,7 @@ program
       return;
     }
 
-    output(`Impact Analysis: ${symbol}`);
-    output("─".repeat(18 + symbol.length));
-    output(`Total affected: ${result.totalAffected}`);
-
-    if (result.levels.length > 0) {
-      output(``);
-      for (const level of result.levels) {
-        output(`Depth ${level.depth} — ${level.risk} (${level.affected.length}):`);
-        for (const a of level.affected) {
-          output(`  ${a.symbol} (${a.file}) [${a.confidence}]`);
-        }
-      }
-    }
+    outputOperationText(operations.impact, result, input);
   });
 
 // ── Subcommand: rename ─────────────────────────────────────
@@ -886,18 +577,7 @@ program
       return;
     }
 
-    output(`Rename: ${oldName} → ${newName}${dryRun ? " (dry run)" : ""}`);
-    output("─".repeat(40));
-
-    if (result.references.length === 0) {
-      output(`No references found for "${oldName}"`);
-      return;
-    }
-
-    output(`References (${result.references.length}):`);
-    for (const ref of result.references) {
-      output(`  ${ref.file} [${ref.confidence}] ${ref.symbol}`);
-    }
+    outputOperationText(operations.rename, result, input);
   });
 
 // ── Subcommand: processes ──────────────────────────────────
@@ -923,22 +603,7 @@ program
       return;
     }
 
-    output(`Processes (${result.processes.length} of ${result.totalProcesses})`);
-    output("─".repeat(30));
-
-    if (result.processes.length === 0) {
-      output(`No processes found.`);
-      return;
-    }
-
-    for (const p of result.processes) {
-      output(``);
-      output(`${p.name} (depth: ${p.depth}, modules: ${p.modulesTouched.join(", ")})`);
-      output(`  Entry: ${p.entryPoint.file}::${p.entryPoint.symbol}`);
-      for (const s of p.steps) {
-        output(`  ${String(s.step).padStart(3)}. ${s.file}::${s.symbol}`);
-      }
-    }
+    outputOperationText(operations.processes, result, input);
   });
 
 // ── Subcommand: clusters ───────────────────────────────────
@@ -962,16 +627,7 @@ program
       return;
     }
 
-    output(`Clusters (${result.clusters.length} of ${result.totalClusters})`);
-    output("─".repeat(30));
-
-    for (const c of result.clusters) {
-      output(``);
-      output(`${c.name} (${c.fileCount} files, cohesion: ${c.cohesion.toFixed(2)})`);
-      for (const f of c.files) {
-        output(`  ${f}`);
-      }
-    }
+    outputOperationText(operations.clusters, result, input);
   });
 
 // ── Subcommand: init ───────────────────────────────────────

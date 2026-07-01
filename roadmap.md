@@ -277,10 +277,11 @@ Collapse CLI + MCP operation duplication into one descriptor registry before add
 - Expand CH-P1-02 coverage for descriptor validation, CLI parse failure, and cache reuse through registry-adapted commands.
 - Use one graph-load pipeline with progress callbacks.
 - Extend CH-P1-02 coverage to MCP/stdio graph-load behavior.
+- Move operation text formatting over result objects into descriptor-backed formatters.
 
 **Remaining:**
 
-- Move text/SARIF/markdown formatting over result objects into formatters.
+- None for the operation-registry foundation. Future non-text output variants remain tracked under P2 Output Formats + Actionability.
 
 ### Type/Shape Layer
 

@@ -105,6 +105,19 @@ function runCli(args: string[], options: CliRunOptions = {}): SpawnSyncReturns<s
   });
 }
 
+function runCliText(args: string[], options: CliRunOptions = {}): SpawnSyncReturns<string> {
+  const cliArgs = ["node", cli, ...args];
+  if (options.force !== false) {
+    cliArgs.push("--force");
+  }
+
+  return spawnSync(cliArgs[0], cliArgs.slice(1), {
+    cwd: repoRoot,
+    env: { ...process.env },
+    encoding: "utf-8",
+  });
+}
+
 function runCliJson(args: string[], options: CliRunOptions = {}): Record<string, unknown> {
   const res = runCli(args, options);
 
@@ -129,6 +142,23 @@ function expectCliMatchesRegistry<TInput extends object, TResult>(
 
   const cliPayload = runCliJson(cliArgs, runOptions);
   expect(withoutCache(cliPayload)).toEqual(registryResult.data);
+}
+
+function expectCliTextMatchesFormatter<TInput extends object, TResult>(
+  operation: Operation<TInput, TResult>,
+  input: TInput,
+  cliArgs: string[],
+  graph: CodebaseGraph,
+  context: OperationContext = {},
+  runOptions: CliRunOptions = {},
+): void {
+  const registryResult = runOperation(operation, graph, input, context);
+  expect(registryResult.ok).toBe(true);
+  if (!registryResult.ok) throw new Error(registryResult.error);
+
+  const cliResult = runCliText(cliArgs, runOptions);
+  expect(cliResult.status).toBe(0);
+  expect(cliResult.stdout).toBe(`${operation.formatText(registryResult.data, input)}\n`);
 }
 
 beforeAll(() => {
@@ -259,6 +289,120 @@ describe("operation registry chained parity", () => {
       cachedRun,
     );
     expectCliMatchesRegistry(
+      operations.clusters,
+      { minFiles: 2 },
+      ["clusters", getFixtureSrcPath(), "--min-files", "2"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+  });
+
+  it("CH-P1-01: registry-adapted CLI text commands render through descriptor formatters for every operation", () => {
+    const { codebaseGraph } = getFixturePipeline();
+    runCliJson(["overview", getFixtureSrcPath()]);
+    const cachedRun = { force: false };
+
+    expectCliTextMatchesFormatter(operations.overview, {}, ["overview", getFixtureSrcPath()], codebaseGraph, {}, cachedRun);
+    expectCliTextMatchesFormatter(
+      operations.fileContext,
+      { filePath: "index.ts" },
+      ["file", getFixtureSrcPath(), "index.ts"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.dependents,
+      { filePath: "auth/auth-service.ts", depth: 2 },
+      ["dependents", getFixtureSrcPath(), "auth/auth-service.ts", "--depth", "2"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.hotspots,
+      { metric: "coupling", limit: 3 },
+      ["hotspots", getFixtureSrcPath(), "--metric", "coupling", "--limit", "3"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(operations.moduleStructure, {}, ["modules", getFixtureSrcPath()], codebaseGraph, {}, cachedRun);
+    expectCliTextMatchesFormatter(
+      operations.forces,
+      { cohesionThreshold: 0.6, tensionThreshold: 0.3, escapeThreshold: 0.5 },
+      ["forces", getFixtureSrcPath(), "--cohesion", "0.6", "--tension", "0.3", "--escape", "0.5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.deadExports,
+      { limit: 5 },
+      ["dead-exports", getFixtureSrcPath(), "--limit", "5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.opportunities,
+      { limit: 5 },
+      ["opportunities", getFixtureSrcPath(), "--limit", "5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(operations.groups, {}, ["groups", getFixtureSrcPath()], codebaseGraph, {}, cachedRun);
+    expectCliTextMatchesFormatter(
+      operations.symbolContext,
+      { name: "getUserById" },
+      ["symbol", getFixtureSrcPath(), "getUserById"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.search,
+      { query: "auth", limit: 5 },
+      ["search", getFixtureSrcPath(), "auth", "--limit", "5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.changes,
+      { scope: "all" },
+      ["changes", getFixtureSrcPath(), "--scope", "all"],
+      codebaseGraph,
+      { rootDir: getFixtureSrcPath() },
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.impact,
+      { symbol: "getUserById" },
+      ["impact", getFixtureSrcPath(), "getUserById"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.rename,
+      { oldName: "getUserById", newName: "findUserById", dryRun: true },
+      ["rename", getFixtureSrcPath(), "getUserById", "findUserById"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.processes,
+      { entryPoint: "main", limit: 1 },
+      ["processes", getFixtureSrcPath(), "--entry", "main", "--limit", "1"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
       operations.clusters,
       { minFiles: 2 },
       ["clusters", getFixtureSrcPath(), "--min-files", "2"],

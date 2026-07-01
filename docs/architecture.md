@@ -22,7 +22,7 @@ Core (shared computation)
   | result builders used by MCP, CLI, and operation descriptors
   |\
   | \-> Operation Registry
-  |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers
+  |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers, text formatters
   v
 MCP (stdio)                    CLI (terminal/CI)
   | 17 tools, 2 prompts,        | 18 commands with text + JSON
@@ -40,6 +40,7 @@ src/
   graph-loader/index.ts <- Shared parse/build/analyze/cache pipeline + progress events
   core/index.ts        <- Shared result computation (MCP + CLI)
   operations/index.ts  <- Analysis operation descriptors + typed input schemas
+  operations/formatters.ts <- Result-object text formatters for CLI commands
   config/index.ts      <- Config discovery + zod validation
   rules/index.ts       <- Rules engine + registry (check command + MCP check tool)
   mcp/index.ts         <- 17 MCP tools for LLM integration
@@ -86,7 +87,7 @@ runOperation(operation, codebaseGraph, input, context)
 ## Key Design Decisions
 
 - **Dual interface**: MCP stdio for LLM agents, CLI subcommands for humans/CI. Both consume `src/core/`.
-- **Operation registry foundation**: Analysis operations now have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. MCP tool registration and CLI command execution consume those descriptors; CLI text formatting still lives in `src/cli.ts` until the formatter migration lands.
+- **Operation registry foundation**: Analysis operations now have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, discriminated run results, and result-object text formatters. MCP tool registration and CLI command execution consume those descriptors; CLI JSON remains raw result data plus cache facts.
 - **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
@@ -104,6 +105,6 @@ Vertical slice through all layers:
 1. **types/index.ts** — Add field to `FileMetrics` (and `ParsedFile`/`ParsedExport` if extracted at parse time)
 2. **parser/index.ts** — Extract raw data from AST or external source (git, filesystem)
 3. **analyzer/index.ts** — Compute derived metric, store in `fileMetrics` map
-4. **operations/index.ts** — Add or update the operation descriptor, input schema, and CLI/MCP mapping
+4. **operations/index.ts / operations/formatters.ts** — Add or update the operation descriptor, input schema, text formatter, and CLI/MCP mapping
 5. **mcp/index.ts / cli.ts** — Expose via existing adapter or new command/tool
 6. **Tests** — Cover parser extraction, analyzer computation, operation descriptor parity, and adapter output

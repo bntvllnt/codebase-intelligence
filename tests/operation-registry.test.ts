@@ -54,6 +54,7 @@ describe("operation registry", () => {
       expect(operation.mcpTool).toBe(expected.mcpTool);
       expect(Object.keys(operation.inputShape)).toEqual(expected.inputKeys);
       expect(operation.inputSchema.safeParse(expected.sampleInput).success).toBe(true);
+      expect(typeof operation.formatText).toBe("function");
       expect(getOperationByCliCommand(expected.cliCommand)).toBe(operation);
       expect(getOperationByMcpTool(expected.mcpTool)).toBe(operation);
     }
@@ -66,6 +67,7 @@ describe("operation registry", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.data).toEqual(computeOverview(codebaseGraph));
+      expect(operations.overview.formatText(result.data)).toContain("Codebase Overview");
     }
   });
 
