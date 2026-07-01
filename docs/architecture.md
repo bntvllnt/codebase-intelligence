@@ -47,7 +47,7 @@ src/
   duplication/index.ts <- Duplicate family detection + trace evidence
   config/index.ts      <- Config discovery + zod validation
   rules/index.ts       <- Rules engine + registry (check command + MCP check tool)
-  highways/index.ts    <- Repeated route convergence + bypass/cowpath evidence
+  highways/index.ts    <- Repeated route convergence + bypass/cowpath/synthesis evidence
   mcp/index.ts         <- 19 MCP tools for LLM integration
   mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
@@ -97,7 +97,7 @@ runOperation(operation, codebaseGraph, input, context)
 - **Duplication families**: Parser stores deterministic function-body token streams on symbols. `duplicates` / `find_duplicates` groups symbols into strict, renamed, and near-miss clone families, with optional trace evidence for AI agents before refactors.
 - **Dead-code gates**: `check` can opt into unused-file, unused-type, unused-member, and dependency hygiene rules. These rules use graph metrics plus local TypeScript AST facts and emit confidence/evidence in JSON and SARIF; dependency hygiene is scoped to the nearest package/workspace manifest.
 - **Suppression hygiene**: `check` reports active and stale `ci-ignore-*` / `@expected-unused` suppressions, emits stale suppression findings via `no-stale-suppressions`, and treats `@public` exported type declarations as intentional public API while `@internal` stays checkable.
-- **Highways H1**: `highways` / `analyze_highways` enumerates entry-to-sink call routes, groups repeated routes by sink, detects bypasses and cowpaths around an existing canonical node, and emits route chains, evidence, blast radius, recommendations, and a context pack for agents.
+- **Highways H1/H2**: `highways` / `analyze_highways` enumerates entry-to-sink call routes, groups repeated routes by operation/shape/sink, detects bypasses and cowpaths around an existing canonical node, and with `--propose` synthesizes a read-only proposed highway with name, file, signature, skeleton, reroute plan, cycle safety, evidence, blast radius, recommendations, and a context pack for agents.
 - **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
