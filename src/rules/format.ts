@@ -2,10 +2,14 @@ import type { CheckResult, OutputFormat } from "../types/index.js";
 import { ALL_RULES } from "./registry.js";
 
 const RULE_DESCRIPTIONS = new Map(ALL_RULES.map((r) => [r.id, r.meta.description]));
+RULE_DESCRIPTIONS.set("no-stale-suppressions", "Report suppressions that no longer hide any finding.");
 
-/** "N error(s), M warning(s) — VERDICT" — shared by text output and the CLI --summary flag. */
+/** Shared by text output and the CLI --summary flag. */
 export function formatSummaryLine(result: CheckResult): string {
-  return `${String(result.summary.error)} error(s), ${String(result.summary.warn)} warning(s) — ${result.verdict.toUpperCase()}`;
+  const suppressionText = result.summary.suppressed > 0 || result.summary.staleSuppressions > 0
+    ? `, ${String(result.summary.suppressed)} suppressed, ${String(result.summary.staleSuppressions)} stale suppression(s)`
+    : "";
+  return `${String(result.summary.error)} error(s), ${String(result.summary.warn)} warning(s)${suppressionText} — ${result.verdict.toUpperCase()}`;
 }
 
 export function formatJson(result: CheckResult): string {
@@ -14,6 +18,7 @@ export function formatJson(result: CheckResult): string {
       verdict: result.verdict,
       summary: result.summary,
       configPath: result.configPath,
+      suppressions: result.suppressions,
       findings: result.findings,
     },
     null,

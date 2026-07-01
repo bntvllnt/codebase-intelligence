@@ -99,13 +99,26 @@ describe("no-comments rule", () => {
 
 describe("suppressions", () => {
   it("ci-ignore-next-line suppresses the following line", () => {
-    const findings = project(
+    const result = projectResult(
       {
         "src/x.ts": "export const x = 1;\n// ci-ignore-next-line no-comments\nexport const y = x; // hidden\n",
       },
       { rules: { "no-comments": "error", "no-dead-exports": "off" } },
     );
+    const findings = result.findings;
     expect(ids(findings)).not.toContain("no-comments");
+    expect(result.suppressions).toMatchObject([
+      {
+        directive: "ci-ignore-next-line",
+        status: "active",
+        file: "src/x.ts",
+        line: 2,
+        targetLine: 3,
+        ruleIds: ["no-comments"],
+        suppressed: 1,
+      },
+    ]);
+    expect(result.summary.suppressed).toBe(1);
   });
 
   it("ci-ignore-file suppresses the whole file", () => {
@@ -114,6 +127,92 @@ describe("suppressions", () => {
       { rules: { "no-comments": "error", "no-dead-exports": "off" } },
     );
     expect(ids(findings)).not.toContain("no-comments");
+  });
+
+  it("reports stale ci-ignore suppressions as warnings", () => {
+    const result = projectResult(
+      {
+        "src/x.ts": "export const x = 1;\n// ci-ignore-next-line no-comments\nexport const y = x;\n",
+      },
+      { rules: { "no-comments": "error", "no-dead-exports": "off" } },
+    );
+    expect(result.suppressions[0]).toMatchObject({
+      directive: "ci-ignore-next-line",
+      status: "stale",
+      file: "src/x.ts",
+      line: 2,
+      targetLine: 3,
+      ruleIds: ["no-comments"],
+      suppressed: 0,
+    });
+    expect(result.findings).toEqual([
+      expect.objectContaining({
+        ruleId: "no-stale-suppressions",
+        severity: "warn",
+        kind: "stale-suppression",
+        file: "src/x.ts",
+        line: 2,
+      }),
+    ]);
+    expect(result.summary.staleSuppressions).toBe(1);
+  });
+
+  it("@expected-unused suppresses declaration cleanup and becomes stale when the type is used", () => {
+    const active = projectResult(
+      {
+        "src/x.ts": "/** @expected-unused */\ntype Intentional = { value: string };\n",
+      },
+      { rules: { "no-circular-deps": "off", "no-dead-exports": "off", "no-unused-types": "warn" } },
+    );
+    expect(active.findings.some((finding) => finding.message.includes("Intentional"))).toBe(false);
+    expect(active.suppressions[0]).toMatchObject({
+      directive: "@expected-unused",
+      status: "active",
+      file: "src/x.ts",
+      line: 1,
+      targetLine: 2,
+      ruleIds: ["no-unused-types"],
+      suppressed: 1,
+    });
+
+    const stale = projectResult(
+      {
+        "src/x.ts": "/** @expected-unused */\ntype Used = { value: string };\nexport const value: Used = { value: 'ok' };\n",
+      },
+      { rules: { "no-circular-deps": "off", "no-dead-exports": "off", "no-unused-types": "warn" } },
+    );
+    expect(stale.findings).toEqual([
+      expect.objectContaining({ ruleId: "no-stale-suppressions", file: "src/x.ts", line: 1 }),
+    ]);
+    expect(stale.suppressions[0]).toMatchObject({ directive: "@expected-unused", status: "stale" });
+  });
+
+  it("@expected-unused is only parsed inside JSDoc blocks", () => {
+    const result = projectResult(
+      {
+        "src/x.ts": "export const marker = '@expected-unused';\n// @expected-unused is docs text, not a directive\nexport const ok = marker;\n",
+      },
+      { rules: { "no-circular-deps": "off", "no-dead-exports": "off", "no-unused-types": "warn" } },
+    );
+    expect(result.suppressions).toEqual([]);
+    expect(ids(result.findings)).not.toContain("no-stale-suppressions");
+  });
+
+  it("@public protects exported type declarations while @internal remains checkable", () => {
+    const findings = project(
+      {
+        "src/contracts.ts": [
+          "/** @public */",
+          "export type PublicContract = { id: string };",
+          "/** @internal */",
+          "export type InternalDraft = { id: string };",
+          "",
+        ].join("\n"),
+      },
+      { rules: { "no-circular-deps": "off", "no-dead-exports": "off", "no-unused-types": "warn" } },
+    );
+    expect(findings.some((finding) => finding.message.includes("PublicContract"))).toBe(false);
+    expect(findings.some((finding) => finding.message.includes("InternalDraft"))).toBe(true);
   });
 });
 

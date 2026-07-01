@@ -333,7 +333,6 @@ Extend deletion intelligence beyond exported symbols.
 
 **Remaining:**
 
-- Add stale suppression reporting and `@public` / `@expected-unused` semantics in CH-P1-06.
 - Add workspace/package-section dependency policy beyond single-package `package.json`.
 - Add CSS/template/framework plugin coverage only after `doctor` can explain supported surfaces.
 
@@ -343,11 +342,17 @@ Finish suppression management without hiding stale debt.
 
 **Already exists:** `ci-ignore-next-line` and `ci-ignore-file`.
 
-**To do:**
+**Foundation slice:**
 
-- Add JSDoc `@public`, `@internal`, and `@expected-unused` semantics.
-- Add stale-suppression detection.
-- Report suppressions in JSON and CI summaries.
+- Report active and stale `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions in JSON.
+- Add `no-stale-suppressions` warnings so stale suppressions can fail CI with `--fail-on warn`.
+- Include `suppressed` and `staleSuppressions` in check summaries and `--summary` output when relevant.
+- Add JSDoc `@public` and `@internal` semantics for cleanup declarations: public exported types are protected, internal exported types remain checkable.
+- Add CH-P1-06 coverage for active suppression, stale suppression drift, JSDoc cleanup semantics, JSON summary, CLI summary, and SARIF properties.
+
+**Remaining:**
+
+- No open CH-P1-06 work on the current TypeScript cleanup surface.
 
 ---
 

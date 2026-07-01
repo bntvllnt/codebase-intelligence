@@ -83,6 +83,10 @@
           "$ref": "#/$defs/severity",
           "description": "Report package.json dependencies that are never imported."
         },
+        "no-stale-suppressions": {
+          "$ref": "#/$defs/severity",
+          "description": "Report ci-ignore and @expected-unused suppressions that no longer hide any finding."
+        },
         "no-duplication": {
           "description": "Report duplicated code (clone families).",
           "oneOf": [

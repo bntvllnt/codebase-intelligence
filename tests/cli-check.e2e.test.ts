@@ -220,6 +220,83 @@ describe("check command (e2e)", () => {
     expect(stdout).toContain("No findings.");
   });
 
+  it("CH-P1-06: reports active and stale suppressions with JSDoc cleanup semantics", async () => {
+    const activeDir = makeProject(
+      {
+        "src/contracts.ts": [
+          "/** @expected-unused */",
+          "type Intentional = { value: string };",
+          "/** @public */",
+          "export type PublicContract = { id: string };",
+          "/** @internal */",
+          "export type InternalDraft = { id: string };",
+          "",
+        ].join("\n"),
+      },
+      { rules: { "no-circular-deps": "off", "no-dead-exports": "off", "no-unused-types": "warn" } },
+    );
+    const activeRun = await run(["check", activeDir, "--json"]);
+    expect(activeRun.status).toBe(0);
+    const active = JSON.parse(activeRun.stdout) as {
+      summary: { suppressed: number; staleSuppressions: number };
+      suppressions: Array<{ directive: string; status: string; targetLine?: number; suppressed: number }>;
+      findings: Array<{ ruleId: string; message: string }>;
+    };
+    expect(active.summary.suppressed).toBe(1);
+    expect(active.summary.staleSuppressions).toBe(0);
+    expect(active.suppressions).toContainEqual(
+      expect.objectContaining({ directive: "@expected-unused", status: "active", targetLine: 2, suppressed: 1 }),
+    );
+    expect(active.findings.some((finding) => finding.message.includes("Intentional"))).toBe(false);
+    expect(active.findings.some((finding) => finding.message.includes("PublicContract"))).toBe(false);
+    expect(active.findings.some((finding) => finding.message.includes("InternalDraft"))).toBe(true);
+
+    const activeSummary = await run(["check", activeDir, "--summary"]);
+    expect(activeSummary.status).toBe(0);
+    expect(activeSummary.stdout).toContain("1 suppressed");
+
+    const staleDir = makeProject(
+      {
+        "src/contracts.ts": [
+          "/** @expected-unused */",
+          "type Used = { value: string };",
+          "export const value: Used = { value: 'ok' };",
+          "",
+        ].join("\n"),
+      },
+      { rules: { "no-circular-deps": "off", "no-dead-exports": "off", "no-unused-types": "warn" } },
+    );
+    const staleRun = await run(["check", staleDir, "--json", "--fail-on", "warn"]);
+    expect(staleRun.status).toBe(1);
+    const stale = JSON.parse(staleRun.stdout) as {
+      summary: { warn: number; suppressed: number; staleSuppressions: number };
+      suppressions: Array<{ directive: string; status: string; targetLine?: number; suppressed: number }>;
+      findings: Array<{ ruleId: string; kind?: string; message: string }>;
+    };
+    expect(stale.summary.warn).toBe(1);
+    expect(stale.summary.suppressed).toBe(0);
+    expect(stale.summary.staleSuppressions).toBe(1);
+    expect(stale.suppressions).toContainEqual(
+      expect.objectContaining({ directive: "@expected-unused", status: "stale", targetLine: 2, suppressed: 0 }),
+    );
+    expect(stale.findings).toContainEqual(
+      expect.objectContaining({ ruleId: "no-stale-suppressions", kind: "stale-suppression" }),
+    );
+
+    const staleSummary = await run(["check", staleDir, "--summary", "--fail-on", "warn"]);
+    expect(staleSummary.status).toBe(1);
+    expect(staleSummary.stdout).toContain("1 stale suppression(s)");
+
+    const staleSarifRun = await run(["check", staleDir, "--format", "sarif", "--fail-on", "warn"]);
+    expect(staleSarifRun.status).toBe(1);
+    const staleSarif = JSON.parse(staleSarifRun.stdout) as {
+      runs: Array<{ results: Array<{ ruleId: string; properties?: { kind?: string; evidence?: string[] } }> }>;
+    };
+    const staleFinding = staleSarif.runs[0].results.find((finding) => finding.ruleId === "no-stale-suppressions");
+    expect(staleFinding?.properties?.kind).toBe("stale-suppression");
+    expect(staleFinding?.properties?.evidence).toContain("directive=@expected-unused");
+  }, 90_000);
+
   it("default failOn=error keeps a warn-only project green (exit 0)", async () => {
     const dir = makeProject(DEAD, { rules: { "no-circular-deps": "off" } });
     const { status } = await run(["check", dir]);

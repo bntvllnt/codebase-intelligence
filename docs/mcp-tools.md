@@ -184,9 +184,9 @@ Community-detected clusters of related files.
 Run the configurable rules engine and gate on findings.
 
 **Input:** `{}` (uses the loaded graph + discovered config)
-**Returns:** `{ verdict: "pass"|"warn"|"fail", summary: { error, warn, rules }, configPath, findings[] }`. Each finding has ruleId, severity, file, line, column, message, fingerprint, optional `kind`, optional `confidence`, optional `evidence[]`, and optional advisory `actions[]` (the tool is read-only — actions are hints, never applied).
+**Returns:** `{ verdict: "pass"|"warn"|"fail", summary: { error, warn, suppressed, staleSuppressions, rules }, configPath, suppressions[], findings[] }`. Each finding has ruleId, severity, file, line, column, message, fingerprint, optional `kind`, optional `confidence`, optional `evidence[]`, and optional advisory `actions[]` (the tool is read-only — actions are hints, never applied). Each suppression records directive, status, file, line, targetLine, matched rule IDs, and suppressed count.
 
-Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn), and opt-in cleanup gates `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
+Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), and opt-in cleanup gates `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
 
 **Use when:** Linting a codebase or enforcing a CI gate. "What rule violations exist?"
 **Not for:** Architecture metrics (use analyze_forces).

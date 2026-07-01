@@ -4,25 +4,32 @@ import path from "path";
 import type {
   CheckResult,
   CheckSummary,
+  CheckSuppression,
   CodebaseGraph,
   CodebaseIntelligenceConfig,
   Finding,
   Verdict,
 } from "../types/index.js";
 import { loadConfig, type ConfigOverrides } from "../config/index.js";
-import { runEngine, type RuleContext } from "./engine.js";
+import { runEngineWithSuppressions, type RuleContext } from "./engine.js";
 import { ALL_RULES } from "./registry.js";
 
-function summarize(findings: Finding[]): CheckSummary {
+function summarize(findings: Finding[], suppressions: CheckSuppression[]): CheckSummary {
   const rules: Record<string, number> = {};
   let error = 0;
   let warn = 0;
+  let suppressed = 0;
+  let staleSuppressions = 0;
   for (const f of findings) {
     rules[f.ruleId] = (rules[f.ruleId] ?? 0) + 1;
     if (f.severity === "error") error++;
     else warn++;
   }
-  return { error, warn, rules };
+  for (const suppression of suppressions) {
+    if (suppression.status === "active") suppressed += suppression.suppressed;
+    else staleSuppressions += 1;
+  }
+  return { error, warn, suppressed, staleSuppressions, rules };
 }
 
 function computeVerdict(summary: CheckSummary, config: CodebaseIntelligenceConfig): Verdict {
@@ -105,7 +112,9 @@ export function runCheck(
   };
 
   const ctx: RuleContext = { graph, rootDir: resolvedRoot, config, fileRelPaths, sourceOf };
-  let findings = runEngine(ctx, ALL_RULES, config);
+  const engineResult = runEngineWithSuppressions(ctx, ALL_RULES, config);
+  let findings = engineResult.findings;
+  let suppressions = engineResult.suppressions;
 
   if (config.ci?.gate === "new-only") {
     const base = config.ci.base;
@@ -117,13 +126,14 @@ export function runCheck(
         process.stderr.write(`Warning: could not diff against '${base}'; running full check.\n`);
       } else {
         findings = findings.filter((f) => changed.has(toPosix(f.file)));
+        suppressions = suppressions.filter((suppression) => changed.has(toPosix(suppression.file)));
       }
     }
   }
 
-  const summary = summarize(findings);
+  const summary = summarize(findings, suppressions);
   const verdict = computeVerdict(summary, config);
-  return { findings, summary, verdict, configPath };
+  return { findings, suppressions, summary, verdict, configPath };
 }
 
 /** Process exit code for a check result: 1 on fail, 0 otherwise. (Config errors → 2, handled by the CLI.) */

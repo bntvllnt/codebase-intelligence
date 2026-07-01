@@ -173,8 +173,9 @@ CacheFacts {
 
 ## Check Findings
 
-`check --json` and MCP `check` return deterministic findings. `kind`, `confidence`,
-and `evidence` are additive fields for rules that can explain cleanup confidence.
+`check --json` and MCP `check` return deterministic findings plus a suppression
+ledger. `kind`, `confidence`, and `evidence` are additive fields for rules that
+can explain cleanup confidence.
 
 ```typescript
 Finding {
@@ -191,5 +192,33 @@ Finding {
   evidence?: string[]
   actions?: FindingAction[]
   fingerprint: string
+}
+
+CheckSuppression {
+  directive: "ci-ignore-file" | "ci-ignore-next-line" | "@expected-unused"
+  status: "active" | "stale"
+  file: string
+  line: number
+  targetLine?: number
+  ruleIds: string[]
+  matchesAllRules: boolean
+  suppressed: number
+  message: string
+}
+
+CheckSummary {
+  error: number
+  warn: number
+  suppressed: number
+  staleSuppressions: number
+  rules: Record<string, number>
+}
+
+CheckResult {
+  findings: Finding[]
+  suppressions: CheckSuppression[]
+  summary: CheckSummary
+  verdict: "pass" | "warn" | "fail"
+  configPath: string | null
 }
 ```

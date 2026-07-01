@@ -315,7 +315,7 @@ Entry point execution flows. Input: `{ entryPoint?: string, limit?: number }`. R
 Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clusters with cohesion.
 
 ## 18. check
-Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, config path, and summary counts. Findings always include ruleId, severity, file, line, column, message, and fingerprint; cleanup findings may also include kind, confidence, and evidence.
+Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppression ledger, config path, and summary counts. Findings always include ruleId, severity, file, line, column, message, and fingerprint; cleanup findings may also include kind, confidence, and evidence. Suppressions include directive, active/stale status, file, line, targetLine, ruleIds, and suppressed count.
 
 ## Tool Selection Guide
 
@@ -470,7 +470,7 @@ content between the `codebase-intelligence:start`/`:end` markers is ever touched
 codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on <severity>] [--gate <mode>] [--base <ref>] [--quiet] [--summary] [--json] [--force]
 ```
 Rules-engine gate for CI. Formats: text, json, sarif. Fail-on: error, warn, never.
-Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, and summary counts. Built-in rules include no-comments, no-circular-deps, no-dead-exports, and opt-in no-dead-files, no-unused-types, no-unused-members, no-unused-deps.
+Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, suppression ledger, and summary counts. Built-in rules include no-comments, no-circular-deps, no-dead-exports, no-stale-suppressions, and opt-in no-dead-files, no-unused-types, no-unused-members, no-unused-deps. Reports active/stale `ci-ignore-*` and `@expected-unused` suppressions; `@public` protects exported cleanup declarations while `@internal` remains checkable.
 
 ## Global Behavior
 
