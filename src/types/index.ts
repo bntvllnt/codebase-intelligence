@@ -385,9 +385,26 @@ export interface Finding {
   fingerprint: string;
 }
 
+export type SuppressionDirective = "ci-ignore-file" | "ci-ignore-next-line" | "@expected-unused";
+export type SuppressionStatus = "active" | "stale";
+
+export interface CheckSuppression {
+  directive: SuppressionDirective;
+  status: SuppressionStatus;
+  file: string;
+  line: number;
+  targetLine?: number;
+  ruleIds: string[];
+  matchesAllRules: boolean;
+  suppressed: number;
+  message: string;
+}
+
 export interface CheckSummary {
   error: number;
   warn: number;
+  suppressed: number;
+  staleSuppressions: number;
   rules: Record<string, number>;
 }
 
@@ -395,6 +412,7 @@ export type Verdict = "pass" | "warn" | "fail";
 
 export interface CheckResult {
   findings: Finding[];
+  suppressions: CheckSuppression[];
   summary: CheckSummary;
   verdict: Verdict;
   configPath: string | null;

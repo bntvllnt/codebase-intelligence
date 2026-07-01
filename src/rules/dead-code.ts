@@ -14,6 +14,7 @@ interface TypeDeclarationFact {
   line: number;
   column: number;
   exported: boolean;
+  jsDocTags: Set<string>;
 }
 
 interface MemberDeclarationFact {
@@ -24,6 +25,7 @@ interface MemberDeclarationFact {
   line: number;
   column: number;
   used: boolean;
+  jsDocTags: Set<string>;
 }
 
 interface DependencyDeclaration {
@@ -131,6 +133,7 @@ function collectUnusedTypeFindings(ctx: RuleContext): ReportedFinding[] {
     for (const typeFact of facts.types) {
       const metrics = ctx.graph.fileMetrics.get(typeFact.file);
       if (typeFact.exported) {
+        if (hasJsDocTag(typeFact, "public")) continue;
         if (!metrics?.deadExports.includes(typeFact.name)) continue;
         if (entrypointReason(ctx, typeFact.file, metrics)) continue;
         findings.push({
@@ -310,6 +313,7 @@ function parseSourceFacts(ctx: RuleContext, file: string): ParsedSourceFacts | n
         kind: "type",
         ...locationOf(sourceFile, node.name),
         exported: isExported(node),
+        jsDocTags: jsDocTagNames(node),
       });
     } else if (ts.isInterfaceDeclaration(node)) {
       typeDeclarationPositions.add(node.name.getStart(sourceFile));
@@ -319,6 +323,7 @@ function parseSourceFacts(ctx: RuleContext, file: string): ParsedSourceFacts | n
         kind: "interface",
         ...locationOf(sourceFile, node.name),
         exported: isExported(node),
+        jsDocTags: jsDocTagNames(node),
       });
     } else if (ts.isEnumDeclaration(node) && !isExported(node)) {
       typeDeclarationPositions.add(node.name.getStart(sourceFile));
@@ -334,6 +339,7 @@ function parseSourceFacts(ctx: RuleContext, file: string): ParsedSourceFacts | n
           kind: "enum-member",
           ...locationOf(sourceFile, member.name),
           used: false,
+          jsDocTags: jsDocTagNames(member),
         });
       }
     } else if (ts.isClassDeclaration(node) && node.name) {
@@ -350,6 +356,7 @@ function parseSourceFacts(ctx: RuleContext, file: string): ParsedSourceFacts | n
           kind: "private-class-member",
           ...locationOf(sourceFile, member.name),
           used: false,
+          jsDocTags: jsDocTagNames(member),
         });
       }
     }
@@ -601,6 +608,14 @@ function isTestPath(file: string): boolean {
 
 function isExported(node: ts.Node): boolean {
   return ts.canHaveModifiers(node) && (ts.getModifiers(node)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false);
+}
+
+function jsDocTagNames(node: ts.Node): Set<string> {
+  return new Set(ts.getJSDocTags(node).map((tag) => tag.tagName.getText().replace(/^@/, "")));
+}
+
+function hasJsDocTag(fact: { jsDocTags: Set<string> }, tag: string): boolean {
+  return fact.jsDocTags.has(tag);
 }
 
 function isPrivateClassMember(member: ts.ClassElement): member is ts.PropertyDeclaration | ts.MethodDeclaration | ts.GetAccessorDeclaration | ts.SetAccessorDeclaration {

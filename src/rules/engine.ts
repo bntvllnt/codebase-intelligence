@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import type {
   CodebaseGraph,
   CodebaseIntelligenceConfig,
+  CheckSuppression,
   Finding,
   FindingAction,
   FindingConfidence,
@@ -69,44 +70,185 @@ function fingerprint(ruleId: string, file: string, line: number, message: string
 
 type RuleSet = "all" | Set<string>;
 
+interface SuppressionDirectiveState {
+  directive: CheckSuppression["directive"];
+  file: string;
+  line: number;
+  targetLine?: number;
+  rules: RuleSet;
+  suppressed: number;
+  suppressedRuleIds: Set<string>;
+}
+
 interface FileSuppressions {
-  fileRules: RuleSet | null;
-  lineRules: Map<number, RuleSet>;
+  directives: SuppressionDirectiveState[];
+  fileDirectives: SuppressionDirectiveState[];
+  lineDirectives: Map<number, SuppressionDirectiveState[]>;
 }
 
 // Matches both line (`// ci-ignore-...`) and block (`/* ci-ignore-... */`) forms.
 const SUPPRESS_RE = /(?:\/\/|\/\*)\s*ci-ignore-(file|next-line)\b([^\n*]*)/;
+const EXPECTED_UNUSED_RULES = new Set([
+  "no-dead-exports",
+  "no-dead-files",
+  "no-unused-types",
+  "no-unused-members",
+]);
+const STALE_SUPPRESSION_RULE_ID = "no-stale-suppressions";
 
-function mergeRuleSet(existing: RuleSet | null, incoming: RuleSet): RuleSet {
-  if (existing === null) return incoming;
-  if (existing === "all" || incoming === "all") return "all";
-  return new Set([...existing, ...incoming]);
+export interface EngineResult {
+  findings: Finding[];
+  suppressions: CheckSuppression[];
 }
 
-function parseSuppressions(source: string): FileSuppressions {
+function parseRuleSet(list: string): RuleSet {
+  const trimmed = list.trim();
+  return trimmed.length === 0 ? "all" : new Set(trimmed.split(/[\s,]+/).filter(Boolean));
+}
+
+function addLineDirective(parsed: FileSuppressions, directive: SuppressionDirectiveState): void {
+  const existing = parsed.lineDirectives.get(directive.targetLine ?? directive.line) ?? [];
+  existing.push(directive);
+  parsed.lineDirectives.set(directive.targetLine ?? directive.line, existing);
+  parsed.directives.push(directive);
+}
+
+function parseSuppressions(source: string, file: string): FileSuppressions {
   const lines = source.split(/\r?\n/);
-  let fileRules: RuleSet | null = null;
-  const lineRules = new Map<number, RuleSet>();
+  const parsed: FileSuppressions = { directives: [], fileDirectives: [], lineDirectives: new Map() };
 
   lines.forEach((text, idx) => {
     const match = SUPPRESS_RE.exec(text);
     if (!match) return;
-    const list = match[2].trim();
-    const set: RuleSet = list.length === 0 ? "all" : new Set(list.split(/[\s,]+/).filter(Boolean));
+    const set = parseRuleSet(match[2]);
+    const line = idx + 1;
     if (match[1] === "file") {
-      fileRules = mergeRuleSet(fileRules, set);
-    } else {
-      // ci-ignore-next-line suppresses the finding on the following source line (1-based).
-      lineRules.set(idx + 2, mergeRuleSet(lineRules.get(idx + 2) ?? null, set));
+      parsed.fileDirectives.push({
+        directive: "ci-ignore-file",
+        file,
+        line,
+        rules: set,
+        suppressed: 0,
+        suppressedRuleIds: new Set(),
+      });
+      parsed.directives.push(parsed.fileDirectives[parsed.fileDirectives.length - 1]);
+      return;
     }
+
+    addLineDirective(parsed, {
+      directive: "ci-ignore-next-line",
+      file,
+      line,
+      targetLine: line + 1,
+      rules: set,
+      suppressed: 0,
+      suppressedRuleIds: new Set(),
+    });
   });
 
-  return { fileRules, lineRules };
+  for (const directive of parseExpectedUnusedSuppressions(lines, file)) {
+    addLineDirective(parsed, directive);
+  }
+
+  return parsed;
+}
+
+function parseExpectedUnusedSuppressions(lines: string[], file: string): SuppressionDirectiveState[] {
+  const directives: SuppressionDirectiveState[] = [];
+  const seenBlocks = new Set<string>();
+
+  lines.forEach((text, idx) => {
+    if (!text.includes("@expected-unused")) return;
+    const block = jsDocBlockBounds(lines, idx);
+    if (!block) return;
+
+    const key = `${String(block.start)}:${String(block.end)}`;
+    if (seenBlocks.has(key)) return;
+    seenBlocks.add(key);
+
+    const targetLine = nextCodeLine(lines, block.end + 1);
+    if (targetLine === null) return;
+    directives.push({
+      directive: "@expected-unused",
+      file,
+      line: idx + 1,
+      targetLine,
+      rules: new Set(EXPECTED_UNUSED_RULES),
+      suppressed: 0,
+      suppressedRuleIds: new Set(),
+    });
+  });
+
+  return directives;
+}
+
+function jsDocBlockBounds(lines: string[], tagLineIndex: number): { start: number; end: number } | null {
+  let start = tagLineIndex;
+  while (start >= 0 && !lines[start].includes("/**")) {
+    if (lines[start].includes("*/")) return null;
+    start -= 1;
+  }
+  if (start < 0) return null;
+
+  let end = start;
+  while (end < lines.length && !lines[end].includes("*/")) end += 1;
+  if (end >= lines.length || tagLineIndex > end) return null;
+  return { start, end };
+}
+
+function nextCodeLine(lines: string[], startIndex: number): number | null {
+  for (let idx = startIndex; idx < lines.length; idx += 1) {
+    const trimmed = lines[idx].trim();
+    if (trimmed.length === 0) continue;
+    if (trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/")) continue;
+    return idx + 1;
+  }
+  return null;
 }
 
 function ruleSetMatches(set: RuleSet | null | undefined, ruleId: string): boolean {
   if (!set) return false;
   return set === "all" || set.has(ruleId);
+}
+
+function matchingDirective(supp: FileSuppressions, line: number, ruleId: string): SuppressionDirectiveState | null {
+  const lineDirectives = supp.lineDirectives.get(line) ?? [];
+  const lineDirective = lineDirectives.find((directive) => ruleSetMatches(directive.rules, ruleId));
+  if (lineDirective) return lineDirective;
+  return supp.fileDirectives.find((directive) => ruleSetMatches(directive.rules, ruleId)) ?? null;
+}
+
+function ruleSetToIds(set: RuleSet): string[] {
+  if (set === "all") return [];
+  return [...set].sort((left, right) => left.localeCompare(right));
+}
+
+function suppressionMessage(directive: SuppressionDirectiveState, status: CheckSuppression["status"]): string {
+  if (status === "stale") {
+    return `Stale suppression: ${directive.directive} does not suppress any finding`;
+  }
+  return `${directive.directive} suppressed ${String(directive.suppressed)} finding(s)`;
+}
+
+function toCheckSuppression(
+  directive: SuppressionDirectiveState,
+  status: CheckSuppression["status"],
+): CheckSuppression {
+  return {
+    directive: directive.directive,
+    status,
+    file: directive.file,
+    line: directive.line,
+    targetLine: directive.targetLine,
+    ruleIds: status === "active" ? ruleSetToIds(directive.suppressedRuleIds) : ruleSetToIds(directive.rules),
+    matchesAllRules: directive.rules === "all",
+    suppressed: directive.suppressed,
+    message: suppressionMessage(directive, status),
+  };
+}
+
+function staleSuppressionSeverity(config: CodebaseIntelligenceConfig): Severity {
+  return resolveSetting(config.rules?.[STALE_SUPPRESSION_RULE_ID], "warn").severity;
 }
 
 /**
@@ -118,12 +260,23 @@ export function runEngine(
   rules: Rule[],
   config: CodebaseIntelligenceConfig,
 ): Finding[] {
+  return runEngineWithSuppressions(ctx, rules, config).findings;
+}
+
+/**
+ * Run enabled rules and return findings plus active/stale suppression metadata.
+ */
+export function runEngineWithSuppressions(
+  ctx: RuleContext,
+  rules: Rule[],
+  config: CodebaseIntelligenceConfig,
+): EngineResult {
   const suppressionCache = new Map<string, FileSuppressions>();
   const suppressionsFor = (file: string): FileSuppressions => {
     const cached = suppressionCache.get(file);
     if (cached) return cached;
     const source = ctx.sourceOf(file);
-    const parsed = source ? parseSuppressions(source) : { fileRules: null, lineRules: new Map<number, RuleSet>() };
+    const parsed = source ? parseSuppressions(source, file) : { directives: [], fileDirectives: [], lineDirectives: new Map() };
     suppressionCache.set(file, parsed);
     return parsed;
   };
@@ -147,8 +300,12 @@ export function runEngine(
 
     for (const r of reported) {
       const supp = suppressionsFor(r.file);
-      if (ruleSetMatches(supp.fileRules, rule.id)) continue;
-      if (ruleSetMatches(supp.lineRules.get(r.line), rule.id)) continue;
+      const directive = matchingDirective(supp, r.line, rule.id);
+      if (directive) {
+        directive.suppressed += 1;
+        directive.suppressedRuleIds.add(rule.id);
+        continue;
+      }
 
       out.push({
         ruleId: rule.id,
@@ -171,5 +328,39 @@ export function runEngine(
   out.sort(
     (a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.ruleId.localeCompare(b.ruleId),
   );
-  return out;
+
+  for (const file of ctx.fileRelPaths) suppressionsFor(file);
+
+  const staleSeverity = staleSuppressionSeverity(config);
+  const suppressions = [...suppressionCache.values()]
+    .flatMap((supp) => supp.directives)
+    .sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.directive.localeCompare(b.directive))
+    .map((directive) => {
+      const status: CheckSuppression["status"] = directive.suppressed > 0 ? "active" : "stale";
+      if (status === "stale" && staleSeverity !== "off") {
+        const message = suppressionMessage(directive, status);
+        out.push({
+          ruleId: STALE_SUPPRESSION_RULE_ID,
+          severity: staleSeverity === "error" ? "error" : "warn",
+          kind: "stale-suppression",
+          confidence: "high",
+          file: directive.file,
+          line: directive.line,
+          column: 1,
+          message,
+          evidence: [
+            `directive=${directive.directive}`,
+            directive.targetLine ? `targetLine=${String(directive.targetLine)}` : "scope=file",
+            directive.rules === "all" ? "rules=all" : `rules=${ruleSetToIds(directive.rules).join(",")}`,
+          ],
+          fingerprint: fingerprint(STALE_SUPPRESSION_RULE_ID, directive.file, directive.line, message),
+        });
+      }
+      return toCheckSuppression(directive, status);
+    });
+
+  out.sort(
+    (a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.ruleId.localeCompare(b.ruleId),
+  );
+  return { findings: out, suppressions };
 }
