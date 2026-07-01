@@ -54,7 +54,7 @@ jobs:
 
           set +e
 
-          node dist/cli.js ci . \
+          npx -y codebase-intelligence@canary ci . \
             --base "$BASE_REF" \
             --new-only \
             --changed-workspaces \
@@ -63,7 +63,7 @@ jobs:
             --force
           CBI_STATUS=$?
 
-          node dist/cli.js ci . \
+          npx -y codebase-intelligence@canary ci . \
             --base "$BASE_REF" \
             --new-only \
             --changed-workspaces \
@@ -73,7 +73,7 @@ jobs:
             --force
           CBI_SARIF_STATUS=$?
 
-          node dist/cli.js ci . \
+          npx -y codebase-intelligence@canary ci . \
             --base "$BASE_REF" \
             --new-only \
             --changed-workspaces \
