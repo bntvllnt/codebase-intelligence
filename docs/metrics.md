@@ -29,6 +29,14 @@ All metrics are computed per-file and stored in `FileMetrics`. Module-level aggr
 | **escapeVelocity** | number | 0-1 | Readiness for extraction. High = few internal deps, many external consumers. |
 | **verdict** | string | LEAF/COHESIVE/MODERATE/JUNK_DRAWER | Single non-test file = LEAF (cohesion meaningless). Otherwise: cohesion >= 0.6 = COHESIVE, >= 0.4 = MODERATE, else JUNK_DRAWER. |
 
+## Health Metrics
+
+| Metric | Range | Source | Description |
+|--------|-------|--------|-------------|
+| **maintainabilityIndex** | 0-100 | derived | Per-file score from complexity, LOC, churn, coupling, blast radius, and test reachability. Higher is better. |
+| **crapScore** | 0-N | derived | `complexity^2 * uncovered^3 + complexity`. Coverage comes from root-local Istanbul coverage when present, otherwise static test reachability. Lower is better. |
+| **riskScore** | 0-100 | derived | Composite risk from low maintainability, complexity, churn, coupling, size, and blast radius. Used by `hotspots --metric risk`. Higher is riskier. |
+
 ## Force Analysis
 
 | Signal | Threshold | Meaning |
@@ -66,4 +74,4 @@ The most dangerous files have all three:
 - **High coupling** (many dependents)
 - **Low coverage** (no tests)
 
-Use `find_hotspots` with different metrics to find these files, or visually compare Churn and Coverage views.
+Use `find_hotspots --metric risk` or `health --json` to find files where complexity, churn, coupling, size, and test reachability compound into one score.

@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-23 tools available via MCP stdio.
+24 tools available via MCP stdio.
 
 Operation tools return JSON text payloads. Invalid operation inputs return `isError: true` with `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.
 
@@ -41,7 +41,7 @@ File-level blast radius analysis — what breaks if this file changes.
 Rank files by any metric.
 
 **Input:** `{ metric: string, limit?: number }` (default limit: 10)
-**Metrics:** coupling, pagerank, fan_in, fan_out, betweenness, tension, escape_velocity, churn, complexity, blast_radius, coverage
+**Metrics:** coupling, pagerank, fan_in, fan_out, betweenness, tension, escape_velocity, churn, complexity, blast_radius, coverage, risk
 **Returns:** ranked files with score + reason, summary
 
 **Use when:** "What are the riskiest files?" "Which files need tests?" "Most complex files?"
@@ -209,7 +209,17 @@ Detect report-only mismatch between declared file/folder intent and observed beh
 **Use when:** Finding file/folder/content drift before a refactor, roadmap cleanup, or baseline creation.
 **Not for:** Failing CI without a baseline (use check or a future ci wrapper).
 
-## 21. analyze_highways
+## 21. get_health_score
+
+Compute a CI-gateable codebase health score.
+
+**Input:** `{ minScore?: number, score?: boolean }`
+**Returns:** score, minScore, verdict, components, coverage source/counts, files[] (maintainabilityIndex, crapScore, riskScore, metrics, evidence), hotspots[], actions[], summary
+
+**Use when:** Gating PR quality, ranking complexity/churn/coupling/size hotspots, or tracking maintainability.
+**Not for:** Route discipline (use analyze_highways) or naming drift (use detect_content_drift).
+
+## 22. analyze_highways
 
 Detect repeated entry-to-sink routes that should converge on one canonical operation path.
 
@@ -219,7 +229,7 @@ Detect repeated entry-to-sink routes that should converge on one canonical opera
 **Use when:** Enforcing dataflow discipline, finding ad-hoc routes, or planning canonical shared paths.
 **Not for:** Raw execution flow listing (use get_processes).
 
-## 22. get_clusters
+## 23. get_clusters
 
 Community-detected clusters of related files.
 
@@ -264,8 +274,9 @@ Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-expo
 | "Tell me about file X" | `file_context` |
 | "What breaks if I change file X?" | `get_dependents` |
 | "What breaks if I change function X?" | `impact_analysis` |
-| "What are the riskiest files?" | `find_hotspots` (coupling, churn, or blast_radius) |
+| "What are the riskiest files?" | `find_hotspots` (risk, coupling, churn, or blast_radius) |
 | "Which files need tests?" | `find_hotspots` (coverage) |
+| "What is the PR quality score?" | `get_health_score` |
 | "What should I improve first?" | `find_opportunities` |
 | "Find refactoring opportunities." | `find_opportunities` |
 | "Where is logic duplicated?" | `find_duplicates` |

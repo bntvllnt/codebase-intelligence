@@ -57,20 +57,21 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 ## Features
 
-- **22 CLI commands** for architecture analysis, dependency impact, duplicate families, focused map/context packs, content drift, Highways convergence, improvement opportunities, dead code detection, search, CI rules, and agent setup
+- **23 CLI commands** for architecture analysis, dependency impact, duplicate families, focused map/context packs, content drift, health scoring, Highways convergence, improvement opportunities, dead code detection, search, CI rules, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.codebase-intelligence/` for fast repeat queries
 - **Cache migration facts** in JSON (`cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`)
-- **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
+- **Quality metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity, risk, maintainability, and CRAP score
 - **Symbol-level analysis** — callers/callees, symbol importance, impact blast radius
 - **BM25 search** — ranked keyword search across files, symbols, and type/shape facts
 - **Process tracing** — detect entry points and execution flows through the call graph
 - **Codebase maps + context packs** — focused file/symbol/test graph with deterministic evidence IDs and token-bounded context for agents
 - **Content drift** — report-only detection for file/name/scope/side-effect/shape/test placement mismatch with stable evidence
+- **Health score** — CI-gateable composite score with per-file maintainability, CRAP, coverage source, and risk hotspots
 - **Highways analysis** — find repeated routes that bypass canonical dataflow paths and synthesize safe proposed highways
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
-- **MCP parity (secondary)** — same analysis and rules gate available as 23 MCP tools, 2 prompts, and 3 resources
+- **MCP parity (secondary)** — same analysis and rules gate available as 24 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
 
@@ -98,7 +99,7 @@ codebase-intelligence <command> <path> [options]
 | Command | What it does |
 |---|---|
 | `overview` | High-level codebase snapshot |
-| `hotspots` | Rank files by metric (coupling, churn, complexity, blast radius, coverage, etc.) |
+| `hotspots` | Rank files by metric (coupling, churn, complexity, blast radius, coverage, risk, etc.) |
 | `file` | Full context for one file |
 | `search` | BM25 keyword and shape search |
 | `changes` | Git diff analysis with risk metrics |
@@ -115,6 +116,7 @@ codebase-intelligence <command> <path> [options]
 | `processes` | Entry-point execution flow tracing |
 | `map` | Focused codebase graph + token-bounded context pack |
 | `drift` | Report-only content drift findings with evidence and recommendations |
+| `health` | CI-gateable health score with maintainability, CRAP, coverage, and risk hotspots |
 | `highways` | Repeated route convergence, canonical path opportunities, and synthesis proposals |
 | `clusters` | Community-detected file clusters |
 | `check` | Rules-engine gate for CI, including opt-in dead-code and dependency gates |
@@ -135,7 +137,8 @@ codebase-intelligence <command> <path> [options]
 | `--trace <id>` | Return token evidence for one duplicate family |
 | `--focus <name>` | Focus `map` or `drift` on one symbol, file, or scope |
 | `--context-budget <n>` | Bound `map` context pack size |
-| `--min-score <n>` | Minimum drift score for `drift` findings |
+| `--min-score <n>` | Minimum drift score for `drift` findings; minimum health score before `health` exits 1 |
+| `--score` | Print compact `health` score text |
 | `--format <fmt>` | Export `map` as `markdown`, `json`, `dot`, or `graphml`; export `check` as `text`, `json`, or `sarif` |
 | `--operation <verb>` | Focus `highways` on one operation verb |
 | `--shape <name>` | Focus `highways` on one type/DTO shape |
@@ -240,6 +243,9 @@ For MCP tool details, see [docs/mcp-tools.md](docs/mcp-tools.md).
 | **Blast Radius** | Transitive dependents affected by a change |
 | **Dead Exports** | Unused exports (safe to remove) |
 | **Test Coverage** | Whether a test file exists for each source file |
+| **Risk Score** | Composite file risk from complexity, churn, coupling, size, blast radius, and test reachability |
+| **Maintainability Index** | Health-derived 0-100 per-file maintainability score |
+| **CRAP Score** | Complexity x uncovered-code risk, using Istanbul coverage when present or static test reachability otherwise |
 
 ## Architecture
 

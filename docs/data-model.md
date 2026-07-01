@@ -296,6 +296,56 @@ ContentDriftEvidence {
 }
 ```
 
+## Health Result
+
+`health --json` and MCP `get_health_score` return a deterministic health envelope. CLI `health --min-score <n>` exits `1` when `score < minScore`.
+
+```typescript
+HealthResult {
+  score: number
+  minScore: number
+  verdict: "pass" | "fail"
+  summary: string
+  components: {
+    maintainability: number
+    complexity: number
+    churn: number
+    coupling: number
+    coverage: number
+    blastRadius: number
+  }
+  coverage: {
+    source: "istanbul" | "static-tests"
+    coveredFiles: number
+    totalFiles: number
+    warning?: string
+  }
+  files: HealthFileResult[]
+  hotspots: HealthFileResult[]
+  actions: Array<{ command: string; reason: string }>
+}
+
+HealthFileResult {
+  file: string
+  loc: number
+  maintainabilityIndex: number
+  crapScore: number
+  riskScore: number
+  coverage: number
+  coverageSource: "istanbul" | "static-tests"
+  metrics: {
+    complexity: number
+    churn: number
+    coupling: number
+    blastRadius: number
+    fanIn: number
+    fanOut: number
+    hasTests: boolean
+  }
+  evidence: string[]
+}
+```
+
 ## Highways Result
 
 `highways --json` and MCP `analyze_highways` return deterministic route-convergence opportunities.

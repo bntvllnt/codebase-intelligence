@@ -4,6 +4,7 @@ import type { AnalysisMode, CallGraphPrecision, CodebaseGraph, SymbolTypeFacts }
 import { createSearchIndex, search, getSuggestions } from "../search/index.js";
 import type { SearchIndex } from "../search/index.js";
 import { impactAnalysis, renameSymbol } from "../impact/index.js";
+import { computeRiskScore } from "../health/scoring.js";
 export { computeDuplication } from "../duplication/index.js";
 export type { DuplicationOptions, DuplicationResult } from "../duplication/index.js";
 
@@ -257,6 +258,7 @@ export const HOTSPOT_METRICS = [
   "complexity",
   "blast_radius",
   "coverage",
+  "risk",
 ] as const;
 
 export type HotspotMetric = typeof HOTSPOT_METRICS[number];
@@ -284,9 +286,15 @@ export function computeHotspots(
       });
     }
   } else {
-    const filterTestFiles = metric === "coverage" || metric === "coupling";
+    const filterTestFiles = metric === "coverage" || metric === "coupling" || metric === "risk";
+    const fileNodes = new Map(
+      graph.nodes
+        .filter((node) => node.type === "file")
+        .map((node) => [node.path, node.loc]),
+    );
     for (const [filePath, metrics] of graph.fileMetrics) {
       if (filterTestFiles && metrics.isTestFile) continue;
+      const loc = fileNodes.get(filePath) ?? 0;
 
       let score: number;
       let reason: string;
@@ -331,6 +339,10 @@ export function computeHotspots(
         case "coverage":
           score = metrics.hasTests ? 0 : 1;
           reason = metrics.hasTests ? `tested (${metrics.testFile})` : "no test file found";
+          break;
+        case "risk":
+          score = computeRiskScore({ loc, coverage: metrics.hasTests ? 1 : 0, metrics });
+          reason = `complexity ${metrics.cyclomaticComplexity.toFixed(1)} x churn ${metrics.churn} x coupling ${metrics.coupling.toFixed(2)} x size ${loc}`;
           break;
         default:
           score = 0;
