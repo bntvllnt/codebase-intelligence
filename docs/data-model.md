@@ -237,6 +237,65 @@ CodebaseContextPack {
 }
 ```
 
+## Content Drift Result
+
+`drift --json` and MCP `detect_content_drift` return deterministic, report-only drift findings. The command never fails CI by itself; a baseline/gate must be configured before drift can become enforcement.
+
+```typescript
+ContentDriftResult {
+  mode: "report-only"
+  baseline: {
+    status: "not-configured"
+    requiredForGate: true
+    reason: string
+  }
+  focus?: string
+  scope?: string
+  minScore: number
+  totalFindings: number
+  findings: ContentDriftFinding[]
+  evidence: ContentDriftEvidence[]
+  summary: string
+}
+
+ContentDriftFinding {
+  id: string
+  kind: "name-drift" | "scope-drift" | "mixed-responsibility" | "hidden-side-effect" | "shape-drift" | "orphan-scope" | "misplaced-test"
+  severity: "low" | "medium" | "high"
+  score: number
+  file: string
+  scope: string
+  title: string
+  recommendation: string
+  declaredIntent: {
+    path: string
+    fileName: string
+    scope: string
+    tokens: string[]
+    exports: string[]
+  }
+  actualBehavior: {
+    tokens: string[]
+    imports: string[]
+    calls: string[]
+    types: string[]
+    sideEffects: string[]
+    tests: string[]
+  }
+  evidenceIds: string[]
+  evidence: string[]
+  actions: Array<{ kind: string; command: string; description: string }>
+}
+
+ContentDriftEvidence {
+  id: string
+  kind: "name" | "scope" | "imports" | "calls" | "types" | "tests" | "metric"
+  summary: string
+  file?: string
+  symbol?: string
+}
+```
+
 ## Highways Result
 
 `highways --json` and MCP `analyze_highways` return deterministic route-convergence opportunities.

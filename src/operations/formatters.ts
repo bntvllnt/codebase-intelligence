@@ -22,6 +22,7 @@ import type {
 import type { HighwaysResult } from "../highways/index.js";
 import type { ImpactResult, RenameResult } from "../impact/index.js";
 import type { CodebaseMapOptions, CodebaseMapResult } from "../map/index.js";
+import type { ContentDriftResult } from "../drift/index.js";
 
 function text(lines: readonly string[]): string {
   return lines.join("\n");
@@ -679,6 +680,37 @@ export function formatCodebaseMapText(result: CodebaseMapResult, input: Codebase
 
   if (result.contextPack.nextCommands.length > 0) {
     lines.push("", "Next", ...result.contextPack.nextCommands.map((command) => `  ${command}`));
+  }
+
+  return text(lines);
+}
+
+/**
+ * Format a content drift operation result for human CLI output.
+ */
+export function formatContentDriftText(result: ContentDriftResult): string {
+  const lines = [
+    `Content Drift (${result.findings.length} of ${result.totalFindings})`,
+    "─".repeat(34),
+    `Mode: ${result.mode}`,
+    `Baseline: ${result.baseline.status}`,
+    `Min score: ${result.minScore}`,
+    result.focus ? `Focus: ${result.focus}` : "",
+    result.scope ? `Scope: ${result.scope}` : "",
+    "",
+    result.summary,
+  ].filter(Boolean);
+
+  for (const finding of result.findings) {
+    lines.push(
+      "",
+      `${finding.id} [${finding.severity}] ${finding.kind} (${finding.score})`,
+      `  File: ${finding.file}`,
+      `  Intent: ${finding.declaredIntent.tokens.length > 0 ? finding.declaredIntent.tokens.join(", ") : "none"}`,
+      `  Behavior: ${finding.actualBehavior.tokens.length > 0 ? finding.actualBehavior.tokens.join(", ") : "none"}`,
+      `  Evidence: ${finding.evidenceIds.join(", ")}`,
+      `  Next: ${finding.actions[0]?.command ?? "Inspect manually"}`,
+    );
   }
 
   return text(lines);

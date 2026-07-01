@@ -1,6 +1,6 @@
 # CLI Reference
 
-21 commands for terminal and CI use. The 19 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
+22 commands for terminal and CI use. The 20 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -180,6 +180,16 @@ codebase-intelligence map <path> [--focus <symbolOrFile>] [--scope <scope>] [--d
 
 **Output:** overview, focus node, nodes, edges, evidence, contextPack (ranked files, symbols, tests, token estimate/budget), and summary. JSON mode includes stable evidence IDs (`evidence-*`) and edge IDs (`edge-*`) for agent-safe references.
 
+### drift
+
+Report-only content drift findings for files whose names, folders, side effects, type shapes, or tests no longer match behavior.
+
+```bash
+codebase-intelligence drift <path> [--focus <fileOrSymbol>] [--scope <scope>] [--min-score <n>] [--json] [--force]
+```
+
+**Output:** `mode: "report-only"`, baseline status, findings with stable `drift-*` IDs, `kind` (`name-drift`, `scope-drift`, `mixed-responsibility`, `hidden-side-effect`, `shape-drift`, `orphan-scope`, `misplaced-test`), score, severity, declared intent, actual behavior, evidence IDs/summaries, recommendations, and advisory actions. Drift does not fail CI until a baseline/gate is configured.
+
 ### highways
 
 Find repeated routes that should converge on one canonical operation path.
@@ -249,15 +259,16 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitigno
 | `--min-tokens <n>` | duplicates | Minimum function body token count (default: 30) |
 | `--skip-local` | duplicates | Ignore families confined to one file |
 | `--trace <id>` | duplicates, highways | Return evidence for one family/opportunity id |
-| `--scope <s>` | changes, map | Git diff scope for `changes`; directory/module scope for `map` |
+| `--scope <s>` | changes, map, drift | Git diff scope for `changes`; directory/module scope for `map` and `drift` |
 | `--depth <n>` | dependents, map | Max traversal depth |
 | `--cohesion <n>` | forces | Min cohesion threshold (default: 0.6) |
 | `--tension <n>` | forces | Min tension threshold (default: 0.3) |
 | `--escape <n>` | forces | Min escape velocity threshold (default: 0.5) |
 | `--module <m>` | dead-exports | Filter by module path |
 | `--entry <name>` | processes | Filter by entry point name |
-| `--focus <name>` | map | Focus on one symbol, file, or scope |
+| `--focus <name>` | map, drift | Focus on one symbol, file, or scope |
 | `--context-budget <n>` | map | Approximate token budget for context pack |
+| `--min-score <n>` | drift | Minimum drift score to report |
 | `--operation <verb>` | highways | Focus on one operation verb |
 | `--shape <name>` | highways | Focus on one type/DTO shape |
 | `--min-routes <n>` | highways | Minimum routes reaching a sink before reporting |

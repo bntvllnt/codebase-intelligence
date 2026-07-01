@@ -210,6 +210,12 @@ interface CodebaseMapOptions extends CliCommandOptions {
   contextBudget?: string;
 }
 
+interface ContentDriftOptions extends CliCommandOptions {
+  focus?: string;
+  scope?: string;
+  minScore?: string;
+}
+
 interface HighwaysOptions extends CliCommandOptions {
   operation?: string;
   shape?: string;
@@ -689,6 +695,34 @@ program
     }
 
     outputOperationText(operations.codebaseMap, result, input);
+  });
+
+// ── Subcommand: drift ──────────────────────────────────────
+
+program
+  .command("drift")
+  .description("Detect file, folder, side-effect, shape, and test placement drift")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--focus <fileOrSymbol>", "File, scope, or symbol text to focus on")
+  .option("--scope <scope>", "Directory/module scope to include")
+  .option("--min-score <n>", "Minimum drift score to report (default: 35)")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: ContentDriftOptions) => {
+    const input = parseCliOperationInput(operations.contentDrift, {
+      focus: options.focus,
+      scope: options.scope,
+      minScore: optionalNumberInput(options.minScore),
+    });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.contentDrift, graph, input);
+
+    if (options.json) {
+      outputJson(result);
+      return;
+    }
+
+    outputOperationText(operations.contentDrift, result, input);
   });
 
 // ── Subcommand: highways ───────────────────────────────────

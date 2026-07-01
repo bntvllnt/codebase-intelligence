@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-22 tools available via MCP stdio.
+23 tools available via MCP stdio.
 
 Operation tools return JSON text payloads. Invalid operation inputs return `isError: true` with `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.
 
@@ -199,7 +199,17 @@ Token-bounded context pack derived from `get_codebase_map`.
 **Use when:** Passing compact, ranked code context to an LLM.
 **Not for:** Visual graph export (use get_codebase_map).
 
-## 20. analyze_highways
+## 20. detect_content_drift
+
+Detect report-only mismatch between declared file/folder intent and observed behavior.
+
+**Input:** `{ focus?: string, scope?: string, minScore?: number }`
+**Returns:** mode, baseline, minScore, findings[] (id, kind, severity, score, file, scope, declaredIntent, actualBehavior, evidenceIds, evidence, recommendation, actions), evidence[], summary
+
+**Use when:** Finding file/folder/content drift before a refactor, roadmap cleanup, or baseline creation.
+**Not for:** Failing CI without a baseline (use check or a future ci wrapper).
+
+## 21. analyze_highways
 
 Detect repeated entry-to-sink routes that should converge on one canonical operation path.
 
@@ -209,7 +219,7 @@ Detect repeated entry-to-sink routes that should converge on one canonical opera
 **Use when:** Enforcing dataflow discipline, finding ad-hoc routes, or planning canonical shared paths.
 **Not for:** Raw execution flow listing (use get_processes).
 
-## 21. get_clusters
+## 22. get_clusters
 
 Community-detected clusters of related files.
 
@@ -219,7 +229,7 @@ Community-detected clusters of related files.
 **Use when:** "What files are related?" "Find natural groupings." Discovering emergent groupings that differ from directory structure.
 **Not for:** Directory-based modules (use get_module_structure).
 
-## 22. check
+## 23. check
 
 Run the configurable rules engine and gate on findings.
 
@@ -270,6 +280,7 @@ Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-expo
 | "What context should I give an LLM for this task?" | `get_context_pack` |
 | "Show a focused codebase graph" | `get_codebase_map` |
 | "Show only file/scope topology" | `get_scope_graph` |
+| "Which file names lie about behavior?" | `detect_content_drift` |
 | "Which routes bypass canonical dataflow?" | `analyze_highways` |
 | "What files naturally belong together?" | `get_clusters` |
 | "What are the main areas?" | `get_groups` |

@@ -87,6 +87,11 @@ const OPERATION_HINTS: Record<OperationName, string[]> = {
     "Use get_scope_graph when you only need file/scope nodes and edges",
     "Use symbol_context or file_context on top-ranked context entries before editing",
   ],
+  contentDrift: [
+    "Use file_context on drift findings before moving or renaming files",
+    "Use map with the same focus to inspect neighboring files and symbols",
+    "Create a drift baseline before using drift findings as a CI gate",
+  ],
   highways: [
     "Use impact_analysis on the proposed canonical node before editing",
     "Use symbol_context on bypass route entry points to inspect call chains",
