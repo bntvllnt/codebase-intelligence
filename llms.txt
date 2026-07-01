@@ -36,7 +36,7 @@ codebase-intelligence impact ./src getUserById
 codebase-intelligence rename ./src oldName newName
 codebase-intelligence processes ./src --entry main
 codebase-intelligence clusters ./src --min-files 3
-codebase-intelligence check ./src                      # rules gate for CI
+codebase-intelligence check ./src                      # rules gate for CI; JSON findings may include kind/confidence/evidence
 codebase-intelligence init .                         # make AI agents use CI
 ```
 

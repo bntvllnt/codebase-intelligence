@@ -4,6 +4,7 @@ import type {
   CodebaseIntelligenceConfig,
   Finding,
   FindingAction,
+  FindingConfidence,
   RuleSetting,
   Severity,
 } from "../types/index.js";
@@ -26,7 +27,10 @@ export interface ReportedFinding {
   column: number;
   endLine?: number;
   endColumn?: number;
+  kind?: string;
+  confidence?: FindingConfidence;
   message: string;
+  evidence?: string[];
   actions?: FindingAction[];
 }
 
@@ -149,12 +153,15 @@ export function runEngine(
       out.push({
         ruleId: rule.id,
         severity,
+        kind: r.kind,
+        confidence: r.confidence,
         file: r.file,
         line: r.line,
         column: r.column,
         endLine: r.endLine,
         endColumn: r.endColumn,
         message: r.message,
+        evidence: r.evidence,
         actions: r.actions,
         fingerprint: fingerprint(rule.id, r.file, r.line, r.message),
       });

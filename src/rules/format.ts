@@ -45,6 +45,13 @@ export function formatText(result: CheckResult): string {
 
 export function formatSarif(result: CheckResult): string {
   const ruleIds = [...new Set(result.findings.map((f) => f.ruleId))];
+  const propertiesFor = (finding: CheckResult["findings"][number]): Record<string, unknown> | undefined => {
+    const properties: Record<string, unknown> = {};
+    if (finding.kind) properties.kind = finding.kind;
+    if (finding.confidence) properties.confidence = finding.confidence;
+    if (finding.evidence) properties.evidence = finding.evidence;
+    return Object.keys(properties).length > 0 ? properties : undefined;
+  };
   const sarif = {
     $schema: "https://json.schemastore.org/sarif-2.1.0.json",
     version: "2.1.0",
@@ -78,6 +85,7 @@ export function formatSarif(result: CheckResult): string {
           ],
           // Position-derived key — may shift when lines change, hence partialFingerprints.
           partialFingerprints: { ciFingerprint: f.fingerprint },
+          ...(propertiesFor(f) ? { properties: propertiesFor(f) } : {}),
         })),
       },
     ],

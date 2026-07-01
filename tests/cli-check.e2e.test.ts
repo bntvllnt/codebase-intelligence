@@ -76,6 +76,66 @@ const DEAD = {
   "src/b.ts": "export function used(): number { return 1; }\nexport function deadOne(): number { return 2; }\n",
 };
 
+const DEAD_CODE_EXPANSION = {
+  "package.json": JSON.stringify(
+    {
+      name: "dead-code-fixture",
+      exports: "./src/index.ts",
+      dependencies: {
+        "@sinclair/typebox": "1.0.0",
+        "left-pad": "1.0.0",
+        "unused-runtime": "1.0.0",
+        vitest: "1.0.0",
+      },
+    },
+    null,
+    2,
+  ),
+  "src/index.ts": 'export { live } from "./live.js";\n',
+  "src/live.ts": "export function live(): number { return 1; }\n",
+  "src/orphan.ts": 'import { live } from "./live.js";\nexport const orphan = live();\n',
+  "src/types.ts": [
+    "type LocalDraft = { id: string };",
+    "interface LocalView { title: string }",
+    "export type DeadPublic = { value: string };",
+    "export const marker = 1;",
+    "",
+  ].join("\n"),
+  "src/members.ts": [
+    "class Worker {",
+    "  private unusedTask(): number { return 1; }",
+    "  private usedTask(): number { return 2; }",
+    "  run(): number { return this.usedTask(); }",
+    "}",
+    "enum State { Idle = 'idle', Active = 'active' }",
+    "export const state = State.Active;",
+    "export const worker = new Worker().run();",
+    "",
+  ].join("\n"),
+  "src/deps.ts": [
+    'import type { Static } from "@sinclair/typebox";',
+    'import equalsRuntime = require("equals-runtime");',
+    'import leftPad from "left-pad";',
+    'import missingRuntime from "missing-runtime";',
+    "type Only = Static;",
+    "export async function loadDynamic(): Promise<unknown> { return import('dynamic-runtime'); }",
+    "export const depUse = leftPad(`${missingRuntime}${equalsRuntime}`, 3);",
+    "",
+  ].join("\n"),
+  "src/deps.test.ts": 'import { describe } from "vitest";\ndescribe("deps", () => {});\n',
+};
+
+const DEAD_CODE_RULES = {
+  rules: {
+    "no-circular-deps": "off",
+    "no-dead-exports": "off",
+    "no-dead-files": "warn",
+    "no-unused-types": "warn",
+    "no-unused-members": "warn",
+    "no-unused-deps": "warn",
+  },
+};
+
 beforeAll(() => {
   if (!fs.existsSync(cli)) execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
 }, 120_000);
@@ -216,4 +276,64 @@ describe("check command (e2e)", () => {
     expect(status).toBe(0);
     expect(stdout).toContain("No findings.");
   });
+
+  it("CH-P1-05: gates dead files, types, members, and dependency drift with confidence evidence", async () => {
+    const dir = makeProject(DEAD_CODE_EXPANSION, DEAD_CODE_RULES);
+    const jsonRun = await run(["check", dir, "--json", "--fail-on", "warn", "--force"]);
+    expect(jsonRun.status).toBe(1);
+
+    const parsed = JSON.parse(jsonRun.stdout) as {
+      findings: Array<{
+        ruleId: string;
+        kind?: string;
+        confidence?: string;
+        file: string;
+        message: string;
+        evidence?: string[];
+      }>;
+    };
+
+    const findings = parsed.findings;
+    const unusedFile = findings.find((finding) => finding.kind === "unused-file" && finding.file === "src/orphan.ts");
+    expect(unusedFile?.ruleId).toBe("no-dead-files");
+    expect(unusedFile?.confidence).toBe("medium");
+    expect(unusedFile?.evidence).toContain("entrypoint=false");
+    expect(findings.some((finding) => finding.ruleId === "no-dead-files" && finding.file === "src/index.ts")).toBe(false);
+
+    expect(findings.some((finding) => finding.kind === "unused-type" && finding.message.includes("LocalDraft"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "unused-interface" && finding.message.includes("LocalView"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "unused-exported-type" && finding.message.includes("DeadPublic"))).toBe(true);
+
+    expect(findings.some((finding) => finding.kind === "private-class-member" && finding.message.includes("Worker.unusedTask"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "enum-member" && finding.message.includes("State.Idle"))).toBe(true);
+    expect(findings.some((finding) => finding.message.includes("Worker.usedTask"))).toBe(false);
+    expect(findings.some((finding) => finding.message.includes("State.Active"))).toBe(false);
+
+    expect(findings.some((finding) => finding.kind === "unused-dependency" && finding.message.includes("unused-runtime"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "type-only-dependency" && finding.message.includes("@sinclair/typebox"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "test-only-dependency" && finding.message.includes("vitest"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "unlisted-dependency" && finding.message.includes("missing-runtime"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "unlisted-dependency" && finding.message.includes("equals-runtime"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "unlisted-dependency" && finding.message.includes("dynamic-runtime"))).toBe(true);
+    expect(findings.some((finding) => finding.message.includes("left-pad"))).toBe(false);
+
+    const sarifRun = await run(["check", dir, "--format", "sarif", "--fail-on", "warn", "--force"]);
+    expect(sarifRun.status).toBe(1);
+    const sarif = JSON.parse(sarifRun.stdout) as {
+      runs: Array<{
+        results: Array<{
+          ruleId: string;
+          locations?: Array<{ physicalLocation?: { artifactLocation?: { uri?: string } } }>;
+          properties?: { confidence?: string; evidence?: string[]; kind?: string };
+        }>;
+      }>;
+    };
+    const sarifFinding = sarif.runs[0].results.find(
+      (finding) => finding.properties?.kind === "unused-file"
+        && finding.locations?.[0]?.physicalLocation?.artifactLocation?.uri === "src/orphan.ts",
+    );
+    expect(sarifFinding?.ruleId).toBe("no-dead-files");
+    expect(sarifFinding?.properties?.confidence).toBe("medium");
+    expect(sarifFinding?.properties?.evidence).toContain("entrypoint=false");
+  }, 90_000);
 });

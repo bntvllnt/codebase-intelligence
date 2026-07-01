@@ -111,7 +111,7 @@ codebase-intelligence <command> <path> [options]
 | `rename` | Reference discovery for rename planning |
 | `processes` | Entry-point execution flow tracing |
 | `clusters` | Community-detected file clusters |
-| `check` | Rules-engine gate for CI |
+| `check` | Rules-engine gate for CI, including opt-in dead-code and dependency gates |
 | `init` | Set up AI agents to use CI — writes per-agent instruction files (skill opt-in via `--skill`) |
 
 ### Useful flags

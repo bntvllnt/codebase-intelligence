@@ -788,7 +788,7 @@ function parseGate(value: string | undefined): "all" | "new-only" | undefined | 
 
 program
   .command("check")
-  .description("Run the rules engine and gate on findings (comments, circular deps, dead exports)")
+  .description("Run the rules engine and gate on findings")
   .argument("<path>", "Path to TypeScript codebase")
   .option("--config <path>", "Config file path (overrides discovery)")
   .option("--format <fmt>", "Output: text, json, or sarif (default: text)")

@@ -321,13 +321,21 @@ Add deterministic clone detection on the existing parser path.
 
 Extend deletion intelligence beyond exported symbols.
 
-**To do:**
+**Foundation slice:**
 
-- Detect unused files.
-- Detect unused types.
-- Detect unused enum/class members.
-- Detect unused / unlisted / type-only / test-only dependencies.
-- Keep findings framework-aware to avoid false positives.
+- Add opt-in `check` rules: `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`.
+- Detect unimported non-entrypoint files with confidence/evidence.
+- Detect local unused type/interface declarations and exported dead types outside supported entrypoints.
+- Detect unused private class members and non-exported enum members.
+- Detect unused, unlisted, type-only, and test-only package dependencies.
+- Emit `kind`, `confidence`, and `evidence[]` in JSON and SARIF findings.
+- Add CH-P1-05 coverage for JSON/SARIF, supported package entrypoint ignore, and all four dead-code categories.
+
+**Remaining:**
+
+- Add stale suppression reporting and `@public` / `@expected-unused` semantics in CH-P1-06.
+- Add workspace/package-section dependency policy beyond single-package `package.json`.
+- Add CSS/template/framework plugin coverage only after `doctor` can explain supported surfaces.
 
 ### Suppression Hygiene
 

@@ -69,7 +69,15 @@
         },
         "no-dead-files": {
           "$ref": "#/$defs/severity",
-          "description": "Report files unreachable from any entry point."
+          "description": "Report unimported files that are not recognized entrypoints."
+        },
+        "no-unused-types": {
+          "$ref": "#/$defs/severity",
+          "description": "Report local type/interface declarations and exported type declarations that appear unused."
+        },
+        "no-unused-members": {
+          "$ref": "#/$defs/severity",
+          "description": "Report unused private class members and non-exported enum members."
         },
         "no-unused-deps": {
           "$ref": "#/$defs/severity",
