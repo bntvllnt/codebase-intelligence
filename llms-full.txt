@@ -43,6 +43,7 @@ src/
   parser/index.ts      <- TS AST extraction + git churn + test detection
   graph/index.ts       <- graphology graph + circular dep detection
   analyzer/index.ts    <- All metric computation
+  graph-loader/index.ts <- Shared parse/build/analyze/cache pipeline + progress events
   core/index.ts        <- Shared result computation (MCP + CLI)
   operations/index.ts  <- Analysis operation descriptors + typed input schemas
   mcp/index.ts         <- 17 MCP tools for LLM integration
@@ -61,6 +62,10 @@ src/
 ## Data Flow
 
 ```
+loadCodebaseGraph(rootDir)
+  -> cached CodebaseGraph when cache key matches
+  -> otherwise emits progress events through parse/build/analyze/cache
+
 parseCodebase(rootDir)
   -> ParsedFile[] (with churn, complexity, test mapping)
 
@@ -82,6 +87,7 @@ runOperation(operation, codebaseGraph, input, context)
 
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Operation registry foundation**: Analysis operations have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. MCP tool registration and CLI command execution consume those descriptors; CLI text formatting still lives in `src/cli.ts` until the formatter migration lands.
+- **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports.
 - **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.

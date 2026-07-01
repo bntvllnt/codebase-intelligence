@@ -37,6 +37,7 @@ src/
   parser/index.ts      <- TS AST extraction + git churn + test detection
   graph/index.ts       <- graphology graph + circular dep detection
   analyzer/index.ts    <- All metric computation
+  graph-loader/index.ts <- Shared parse/build/analyze/cache pipeline + progress events
   core/index.ts        <- Shared result computation (MCP + CLI)
   operations/index.ts  <- Analysis operation descriptors + typed input schemas
   config/index.ts      <- Config discovery + zod validation
@@ -58,6 +59,10 @@ src/
 ## Data Flow
 
 ```
+loadCodebaseGraph(rootDir)
+  -> cached CodebaseGraph when cache key matches
+  -> otherwise emits progress events through parse/build/analyze/cache
+
 parseCodebase(rootDir)
   -> ParsedFile[] (with churn, complexity, test mapping)
 
@@ -82,6 +87,7 @@ runOperation(operation, codebaseGraph, input, context)
 
 - **Dual interface**: MCP stdio for LLM agents, CLI subcommands for humans/CI. Both consume `src/core/`.
 - **Operation registry foundation**: Analysis operations now have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. MCP tool registration and CLI command execution consume those descriptors; CLI text formatting still lives in `src/cli.ts` until the formatter migration lands.
+- **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Monorepo import resolution**: Root `tsconfig.json` path aliases and local `package.json` package names resolve to source files before graph construction.
