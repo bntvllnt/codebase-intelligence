@@ -20,13 +20,16 @@ import {
   impactAnalysis,
   renameSymbol,
 } from "../core/index.js";
+import { computeBoundaries } from "../boundaries/index.js";
+import { loadConfig } from "../config/index.js";
 import { DUPLICATION_MODES } from "../duplication/index.js";
 import { computeHighways } from "../highways/index.js";
 import { computeHealth } from "../health/index.js";
 import { CODEBASE_MAP_FORMATS, computeCodebaseMap } from "../map/index.js";
 import { computeContentDrift } from "../drift/index.js";
-import type { CodebaseGraph } from "../types/index.js";
+import type { BoundaryPreset, BoundariesConfig, CodebaseGraph } from "../types/index.js";
 import {
+  formatBoundariesText,
   formatCodebaseMapText,
   formatChangesText,
   formatContentDriftText,
@@ -70,6 +73,7 @@ export const operationNames = [
   "codebaseMap",
   "contentDrift",
   "health",
+  "boundaries",
   "highways",
   "clusters",
 ] as const;
@@ -78,6 +82,7 @@ export type OperationName = typeof operationNames[number];
 
 export interface OperationContext {
   rootDir?: string;
+  configPath?: string;
 }
 
 export interface Operation<TInput extends object, TResult> {
@@ -188,6 +193,12 @@ const healthInputShape = {
   score: z.boolean().optional().describe("Request compact score output on the CLI"),
 } satisfies z.ZodRawShape;
 const healthInputSchema = z.object(healthInputShape).strict();
+const boundaryPresets = ["bulletproof", "layered", "hexagonal", "feature-sliced"] as const satisfies readonly BoundaryPreset[];
+const boundariesInputShape = {
+  preset: z.enum(boundaryPresets).optional().describe("Boundary preset to use when config has no boundaries"),
+  list: z.boolean().optional().describe("List resolved zones and rules"),
+} satisfies z.ZodRawShape;
+const boundariesInputSchema = z.object(boundariesInputShape).strict();
 const highwaysInputShape = {
   operation: z.string().min(1).optional().describe("Operation verb to focus on, such as create, update, or validate"),
   shape: z.string().min(1).optional().describe("Type/DTO shape to focus on"),
@@ -220,8 +231,14 @@ type ProcessesInput = z.infer<typeof processesInputSchema>;
 export type CodebaseMapInput = z.infer<typeof codebaseMapInputSchema>;
 type ContentDriftInput = z.infer<typeof contentDriftInputSchema>;
 type HealthInput = z.infer<typeof healthInputSchema>;
+type BoundariesInput = z.infer<typeof boundariesInputSchema>;
 type HighwaysInput = z.infer<typeof highwaysInputSchema>;
 type ClustersInput = z.infer<typeof clustersInputSchema>;
+
+function loadBoundariesConfig(context: OperationContext): BoundariesConfig | undefined {
+  if (!context.rootDir && !context.configPath) return undefined;
+  return loadConfig(context.rootDir ?? process.cwd(), { configPath: context.configPath }).config.boundaries;
+}
 
 export const operations = {
   overview: {
@@ -417,6 +434,17 @@ export const operations = {
     run: (graph: CodebaseGraph, input: HealthInput, context) => computeHealth(graph, input, context),
     formatText: formatHealthText,
   } satisfies Operation<HealthInput, ReturnType<typeof computeHealth>>,
+  boundaries: {
+    name: "boundaries",
+    cliCommand: "boundaries",
+    mcpTool: "check_boundaries",
+    description: "Evaluate architecture boundary zones against import edges. Supports presets, custom zones, allow/forbid rules, and a list view. Use when: enforcing layering, ports/adapters, or feature-sliced import direction. Not for: circular dependencies (use check)",
+    inputShape: boundariesInputShape,
+    inputSchema: boundariesInputSchema,
+    run: (graph: CodebaseGraph, input: BoundariesInput, context) =>
+      computeBoundaries(graph, { preset: input.preset, list: input.list, config: loadBoundariesConfig(context) }),
+    formatText: formatBoundariesText,
+  } satisfies Operation<BoundariesInput, ReturnType<typeof computeBoundaries>>,
   highways: {
     name: "highways",
     cliCommand: "highways",

@@ -1,6 +1,6 @@
 # CLI Reference
 
-23 commands for terminal and CI use. The 21 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
+24 commands for terminal and CI use. The 22 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -202,6 +202,22 @@ codebase-intelligence health <path> [--score] [--min-score <n>] [--json] [--forc
 
 **Exit codes:** `0` when score is at least `minScore`; `1` when score is below `minScore`; `2` for invalid input.
 
+### boundaries
+
+Evaluate architecture boundary zones and import rules.
+
+```bash
+codebase-intelligence boundaries <path> [--config <path>] [--preset <preset>] [--list] [--json] [--force]
+```
+
+**Presets:** `bulletproof`, `layered`, `hexagonal`, `feature-sliced`.
+
+**Config:** top-level `boundaries.zones[]` defines named areas with `patterns[]` and optional `autoDiscover`; `boundaries.rules[]` defines directed `from -> allow/forbid` import rules. Explicit `--preset` overrides discovered boundary config for ad hoc inspection.
+
+**Output:** resolved zones, rules, checked edge count, unassigned file count, stable boundary violation IDs, `forbidden-edge`, `disallowed-edge`, and `risky-re-export-chain` kinds, source/target files, zones, imported/re-exported symbols, evidence, and advisory actions.
+
+**Exit codes:** `0` when no boundary violations are found; `1` when violations are found; `2` for invalid input.
+
 ### highways
 
 Find repeated routes that should converge on one canonical operation path.
@@ -238,7 +254,7 @@ codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on
 
 **Output:** pass/warn/fail verdict, findings, suppression ledger, and summary counts. Findings include stable `fingerprint`; cleanup findings may also include `kind`, `confidence`, and `evidence`. Summary counts include `suppressed` and `staleSuppressions`; `--summary` prints those counts when present. Exit code `0` on pass, `1` when the configured gate fails, `2` for invalid config or arguments.
 
-**Rules:** `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), plus opt-in cleanup gates: `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities in `codebase-intelligence.json`.
+**Rules:** `no-comments` (off by default), `no-boundary-violations` (error when top-level `boundaries` config exists), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), plus opt-in cleanup gates: `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities in `codebase-intelligence.json`.
 
 ### init
 
@@ -282,6 +298,8 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitigno
 | `--context-budget <n>` | map | Approximate token budget for context pack |
 | `--min-score <n>` | drift, health | Minimum drift score to report; minimum health score before exit 1 |
 | `--score` | health | Print compact score text |
+| `--preset <name>` | boundaries | Preset: bulletproof, layered, hexagonal, feature-sliced |
+| `--list` | boundaries | List resolved zones and rules |
 | `--operation <verb>` | highways | Focus on one operation verb |
 | `--shape <name>` | highways | Focus on one type/DTO shape |
 | `--min-routes <n>` | highways | Minimum routes reaching a sink before reporting |

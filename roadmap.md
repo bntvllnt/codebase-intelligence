@@ -496,13 +496,22 @@ Provide one CI-gateable quality score plus file-level risk metrics.
 
 Evaluate repo dependency boundaries using the existing graph.
 
-**To do:**
+**Status:** CH-P2-05 boundary subchain shipped in the canary train.
 
+**Shipped:**
+
+- CLI: add `boundaries <path>` with `--preset`, `--list`, `--config`, `--json`, and stable exit `1` when violations exist.
+- MCP: add `check_boundaries`.
 - Add presets: bulletproof, layered, hexagonal, feature-sliced.
-- Add custom `zones` with `autoDiscover`.
-- Add `from -> allow/forbid` rules.
-- Add `list --boundaries`.
-- Emit boundary violations, forbidden cross-edges, and risky re-export chains.
+- Add custom `boundaries.zones[]` with `patterns[]` and `autoDiscover`.
+- Add directed `boundaries.rules[]` with `from -> allow/forbid`.
+- Emit stable boundary violation IDs with `forbidden-edge`, `disallowed-edge`, and `risky-re-export-chain` kinds.
+- Add `no-boundary-violations` to `check`, including `new-only` baseline behavior for PR gates.
+- Add CH-P2-05 boundary subchain coverage for CLI JSON/text, exit codes, custom config, preset override, real stdio MCP parity, and `check --gate new-only`.
+
+**Remaining:**
+
+- Feed boundary findings into the future first-class `ci` wrapper and PR annotation formats.
 
 ### CI PR Quality Gate
 

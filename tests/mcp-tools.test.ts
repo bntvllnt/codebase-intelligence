@@ -520,7 +520,22 @@ describe("Tool 20: get_health_score", () => {
   });
 });
 
-describe("Tool 21: analyze_highways", () => {
+describe("Tool 21: check_boundaries", () => {
+  it("returns resolved zones, rules, violations, and next steps", async () => {
+    const r = await callTool("check_boundaries", { preset: "layered", list: true });
+    expect(r).toHaveProperty("preset", "layered");
+    expect(r).toHaveProperty("verdict");
+    expect(r).toHaveProperty("zones");
+    expect(r).toHaveProperty("rules");
+    expect(r).toHaveProperty("violations");
+    expect(r).toHaveProperty("nextSteps");
+    expect(Array.isArray(r.zones)).toBe(true);
+    expect(Array.isArray(r.rules)).toBe(true);
+    expect(Array.isArray(r.violations)).toBe(true);
+  });
+});
+
+describe("Tool 22: analyze_highways", () => {
   it("returns highway opportunities envelope", async () => {
     const r = await callTool("analyze_highways", { operation: "get", minRoutes: 2 });
     expect(r).toHaveProperty("totalRoutes");
@@ -532,7 +547,7 @@ describe("Tool 21: analyze_highways", () => {
   });
 });
 
-describe("Tool 22: get_clusters", () => {
+describe("Tool 23: get_clusters", () => {
   it("returns community-detected clusters", async () => {
     const r = await callTool("get_clusters");
     expect(r).toHaveProperty("clusters");
@@ -615,6 +630,7 @@ describe("MCP Resources", () => {
     expect(availableTools).toContain("get_context_pack");
     expect(availableTools).toContain("detect_content_drift");
     expect(availableTools).toContain("get_health_score");
+    expect(availableTools).toContain("check_boundaries");
     expect(availableTools).toContain("analyze_highways");
     expect(availableTools).toContain("check");
   });

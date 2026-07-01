@@ -346,6 +346,48 @@ HealthFileResult {
 }
 ```
 
+## Boundaries Result
+
+`boundaries --json` and MCP `check_boundaries` return deterministic architecture-boundary findings. CLI `boundaries` exits `1` when violations exist.
+
+```typescript
+BoundariesResult {
+  preset: "custom" | "none" | "bulletproof" | "layered" | "hexagonal" | "feature-sliced"
+  zones: Array<{
+    name: string
+    patterns: string[]
+    matchedFiles: string[]
+  }>
+  rules: Array<{
+    from: string
+    allow?: string[]
+    forbid?: string[]
+  }>
+  violations: BoundaryViolation[]
+  summary: {
+    checkedEdges: number
+    violations: number
+    unassignedFiles: number
+  }
+  verdict: "pass" | "fail"
+}
+
+BoundaryViolation {
+  id: string
+  kind: "forbidden-edge" | "disallowed-edge" | "risky-re-export-chain"
+  ruleId: string
+  source: string
+  target: string
+  fromZone: string
+  toZone: string
+  symbols: string[]
+  isTypeOnly: boolean
+  message: string
+  evidence: string[]
+  actions: Array<{ command: string; reason: string }>
+}
+```
+
 ## Highways Result
 
 `highways --json` and MCP `analyze_highways` return deterministic route-convergence opportunities.

@@ -31,8 +31,8 @@ Core (shared computation)
   |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers, text formatters
   v
 MCP (stdio) + CLI
-  | MCP: 24 tools, 2 prompts, 3 resources for LLM agents
-  | CLI: 23 commands with formatted + JSON output for humans/CI
+  | MCP: 25 tools, 2 prompts, 3 resources for LLM agents
+  | CLI: 24 commands with formatted + JSON output for humans/CI
 ```
 
 ## Module Map
@@ -53,9 +53,10 @@ src/
   duplication/index.ts <- Duplicate family detection + trace evidence
   map/index.ts         <- Focused codebase maps + token-bounded context packs
   drift/               <- Content drift findings, profiles, tokens, and stable evidence
+  boundaries/          <- Architecture zones, allow/forbid edge rules, and violation evidence
   highways/index.ts    <- Repeated route convergence + bypass/cowpath/synthesis evidence
   health/              <- Health score, maintainability, CRAP, coverage lookup, and risk scoring
-  mcp/index.ts         <- 24 MCP tools for LLM integration
+  mcp/index.ts         <- 25 MCP tools for LLM integration
   mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
@@ -97,6 +98,7 @@ runOperation(operation, codebaseGraph, input, context)
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Operation registry foundation**: Analysis operations have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, discriminated run results, and result-object text formatters. MCP tool registration and CLI command execution consume those descriptors; CLI JSON remains raw result data plus cache facts.
 - **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
+- **Architecture boundaries**: `boundaries` / `check_boundaries` evaluates graph import edges against preset or custom zones and directed allow/forbid rules. `no-boundary-violations` reuses the same analyzer for CI gating.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports.
 - **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.
@@ -312,7 +314,7 @@ The most dangerous files have: high churn + high coupling + low coverage.
 
 # MCP Tools Reference
 
-24 tools available via MCP stdio.
+25 tools available via MCP stdio.
 
 ## 1. codebase_overview
 High-level summary. Input: `{ depth?: number }`. Returns: totalFiles, totalFunctions, modules, topDependedFiles, metrics, and analysis mode/call graph precision.
@@ -377,13 +379,16 @@ Content drift. Input: `{ focus?: string, scope?: string, minScore?: number }`. R
 ## 21. get_health_score
 Health score. Input: `{ minScore?: number, score?: boolean }`. Returns: score, minScore, verdict, components, coverage source/counts, per-file maintainabilityIndex, crapScore, riskScore, hotspots, actions, and summary.
 
-## 22. analyze_highways
+## 22. check_boundaries
+Architecture boundaries. Input: `{ preset?: "bulletproof" | "layered" | "hexagonal" | "feature-sliced", list?: boolean }`. Returns: preset, zones, rules, summary, verdict, and stable violations with kind, source/target files, zones, symbols, evidence, and advisory actions.
+
+## 23. analyze_highways
 Repeated route convergence. Input: `{ operation?: string, shape?: string, minRoutes?: number, propose?: boolean, trace?: string }`. Returns: bypass/cowpath/synthesis opportunities with route chains, evidence, blast radius, proposed canonical node, optional synthesis proposal, and context pack.
 
-## 23. get_clusters
+## 24. get_clusters
 Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clusters with cohesion.
 
-## 24. check
+## 25. check
 Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppression ledger, config path, and summary counts. Findings always include ruleId, severity, file, line, column, message, and fingerprint; cleanup findings may also include kind, confidence, and evidence. Suppressions include directive, active/stale status, file, line, targetLine, ruleIds, and suppressed count.
 
 ## Tool Selection Guide
@@ -397,6 +402,7 @@ Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppr
 | What are the riskiest files? | find_hotspots (risk) |
 | Which files need tests? | find_hotspots (coverage) |
 | What is the PR quality score? | get_health_score |
+| Which imports violate architecture boundaries? | check_boundaries |
 | What should I improve first? | find_opportunities |
 | Find refactoring opportunities | find_opportunities |
 | Where is logic duplicated? | find_duplicates |
@@ -419,7 +425,7 @@ Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppr
 
 # CLI Reference
 
-23 commands — 21 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
+24 commands — 22 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
 
 ## Commands
 
@@ -537,6 +543,12 @@ codebase-intelligence health <path> [--score] [--min-score <n>] [--json] [--forc
 ```
 CI-gateable health score. Returns score/verdict, components, root-local Istanbul or static-test coverage source, per-file maintainabilityIndex, crapScore, riskScore, hotspots, evidence, and actions. Exits 1 when score is below `--min-score`.
 
+### boundaries
+```bash
+codebase-intelligence boundaries <path> [--config <path>] [--preset <preset>] [--list] [--json] [--force]
+```
+Evaluate architecture boundary zones and import rules. Presets: bulletproof, layered, hexagonal, feature-sliced. Top-level `boundaries.zones[]` config defines named areas; `boundaries.rules[]` config defines directed `from -> allow/forbid` imports. Returns stable violations for forbidden edges, disallowed edges, and risky re-export chains. Exits 1 when violations exist.
+
 ### highways
 ```bash
 codebase-intelligence highways <path> [--operation <verb>] [--shape <name>] [--min-routes <n>] [--propose] [--trace <id>] [--json] [--force]
@@ -568,7 +580,7 @@ content between the `codebase-intelligence:start`/`:end` markers is ever touched
 codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on <severity>] [--gate <mode>] [--base <ref>] [--quiet] [--summary] [--json] [--force]
 ```
 Rules-engine gate for CI. Formats: text, json, sarif. Fail-on: error, warn, never.
-Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, suppression ledger, and summary counts. Built-in rules include no-comments, no-circular-deps, no-dead-exports, no-stale-suppressions, and opt-in no-dead-files, no-unused-types, no-unused-members, no-unused-deps. Dependency findings are scoped to the nearest package/workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. Reports active/stale `ci-ignore-*` and `@expected-unused` suppressions; `@public` protects exported cleanup declarations while `@internal` remains checkable.
+Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, suppression ledger, and summary counts. Built-in rules include no-comments, no-boundary-violations, no-circular-deps, no-dead-exports, no-stale-suppressions, and opt-in no-dead-files, no-unused-types, no-unused-members, no-unused-deps. Dependency findings are scoped to the nearest package/workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. Reports active/stale `ci-ignore-*` and `@expected-unused` suppressions; `@public` protects exported cleanup declarations while `@internal` remains checkable.
 
 ## Global Behavior
 

@@ -352,6 +352,14 @@ describe("operation registry chained parity", () => {
       cachedRun,
     );
     expectCliMatchesRegistry(
+      operations.boundaries,
+      { preset: "layered", list: true },
+      ["boundaries", getFixtureSrcPath(), "--preset", "layered", "--list"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
       operations.highways,
       { operation: "get", minRoutes: 2 },
       ["highways", getFixtureSrcPath(), "--operation", "get", "--min-routes", "2"],
@@ -503,6 +511,14 @@ describe("operation registry chained parity", () => {
       ["health", getFixtureSrcPath(), "--score", "--min-score", "0"],
       codebaseGraph,
       { rootDir: getFixtureSrcPath() },
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.boundaries,
+      { preset: "layered", list: true },
+      ["boundaries", getFixtureSrcPath(), "--preset", "layered", "--list"],
+      codebaseGraph,
+      {},
       cachedRun,
     );
     expectCliTextMatchesFormatter(
@@ -794,6 +810,13 @@ describe("operation registry chained parity", () => {
       codebaseGraph,
       mcp,
       { rootDir: getFixtureSrcPath() },
+    );
+    await expectMcpMatchesRegistry(
+      operations.boundaries,
+      { preset: "layered", list: true },
+      { preset: "layered", list: true },
+      codebaseGraph,
+      mcp,
     );
     await expectMcpMatchesRegistry(
       operations.highways,

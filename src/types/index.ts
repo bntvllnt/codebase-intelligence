@@ -325,6 +325,51 @@ export interface BoundariesConfig {
   rules?: BoundaryRule[];
 }
 
+export type BoundaryPreset = NonNullable<BoundariesConfig["preset"]>;
+
+export interface BoundaryMatchedZone {
+  name: string;
+  patterns: string[];
+  matchedFiles: string[];
+  autoDiscover: boolean;
+}
+
+export interface BoundaryRuleSummary {
+  from: string;
+  allow?: string[];
+  forbid?: string[];
+}
+
+export interface BoundaryViolation {
+  id: string;
+  kind: "forbidden-edge" | "disallowed-edge" | "risky-re-export-chain";
+  ruleId: string;
+  source: string;
+  target: string;
+  fromZone: string;
+  toZone: string;
+  symbols: string[];
+  isTypeOnly: boolean;
+  message: string;
+  evidence: string[];
+  actions: Array<{ command: string; reason: string }>;
+}
+
+export interface BoundariesResult {
+  preset: BoundaryPreset | "custom" | "none";
+  zones: BoundaryMatchedZone[];
+  rules: BoundaryRuleSummary[];
+  violations: BoundaryViolation[];
+  summary: {
+    zones: number;
+    rules: number;
+    checkedEdges: number;
+    violations: number;
+    unassignedFiles: number;
+  };
+  verdict: "pass" | "fail";
+}
+
 export type OutputFormat = "text" | "json" | "sarif";
 
 export interface CacheFacts {
@@ -359,7 +404,7 @@ export interface CodebaseIntelligenceConfig {
   };
 }
 
-export type ActionKind = "remove-comment";
+export type ActionKind = "remove-comment" | "inspect-boundary";
 export type FindingConfidence = "high" | "medium" | "low";
 
 export interface FindingAction {

@@ -221,6 +221,12 @@ interface HealthOptions extends CliCommandOptions {
   score?: boolean;
 }
 
+interface BoundariesOptions extends CliCommandOptions {
+  config?: string;
+  preset?: string;
+  list?: boolean;
+}
+
 interface HighwaysOptions extends CliCommandOptions {
   operation?: string;
   shape?: string;
@@ -752,6 +758,39 @@ program
       outputJson(result);
     } else {
       outputOperationText(operations.health, result, input);
+    }
+
+    if (result.verdict === "fail") {
+      process.exitCode = 1;
+    }
+  });
+
+// ── Subcommand: boundaries ─────────────────────────────────
+
+program
+  .command("boundaries")
+  .description("Evaluate architecture boundary zones and import rules")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--config <path>", "Config file path (overrides discovery)")
+  .option("--preset <preset>", "Preset: bulletproof, layered, hexagonal, or feature-sliced")
+  .option("--list", "List resolved zones and rules")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: BoundariesOptions) => {
+    const input = parseCliOperationInput(operations.boundaries, {
+      preset: options.preset,
+      list: options.list,
+    });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.boundaries, graph, input, {
+      rootDir: path.resolve(targetPath),
+      configPath: options.config,
+    });
+
+    if (options.json) {
+      outputJson(result);
+    } else {
+      outputOperationText(operations.boundaries, result, input);
     }
 
     if (result.verdict === "fail") {

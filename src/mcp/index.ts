@@ -181,6 +181,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   registerOperationTool(server, graph, operations.codebaseMap);
   registerOperationTool(server, graph, operations.contentDrift);
   registerOperationTool(server, graph, operations.health);
+  registerOperationTool(server, graph, operations.boundaries);
   registerOperationTool(server, graph, operations.highways);
   registerOperationTool(server, graph, operations.clusters);
   registerDerivedMapTool(
