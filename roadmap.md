@@ -160,6 +160,7 @@ Purpose: prove the CLI, MCP server, library outputs, docs, CI behavior, and agen
 | CH-P1-04 duplication families | As US-CLI-HUMAN, I can find duplicate logic with deterministic IDs. | Fixture exact clone + renamed clone + near-miss + below-threshold noise -> run CLI/MCP -> assert family IDs, thresholds, trace output, stable ordering, and no local-skip false positive. |
 | CH-P1-05 dead code expansion | As US-CLI-CI, I can gate unused files/types/members/deps without framework false positives. | Fixture unused file/type/member/dependency plus supported entrypoint -> run check JSON/SARIF -> assert real findings, confidence, and ignored entrypoint evidence. |
 | CH-P1-06 suppression hygiene | As US-MAINTAINER, suppressions do not hide stale debt forever. | Add active suppression -> assert finding suppressed and reported -> remove underlying finding -> assert stale suppression warning -> assert JSDoc `@public`/`@internal`/`@expected-unused` behavior. |
+| CH-P1-07 workspace dependency policy | As US-MONOREPO-MAINTAINER, dependency findings point at the package that owns the import. | Multi-package fixture -> run check JSON -> assert root/package manifests are scoped separately -> assert unlisted workspace imports, test-only deps, type-only deps, runtime devDeps, and unused deps with package evidence. |
 
 ### P2 Chains — Product Parity + Flagship Intelligence
 
@@ -328,12 +329,14 @@ Extend deletion intelligence beyond exported symbols.
 - Detect local unused type/interface declarations and exported dead types outside supported entrypoints.
 - Detect unused private class members and non-exported enum members.
 - Detect unused, unlisted, type-only, and test-only package dependencies.
+- Scope dependency hygiene to the nearest `package.json` / workspace manifest.
+- Detect runtime imports declared only in `devDependencies`.
 - Emit `kind`, `confidence`, and `evidence[]` in JSON and SARIF findings.
 - Add CH-P1-05 coverage for JSON/SARIF, supported package entrypoint ignore, and all four dead-code categories.
+- Add CH-P1-07 coverage for root/package manifest scoping, unlisted package imports, test-only deps, type-only deps, runtime devDeps, and package evidence.
 
 **Remaining:**
 
-- Add workspace/package-section dependency policy beyond single-package `package.json`.
 - Add CSS/template/framework plugin coverage only after `doctor` can explain supported surfaces.
 
 ### Suppression Hygiene

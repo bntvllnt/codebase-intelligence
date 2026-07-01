@@ -43,6 +43,15 @@ interface DependencyUse {
   isTestFile: boolean;
 }
 
+interface PackageManifest {
+  relPath: string;
+  dir: string;
+  name: string | null;
+  source: string;
+  data: Record<string, unknown>;
+  declarations: Map<string, DependencyDeclaration>;
+}
+
 interface ParsedSourceFacts {
   types: TypeDeclarationFact[];
   members: MemberDeclarationFact[];
@@ -185,72 +194,89 @@ function collectUnusedMemberFindings(ctx: RuleContext): ReportedFinding[] {
 }
 
 function collectDependencyFindings(ctx: RuleContext): ReportedFinding[] {
-  const packageJson = readPackageJson(ctx.rootDir);
-  const declarations = packageJson ? collectDependencyDeclarations(packageJson) : new Map<string, DependencyDeclaration>();
+  const manifests = collectPackageManifests(ctx);
   const uses = collectSourceFacts(ctx).flatMap((facts) => facts.dependencyUses);
-  const usesByPackage = groupUsesByPackage(uses);
+  const usesByManifest = groupUsesByManifest(uses, manifests);
   const ignored = new Set(ctx.config.ignore?.dependencies ?? []);
   const findings: ReportedFinding[] = [];
 
-  for (const [packageName, declaration] of [...declarations.entries()].sort(([left], [right]) => left.localeCompare(right))) {
-    if (ignored.has(packageName)) continue;
-    if (declaration.section !== "dependencies" && declaration.section !== "optionalDependencies") continue;
+  for (const manifest of manifests) {
+    const usesByPackage = usesByManifest.get(manifest) ?? new Map<string, DependencyUse[]>();
+    for (const [packageName, declaration] of [...manifest.declarations.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+      if (ignored.has(packageName)) continue;
 
-    const packageUses = usesByPackage.get(packageName) ?? [];
-    if (packageUses.length === 0) {
-      findings.push({
-        file: "package.json",
-        line: declaration.line,
-        column: 1,
-        kind: "unused-dependency",
-        confidence: "medium",
-        message: `Unused dependency: ${packageName}`,
-        evidence: [`declaredIn=${declaration.section}`, "imports=0"],
-      });
-      continue;
+      const packageUses = usesByPackage.get(packageName) ?? [];
+      if (declaration.section === "devDependencies" && packageUses.some((use) => !use.isTestFile && !use.isTypeOnly)) {
+        findings.push({
+          file: manifest.relPath,
+          line: declaration.line,
+          column: 1,
+          kind: "runtime-dev-dependency",
+          confidence: "high",
+          message: `Runtime import is declared in devDependencies: ${packageName}`,
+          evidence: [`package=${manifest.dir || "."}`, `declaredIn=${declaration.section}`, ...sampleUseEvidence(packageUses)],
+        });
+        continue;
+      }
+
+      if (declaration.section !== "dependencies" && declaration.section !== "optionalDependencies") continue;
+
+      if (packageUses.length === 0) {
+        findings.push({
+          file: manifest.relPath,
+          line: declaration.line,
+          column: 1,
+          kind: "unused-dependency",
+          confidence: "medium",
+          message: `Unused dependency: ${packageName}`,
+          evidence: [`package=${manifest.dir || "."}`, `declaredIn=${declaration.section}`, "imports=0"],
+        });
+        continue;
+      }
+
+      if (packageUses.every((use) => use.isTestFile)) {
+        findings.push({
+          file: manifest.relPath,
+          line: declaration.line,
+          column: 1,
+          kind: "test-only-dependency",
+          confidence: "medium",
+          message: `Dependency is only used from tests: ${packageName}`,
+          evidence: [`package=${manifest.dir || "."}`, `declaredIn=${declaration.section}`, ...sampleUseEvidence(packageUses)],
+        });
+        continue;
+      }
+
+      if (packageUses.every((use) => use.isTypeOnly)) {
+        findings.push({
+          file: manifest.relPath,
+          line: declaration.line,
+          column: 1,
+          kind: "type-only-dependency",
+          confidence: "medium",
+          message: `Dependency is only used as types: ${packageName}`,
+          evidence: [`package=${manifest.dir || "."}`, `declaredIn=${declaration.section}`, ...sampleUseEvidence(packageUses)],
+        });
+      }
     }
 
-    if (packageUses.every((use) => use.isTestFile)) {
-      findings.push({
-        file: "package.json",
-        line: declaration.line,
-        column: 1,
-        kind: "test-only-dependency",
-        confidence: "medium",
-        message: `Dependency is only used from tests: ${packageName}`,
-        evidence: [`declaredIn=${declaration.section}`, ...sampleUseEvidence(packageUses)],
-      });
-      continue;
-    }
+    for (const [packageName, packageUses] of [...usesByPackage.entries()].sort(([left], [right]) => left.localeCompare(right))) {
+      if (ignored.has(packageName)) continue;
+      if (manifest.declarations.has(packageName)) continue;
+      if (manifest.name === packageName) continue;
+      if (BUILTIN_PACKAGES.has(packageName)) continue;
+      const firstUse = packageUses[0];
 
-    if (packageUses.every((use) => use.isTypeOnly)) {
       findings.push({
-        file: "package.json",
-        line: declaration.line,
+        file: firstUse.file,
+        line: firstUse.line,
         column: 1,
-        kind: "type-only-dependency",
-        confidence: "medium",
-        message: `Dependency is only used as types: ${packageName}`,
-        evidence: [`declaredIn=${declaration.section}`, ...sampleUseEvidence(packageUses)],
+        kind: "unlisted-dependency",
+        confidence: "high",
+        message: `Unlisted dependency import: ${packageName}`,
+        evidence: [`package=${manifest.dir || "."}`, `specifier=${firstUse.specifier}`, "declared=false"],
       });
     }
-  }
-
-  for (const [packageName, packageUses] of [...usesByPackage.entries()].sort(([left], [right]) => left.localeCompare(right))) {
-    if (ignored.has(packageName)) continue;
-    if (declarations.has(packageName)) continue;
-    if (BUILTIN_PACKAGES.has(packageName)) continue;
-    const firstUse = packageUses[0];
-
-    findings.push({
-      file: firstUse.file,
-      line: firstUse.line,
-      column: 1,
-      kind: "unlisted-dependency",
-      confidence: "high",
-      message: `Unlisted dependency import: ${packageName}`,
-      evidence: [`specifier=${firstUse.specifier}`, "declared=false"],
-    });
   }
 
   return findings;
@@ -533,33 +559,94 @@ function collectDependencyDeclarations(packageJson: { source: string; data: Reco
   return declarations;
 }
 
-function groupUsesByPackage(uses: DependencyUse[]): Map<string, DependencyUse[]> {
-  const grouped = new Map<string, DependencyUse[]>();
+function collectPackageManifests(ctx: RuleContext): PackageManifest[] {
+  const relPaths = new Set<string>();
+  const hasRootManifest = fs.existsSync(path.join(ctx.rootDir, "package.json"));
+  if (hasRootManifest) relPaths.add("package.json");
+
+  for (const file of ctx.fileRelPaths) {
+    let dir = path.posix.dirname(normalizePath(file));
+    while (dir !== ".") {
+      const relPath = `${dir}/package.json`;
+      if (fs.existsSync(path.join(ctx.rootDir, relPath))) relPaths.add(relPath);
+      const parent = path.posix.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  }
+
+  const manifests = [...relPaths]
+    .sort((left, right) => left.localeCompare(right))
+    .map((relPath) => readPackageJson(ctx.rootDir, relPath))
+    .filter((manifest): manifest is PackageManifest => manifest !== null);
+
+  if (hasRootManifest) return manifests;
+  return [syntheticRootManifest(), ...manifests];
+}
+
+function syntheticRootManifest(): PackageManifest {
+  return {
+    relPath: "package.json",
+    dir: "",
+    name: null,
+    source: "{}",
+    data: {},
+    declarations: new Map(),
+  };
+}
+
+function readPackageJson(rootDir: string, relPath: string): PackageManifest | null {
+  try {
+    const source = fs.readFileSync(path.join(rootDir, relPath), "utf-8");
+    const parsed: unknown = JSON.parse(source);
+    if (!isRecord(parsed)) return null;
+    const name = typeof parsed.name === "string" ? parsed.name : null;
+    return {
+      relPath,
+      dir: path.posix.dirname(relPath) === "." ? "" : path.posix.dirname(relPath),
+      name,
+      source,
+      data: parsed,
+      declarations: collectDependencyDeclarations({ source, data: parsed }),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function groupUsesByManifest(uses: DependencyUse[], manifests: PackageManifest[]): Map<PackageManifest, Map<string, DependencyUse[]>> {
+  const grouped = new Map<PackageManifest, Map<string, DependencyUse[]>>();
   for (const use of uses) {
     if (BUILTIN_PACKAGES.has(use.packageName)) continue;
-    const existing = grouped.get(use.packageName) ?? [];
+    const manifest = manifestForFile(use.file, manifests);
+    const scoped = grouped.get(manifest) ?? new Map<string, DependencyUse[]>();
+    const existing = scoped.get(use.packageName) ?? [];
     existing.push(use);
-    grouped.set(use.packageName, existing);
+    scoped.set(use.packageName, existing);
+    grouped.set(manifest, scoped);
   }
   return grouped;
+}
+
+function manifestForFile(file: string, manifests: PackageManifest[]): PackageManifest {
+  const normalizedFile = normalizePath(file);
+  let best = manifests[0];
+  for (const manifest of manifests) {
+    if (manifest.dir === "") {
+      best = manifest;
+      continue;
+    }
+    if (normalizedFile === manifest.dir || normalizedFile.startsWith(`${manifest.dir}/`)) {
+      if (manifest.dir.length > best.dir.length) best = manifest;
+    }
+  }
+  return best;
 }
 
 function sampleUseEvidence(uses: DependencyUse[]): string[] {
   return uses
     .slice(0, 3)
     .map((use) => `usedIn=${use.file}:${String(use.line)}:${use.isTypeOnly ? "type" : "runtime"}`);
-}
-
-function readPackageJson(rootDir: string): { source: string; data: Record<string, unknown> } | null {
-  const packageJsonPath = path.join(rootDir, "package.json");
-  try {
-    const source = fs.readFileSync(packageJsonPath, "utf-8");
-    const parsed: unknown = JSON.parse(source);
-    if (!isRecord(parsed)) return null;
-    return { source, data: parsed };
-  } catch {
-    return null;
-  }
 }
 
 function entrypointReason(ctx: RuleContext, file: string, metrics: FileMetrics): string | null {
