@@ -387,17 +387,20 @@ entry ─► transform ─► validate ─► sink
 | `bypass` | Route that reaches a sink while skipping an existing canonical node |
 | `highway` | Approved canonical route for one `(operation, shape, sink)` inside a bounded scope |
 
-**To do:**
+**H1 slice:**
 
-- H1: classify operation verbs, enumerate entry-to-sink routes, detect cowpaths and bypasses.
-- H1: propose reroutes to existing canonical nodes.
+- H1 shipped: classify operation verbs, enumerate entry-to-sink routes, detect cowpaths and bypasses.
+- H1 shipped: propose reroutes to existing canonical nodes with route chains, blast radius, evidence, and context packs.
+- MCP shipped: add `analyze_highways`.
+- CLI shipped: add `highways <path>` with `--operation`, `--shape`, `--min-routes`, `--propose`, `--trace`, `--json`.
+- H1 shipped: every opportunity emits a token-budgeted context pack: summary, affected routes, evidence, blast radius, proposed canonical node, next safe command.
+
+**Remaining:**
+
 - H2: add type-shape grouping once Type/Shape layer lands.
 - H2: detect shape drift and near-duplicate intermediate steps.
 - H2: synthesize new highway proposals: name, location, signature, skeleton, cycle-safe reroute plan.
 - H3: add reuse hotspot metrics and cross-link opportunities into `forces` / `hotspots`.
-- MCP: add `analyze_highways`.
-- CLI: add `highways <path>` with `--operation`, `--shape`, `--min-routes`, `--propose`, `--trace`, `--json`.
-- Every opportunity should emit a token-budgeted context pack: summary, affected routes, evidence, blast radius, proposed canonical node, next safe command.
 
 ### Scope Graph + Codebase Map
 

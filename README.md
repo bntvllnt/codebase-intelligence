@@ -57,7 +57,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 ## Features
 
-- **19 CLI commands** for architecture analysis, dependency impact, duplicate families, improvement opportunities, dead code detection, search, CI rules, and agent setup
+- **20 CLI commands** for architecture analysis, dependency impact, duplicate families, Highways convergence, improvement opportunities, dead code detection, search, CI rules, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.codebase-intelligence/` for fast repeat queries
 - **Cache migration facts** in JSON (`cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`)
@@ -65,9 +65,10 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **Symbol-level analysis** — callers/callees, symbol importance, impact blast radius
 - **BM25 search** — ranked keyword search across files, symbols, and type/shape facts
 - **Process tracing** — detect entry points and execution flows through the call graph
+- **Highways analysis** — find repeated routes that bypass canonical dataflow paths
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
-- **MCP parity (secondary)** — same analysis and rules gate available as 18 MCP tools, 2 prompts, and 3 resources
+- **MCP parity (secondary)** — same analysis and rules gate available as 19 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
 
@@ -110,6 +111,7 @@ codebase-intelligence <command> <path> [options]
 | `impact` | Symbol-level blast radius |
 | `rename` | Reference discovery for rename planning |
 | `processes` | Entry-point execution flow tracing |
+| `highways` | Repeated route convergence and canonical path opportunities |
 | `clusters` | Community-detected file clusters |
 | `check` | Rules-engine gate for CI, including opt-in dead-code and dependency gates |
 | `init` | Set up AI agents to use CI — writes per-agent instruction files (skill opt-in via `--skill`) |
@@ -127,6 +129,8 @@ codebase-intelligence <command> <path> [options]
 | `--min-tokens <n>` | Minimum duplicate token size for `duplicates` |
 | `--skip-local` | Ignore duplicate families confined to one file |
 | `--trace <id>` | Return token evidence for one duplicate family |
+| `--operation <verb>` | Focus `highways` on one operation verb |
+| `--shape <name>` | Focus `highways` on one type/DTO shape |
 
 The scanner always excludes common generated and agent-workspace directories such as `.codebase-intelligence/`, legacy `.code-visualizer/`, `.next/`, `dist/`, `coverage/`, `.worktrees/`, and `.claude/worktrees/`.
 

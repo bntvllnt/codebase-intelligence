@@ -328,6 +328,14 @@ describe("operation registry chained parity", () => {
       cachedRun,
     );
     expectCliMatchesRegistry(
+      operations.highways,
+      { operation: "get", minRoutes: 2 },
+      ["highways", getFixtureSrcPath(), "--operation", "get", "--min-routes", "2"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
       operations.clusters,
       { minFiles: 2 },
       ["clusters", getFixtureSrcPath(), "--min-files", "2"],
@@ -445,6 +453,14 @@ describe("operation registry chained parity", () => {
       operations.processes,
       { entryPoint: "main", limit: 1 },
       ["processes", getFixtureSrcPath(), "--entry", "main", "--limit", "1"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.highways,
+      { operation: "get", minRoutes: 2 },
+      ["highways", getFixtureSrcPath(), "--operation", "get", "--min-routes", "2"],
       codebaseGraph,
       {},
       cachedRun,
@@ -706,6 +722,13 @@ describe("operation registry chained parity", () => {
       operations.processes,
       { entryPoint: "main", limit: 1 },
       { entryPoint: "main", limit: 1 },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.highways,
+      { operation: "get", minRoutes: 2 },
+      { operation: "get", minRoutes: 2 },
       codebaseGraph,
       mcp,
     );

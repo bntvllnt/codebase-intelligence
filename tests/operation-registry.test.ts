@@ -38,6 +38,7 @@ const expectedOperations: Array<{
   { name: "impact", cliCommand: "impact", mcpTool: "impact_analysis", inputKeys: ["symbol"], sampleInput: { symbol: "getUserById" } },
   { name: "rename", cliCommand: "rename", mcpTool: "rename_symbol", inputKeys: ["oldName", "newName", "dryRun"], sampleInput: { oldName: "getUserById", newName: "findUserById" } },
   { name: "processes", cliCommand: "processes", mcpTool: "get_processes", inputKeys: ["entryPoint", "limit"], sampleInput: { entryPoint: "main" } },
+  { name: "highways", cliCommand: "highways", mcpTool: "analyze_highways", inputKeys: ["operation", "shape", "minRoutes", "propose", "trace"], sampleInput: { operation: "create", minRoutes: 2 } },
   { name: "clusters", cliCommand: "clusters", mcpTool: "get_clusters", inputKeys: ["minFiles"], sampleInput: { minFiles: 2 } },
 ];
 

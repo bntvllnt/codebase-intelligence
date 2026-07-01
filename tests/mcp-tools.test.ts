@@ -411,7 +411,19 @@ describe("Tool 15: get_processes", () => {
   });
 });
 
-describe("Tool 16: get_clusters", () => {
+describe("Tool 16: analyze_highways", () => {
+  it("returns highway opportunities envelope", async () => {
+    const r = await callTool("analyze_highways", { operation: "get", minRoutes: 2 });
+    expect(r).toHaveProperty("totalRoutes");
+    expect(r).toHaveProperty("totalSinks");
+    expect(r).toHaveProperty("totalOpportunities");
+    expect(r).toHaveProperty("opportunities");
+    expect(r).toHaveProperty("nextSteps");
+    expect(Array.isArray(r.opportunities)).toBe(true);
+  });
+});
+
+describe("Tool 17: get_clusters", () => {
   it("returns community-detected clusters", async () => {
     const r = await callTool("get_clusters");
     expect(r).toHaveProperty("clusters");
@@ -486,6 +498,7 @@ describe("MCP Resources", () => {
     expect((setup.availableTools as string[]).length).toBe(operationList.length + 1);
     expect(setup.availableTools as string[]).toContain("find_opportunities");
     expect(setup.availableTools as string[]).toContain("find_duplicates");
+    expect(setup.availableTools as string[]).toContain("analyze_highways");
     expect(setup.availableTools as string[]).toContain("check");
   });
 });

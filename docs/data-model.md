@@ -1,6 +1,6 @@
 # Data Model
 
-All types defined in `src/types/index.ts`. This is the single source of truth.
+Core graph types are defined in `src/types/index.ts`. Feature result envelopes live beside their analyzer modules.
 
 ## Parser Output
 
@@ -168,6 +168,68 @@ CacheFacts {
   migrated: boolean         // true when legacy-only cache moved this run
   gitignoreUpdated: boolean // true when init --gitignore wrote/updated .gitignore
   warnings: string[]        // Non-fatal legacy/cache state warnings
+}
+```
+
+## Highways Result
+
+`highways --json` and MCP `analyze_highways` return deterministic route-convergence opportunities.
+
+```typescript
+HighwaysResult {
+  totalRoutes: number
+  totalSinks: number
+  totalOpportunities: number
+  operation?: string
+  shape?: string
+  minRoutes: number
+  opportunities: HighwayOpportunity[]
+  trace?: {
+    id: string
+    found: boolean
+    opportunity?: HighwayOpportunity
+  }
+  summary: string
+}
+
+HighwayOpportunity {
+  id: string                         // hwy-<kind>-<stable hash>
+  kind: "bypass" | "cowpath"
+  operation: string
+  shape?: string
+  sink: HighwayStep
+  canonicalNode: HighwayStep
+  routes: HighwayRoute[]             // all routes reaching the sink
+  bypassRoutes: HighwayRoute[]       // routes missing canonicalNode
+  duplicatedCallees?: HighwayStep[]  // cowpath overlap with canonical node callees
+  evidence: string[]
+  blastRadius: number
+  recommendation: string
+  contextPack: {
+    summary: string
+    affectedRoutes: string[]
+    evidence: string[]
+    blastRadius: number
+    proposedCanonicalNode: HighwayStep
+    nextSafeCommand: string
+  }
+}
+
+HighwayRoute {
+  id: string
+  operation: string
+  shape?: string
+  entryPoint: HighwayStep
+  sink: HighwayStep
+  steps: HighwayStep[]
+  includesCanonical: boolean
+  confidence: "type-resolved" | "text-inferred"
+}
+
+HighwayStep {
+  id: string
+  file: string
+  symbol: string
 }
 ```
 

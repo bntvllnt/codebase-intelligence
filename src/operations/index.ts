@@ -21,6 +21,7 @@ import {
   renameSymbol,
 } from "../core/index.js";
 import { DUPLICATION_MODES } from "../duplication/index.js";
+import { computeHighways } from "../highways/index.js";
 import type { CodebaseGraph } from "../types/index.js";
 import {
   formatChangesText,
@@ -31,6 +32,7 @@ import {
   formatFileContextText,
   formatForcesText,
   formatGroupsText,
+  formatHighwaysText,
   formatHotspotsText,
   formatImpactText,
   formatModuleStructureText,
@@ -59,6 +61,7 @@ export const operationNames = [
   "impact",
   "rename",
   "processes",
+  "highways",
   "clusters",
 ] as const;
 
@@ -157,6 +160,14 @@ const processesInputShape = {
   limit: z.number().int().positive().optional().describe("Max processes to return (default: all)"),
 } satisfies z.ZodRawShape;
 const processesInputSchema = z.object(processesInputShape).strict();
+const highwaysInputShape = {
+  operation: z.string().min(1).optional().describe("Operation verb to focus on, such as create, update, or validate"),
+  shape: z.string().min(1).optional().describe("Type/DTO shape to focus on"),
+  minRoutes: z.number().int().positive().optional().describe("Minimum routes reaching a sink before reporting (default: 2)"),
+  propose: z.boolean().optional().describe("Include reroute proposal metadata (default: false)"),
+  trace: z.string().min(1).optional().describe("Return route evidence for one highway opportunity id"),
+} satisfies z.ZodRawShape;
+const highwaysInputSchema = z.object(highwaysInputShape).strict();
 const clustersInputShape = {
   minFiles: z.number().int().positive().optional().describe("Filter clusters with at least N files (default: 0)"),
 } satisfies z.ZodRawShape;
@@ -178,6 +189,7 @@ type ChangesInput = z.infer<typeof changesInputSchema>;
 type ImpactInput = z.infer<typeof impactInputSchema>;
 type RenameInput = z.infer<typeof renameInputSchema>;
 type ProcessesInput = z.infer<typeof processesInputSchema>;
+type HighwaysInput = z.infer<typeof highwaysInputSchema>;
 type ClustersInput = z.infer<typeof clustersInputSchema>;
 
 export const operations = {
@@ -344,6 +356,16 @@ export const operations = {
     run: (graph: CodebaseGraph, input: ProcessesInput) => computeProcesses(graph, input.entryPoint, input.limit),
     formatText: formatProcessesText,
   } satisfies Operation<ProcessesInput, ReturnType<typeof computeProcesses>>,
+  highways: {
+    name: "highways",
+    cliCommand: "highways",
+    mcpTool: "analyze_highways",
+    description: "Detect repeated entry-to-sink routes that should converge on one canonical operation path. Finds bypass and cowpath routes with route chains, blast radius, evidence, and a safe reroute context pack. Use when: enforcing dataflow discipline, finding ad-hoc routes, or planning canonical shared paths. Not for: generic process traces (use get_processes)",
+    inputShape: highwaysInputShape,
+    inputSchema: highwaysInputSchema,
+    run: (graph: CodebaseGraph, input: HighwaysInput) => computeHighways(graph, input),
+    formatText: formatHighwaysText,
+  } satisfies Operation<HighwaysInput, ReturnType<typeof computeHighways>>,
   clusters: {
     name: "clusters",
     cliCommand: "clusters",
