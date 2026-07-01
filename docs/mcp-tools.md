@@ -184,9 +184,9 @@ Community-detected clusters of related files.
 Run the configurable rules engine and gate on findings.
 
 **Input:** `{}` (uses the loaded graph + discovered config)
-**Returns:** `{ verdict: "pass"|"warn"|"fail", summary: { error, warn, rules }, configPath, findings[] }`. Each finding has ruleId, severity, file, line, column, message, fingerprint, and optional advisory `actions[]` (the tool is read-only — actions are hints, never applied).
+**Returns:** `{ verdict: "pass"|"warn"|"fail", summary: { error, warn, rules }, configPath, findings[] }`. Each finding has ruleId, severity, file, line, column, message, fingerprint, optional `kind`, optional `confidence`, optional `evidence[]`, and optional advisory `actions[]` (the tool is read-only — actions are hints, never applied).
 
-Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn). Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
+Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn), and opt-in cleanup gates `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
 
 **Use when:** Linting a codebase or enforcing a CI gate. "What rule violations exist?"
 **Not for:** Architecture metrics (use analyze_forces).

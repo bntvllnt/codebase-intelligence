@@ -360,6 +360,7 @@ export interface CodebaseIntelligenceConfig {
 }
 
 export type ActionKind = "remove-comment";
+export type FindingConfidence = "high" | "medium" | "low";
 
 export interface FindingAction {
   kind: ActionKind;
@@ -371,12 +372,15 @@ export interface FindingAction {
 export interface Finding {
   ruleId: string;
   severity: FindingSeverity;
+  kind?: string;
+  confidence?: FindingConfidence;
   file: string;
   line: number;
   column: number;
   endLine?: number;
   endColumn?: number;
   message: string;
+  evidence?: string[];
   actions?: FindingAction[];
   fingerprint: string;
 }

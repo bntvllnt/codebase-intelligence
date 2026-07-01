@@ -170,3 +170,26 @@ CacheFacts {
   warnings: string[]        // Non-fatal legacy/cache state warnings
 }
 ```
+
+## Check Findings
+
+`check --json` and MCP `check` return deterministic findings. `kind`, `confidence`,
+and `evidence` are additive fields for rules that can explain cleanup confidence.
+
+```typescript
+Finding {
+  ruleId: string
+  severity: "warn" | "error"
+  kind?: string
+  confidence?: "high" | "medium" | "low"
+  file: string
+  line: number
+  column: number
+  endLine?: number
+  endColumn?: number
+  message: string
+  evidence?: string[]
+  actions?: FindingAction[]
+  fingerprint: string
+}
+```

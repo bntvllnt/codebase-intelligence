@@ -192,7 +192,9 @@ codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on
 
 **Gate modes:** `all` (default), `new-only`.
 
-**Output:** pass/warn/fail verdict, findings, and summary counts. Exit code `0` on pass, `1` when the configured gate fails, `2` for invalid config or arguments.
+**Output:** pass/warn/fail verdict, findings, and summary counts. Findings include stable `fingerprint`; cleanup findings may also include `kind`, `confidence`, and `evidence`. Exit code `0` on pass, `1` when the configured gate fails, `2` for invalid config or arguments.
+
+**Rules:** `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn), plus opt-in cleanup gates: `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Configure severities in `codebase-intelligence.json`.
 
 ### init
 
