@@ -270,15 +270,16 @@ Collapse CLI + MCP operation duplication into one descriptor registry before add
 - Reuse registry descriptors and input shapes in MCP tool registration.
 - Route MCP operation success/error envelopes through `runOperation(...)` while preserving existing `nextSteps` and `isError` contracts.
 - Add MCP registry parity coverage for representative operation descriptor runs.
+- Reuse registry schemas in CLI coercion.
+- Move CLI failures over descriptor-level validation errors.
+- Add CLI registry parity coverage for representative descriptor runs and invalid input.
 
 **Remaining:**
 
-- Reuse registry schemas in CLI coercion.
-- Move CLI failures over descriptor-level validation errors.
 - Use one graph-load pipeline with progress callbacks.
 - Move text/SARIF/markdown formatting over result objects into formatters.
-- Expand CH-P1-01 from overview/representative MCP operations to every operation.
-- Add CH-P1-02 coverage for success, invalid input, parse failure, and cache reuse through registry adapters.
+- Expand CH-P1-01 from overview/representative CLI/MCP operations to every operation.
+- Expand CH-P1-02 coverage from CLI invalid input to success, parse failure, and cache reuse through every registry adapter.
 
 ### Type/Shape Layer
 

@@ -28,7 +28,7 @@ Core (shared computation)
   | result builders used by MCP, CLI, and operation descriptors
   |\
   | \-> Operation Registry
-  |     typed descriptors, input schemas, MCP adapter, result wrappers
+  |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers
   v
 MCP (stdio) + CLI
   | MCP: 17 tools, 2 prompts, 3 resources for LLM agents
@@ -81,7 +81,7 @@ runOperation(operation, codebaseGraph, input, context)
 ## Key Design Decisions
 
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
-- **Operation registry foundation**: Analysis operations have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. MCP tool registration consumes those descriptors; CLI commands still call `src/core/` directly until the CLI adapter migration lands.
+- **Operation registry foundation**: Analysis operations have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. MCP tool registration and CLI command execution consume those descriptors; CLI text formatting still lives in `src/cli.ts` until the formatter migration lands.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports.
 - **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.

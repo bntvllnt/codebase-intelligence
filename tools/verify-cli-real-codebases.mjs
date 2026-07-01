@@ -424,13 +424,13 @@ record("init: temp repo", () => {
 
 record("invalid hotspot metric exits 2", () => {
   const result = run(["hotspots", ".", "--metric", "nope", "--json"], [2]);
-  if (!result.stderr.includes("--metric must be one of")) throw new Error("missing metric error");
+  if (!result.stderr.includes("metric: Invalid enum value")) throw new Error("missing metric error");
   return "exit 2";
 });
 
 record("invalid changes scope exits 2", () => {
   const result = run(["changes", ".", "--scope", "nope", "--json"], [2]);
-  if (!result.stderr.includes("--scope must be one of")) throw new Error("missing scope error");
+  if (!result.stderr.includes("scope: Invalid enum value")) throw new Error("missing scope error");
   return "exit 2";
 });
 

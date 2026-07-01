@@ -609,7 +609,7 @@ describe("CLI core commands (integration)", () => {
       );
 
       expect(result.status).toBe(2);
-      expect(result.stderr).toContain("Error: --metric must be one of:");
+      expect(result.stderr).toContain("Error: metric: Invalid enum value");
       expect(result.stderr).not.toContain("Parsing");
     });
 
@@ -621,7 +621,7 @@ describe("CLI core commands (integration)", () => {
       );
 
       expect(result.status).toBe(2);
-      expect(result.stderr).toContain("Error: --scope must be one of:");
+      expect(result.stderr).toContain("Error: scope: Invalid enum value");
       expect(result.stderr).not.toContain("Parsing");
     });
   });
