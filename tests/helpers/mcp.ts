@@ -5,13 +5,14 @@ import { registerTools } from "../../src/mcp/index.js";
 import { setGraph, setIndexedHead, setRoot } from "../../src/server/graph-store.js";
 import { getFixturePipeline, getFixtureSrcPath } from "./pipeline.js";
 
-export interface ToolPayload {
+interface ToolPayload {
   payload: Record<string, unknown>;
   isError: boolean;
 }
 
 export interface FixtureMcp {
   listTools(): Promise<string[]>;
+  listToolMetadata(): Promise<Array<{ name: string; inputSchema: unknown }>>;
   callTool(name: string, args?: Record<string, unknown>): Promise<Record<string, unknown>>;
   callToolWithMeta(name: string, args?: Record<string, unknown>): Promise<ToolPayload>;
 }
@@ -58,6 +59,13 @@ export async function createFixtureMcp(rootDir = getFixtureSrcPath()): Promise<F
     async listTools(): Promise<string[]> {
       const result = await client.listTools();
       return result.tools.map((tool) => tool.name);
+    },
+    async listToolMetadata(): Promise<Array<{ name: string; inputSchema: unknown }>> {
+      const result = await client.listTools();
+      return result.tools.map((tool) => ({
+        name: tool.name,
+        inputSchema: tool.inputSchema,
+      }));
     },
     async callTool(name: string, args: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
       const result = await client.callTool({ name, arguments: args });

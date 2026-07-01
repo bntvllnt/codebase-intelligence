@@ -447,3 +447,4 @@ Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, and summary
 - **JSON mode**: `--json` outputs stable JSON schema to stdout.
 - **Exit codes**: 0 = success, 1 = runtime error, 2 = bad args/usage.
 - **MCP mode**: `codebase-intelligence <path>` (no subcommand) starts MCP stdio server.
+- **MCP operation errors**: Invalid operation inputs return `isError: true` with JSON text `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.

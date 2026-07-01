@@ -99,6 +99,24 @@ describe("operation registry", () => {
     expect(await mcp.listTools()).toEqual([...operationList.map((operation) => operation.mcpTool), "check"]);
   });
 
+  it("keeps MCP operation input fields discoverable while registry validation owns errors", async () => {
+    const mcp = await createFixtureMcp();
+    const tools = await mcp.listToolMetadata();
+    const hotspots = tools.find((tool) => tool.name === "find_hotspots");
+
+    expect(hotspots?.inputSchema).toMatchObject({
+      type: "object",
+      properties: {
+        metric: {
+          enum: expect.arrayContaining(["coupling", "blast_radius"]),
+        },
+        limit: {
+          type: "integer",
+        },
+      },
+    });
+  });
+
   it("keeps registry-adapted MCP lookup errors in the existing envelope", async () => {
     const mcp = await createFixtureMcp();
     const result = await mcp.callToolWithMeta("impact_analysis", { symbol: "MissingSymbol" });
