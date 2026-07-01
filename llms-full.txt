@@ -31,8 +31,8 @@ Core (shared computation)
   |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers, text formatters
   v
 MCP (stdio) + CLI
-  | MCP: 19 tools, 2 prompts, 3 resources for LLM agents
-  | CLI: 20 commands with formatted + JSON output for humans/CI
+  | MCP: 22 tools, 2 prompts, 3 resources for LLM agents
+  | CLI: 21 commands with formatted + JSON output for humans/CI
 ```
 
 ## Module Map
@@ -51,8 +51,9 @@ src/
   operations/formatters.ts <- Result-object text formatters for CLI commands
   parser/duplication.ts <- Function-body clone token extraction
   duplication/index.ts <- Duplicate family detection + trace evidence
+  map/index.ts         <- Focused codebase maps + token-bounded context packs
   highways/index.ts    <- Repeated route convergence + bypass/cowpath/synthesis evidence
-  mcp/index.ts         <- 19 MCP tools for LLM integration
+  mcp/index.ts         <- 22 MCP tools for LLM integration
   mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
@@ -213,6 +214,53 @@ ModuleMetrics {
 
 Graph stats include `analysisMode` (`full-program` or `ast-only`), `callGraphPrecision` (`type-resolved` or `syntax-only`), and `fullProgramFileLimit`. In `ast-only` mode, file/import/export/dependency metrics remain available while type-resolved call graph detail is reduced.
 
+## Codebase Map Result
+
+`map --json`, MCP `get_codebase_map`, `get_scope_graph`, and `get_context_pack`
+return deterministic graph/context data with stable IDs.
+
+```typescript
+CodebaseMapResult {
+  overview: { focus?: string; scope?: string; depth: number; contextBudget: number; totalNodes: number; totalEdges: number; totalEvidence: number }
+  focus?: CodebaseMapNode
+  nodes: CodebaseMapNode[]
+  edges: CodebaseMapEdge[]
+  evidence: CodebaseMapEvidence[]
+  contextPack: CodebaseContextPack
+  summary: string
+}
+
+CodebaseMapNode {
+  id: string
+  kind: "file" | "symbol" | "test" | "scope"
+  label: string
+  file?: string
+  symbol?: string
+  score: number
+  evidenceIds: string[]
+}
+
+CodebaseMapEdge {
+  id: string
+  kind: "calls" | "contains" | "imports" | "tests"
+  from: string
+  to: string
+  label: string
+  weight: number
+  evidenceIds: string[]
+}
+
+CodebaseContextPack {
+  tokenBudget: number
+  tokenEstimate: number
+  rankedFiles: Array<{ path: string; rank: number; reason: string; tokenEstimate: number; evidenceIds: string[] }>
+  rankedSymbols: Array<{ file: string; symbol: string; rank: number; reason: string; tokenEstimate: number; evidenceIds: string[] }>
+  tests: Array<{ path: string; covers: string; rank: number; reason: string; tokenEstimate: number; evidenceIds: string[] }>
+  evidenceIds: string[]
+  nextCommands: string[]
+}
+```
+
 ---
 
 # Metrics Reference
@@ -262,7 +310,7 @@ The most dangerous files have: high churn + high coupling + low coverage.
 
 # MCP Tools Reference
 
-19 tools available via MCP stdio.
+22 tools available via MCP stdio.
 
 ## 1. codebase_overview
 High-level summary. Input: `{ depth?: number }`. Returns: totalFiles, totalFunctions, modules, topDependedFiles, metrics, and analysis mode/call graph precision.
@@ -312,13 +360,22 @@ Reference finder for rename planning. Input: `{ oldName: string, newName: string
 ## 16. get_processes
 Entry point execution flows. Input: `{ entryPoint?: string, limit?: number }`. Returns: processes with steps and depth.
 
-## 17. analyze_highways
+## 17. get_codebase_map
+Focused codebase graph. Input: `{ focus?: string, scope?: string, depth?: number, format?: "json" | "markdown" | "dot" | "graphml", contextBudget?: number }`. Returns: overview, focus node, nodes, edges, evidence, contextPack, summary.
+
+## 18. get_scope_graph
+File/scope/test topology from the same map result. Input: same as `get_codebase_map`. Returns: overview, focus node, file/test/scope nodes, imports/tests edges, evidence, summary.
+
+## 19. get_context_pack
+Token-bounded context pack from the same map result. Input: same as `get_codebase_map`. Returns: tokenBudget, tokenEstimate, rankedFiles, rankedSymbols, tests, evidenceIds, nextCommands.
+
+## 20. analyze_highways
 Repeated route convergence. Input: `{ operation?: string, shape?: string, minRoutes?: number, propose?: boolean, trace?: string }`. Returns: bypass/cowpath/synthesis opportunities with route chains, evidence, blast radius, proposed canonical node, optional synthesis proposal, and context pack.
 
-## 18. get_clusters
+## 21. get_clusters
 Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clusters with cohesion.
 
-## 19. check
+## 22. check
 Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppression ledger, config path, and summary counts. Findings always include ruleId, severity, file, line, column, message, and fingerprint; cleanup findings may also include kind, confidence, and evidence. Suppressions include directive, active/stale status, file, line, targetLine, ruleIds, and suppressed count.
 
 ## Tool Selection Guide
@@ -342,6 +399,8 @@ Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppr
 | What changed? | detect_changes |
 | Find all references to X | rename_symbol |
 | How does data flow? | get_processes |
+| What context should I give an LLM for this task? | get_context_pack |
+| Show a focused codebase graph | get_codebase_map |
 | Which routes bypass canonical dataflow? | analyze_highways |
 | What files naturally belong together? | get_clusters |
 | What rule violations exist? | check |
@@ -350,7 +409,7 @@ Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppr
 
 # CLI Reference
 
-20 commands — 18 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
+21 commands — 19 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
 
 ## Commands
 
@@ -449,6 +508,12 @@ Find all references for rename planning (read-only by default).
 codebase-intelligence processes <path> [--entry <name>] [--limit <n>] [--json] [--force]
 ```
 Entry point execution flows through the call graph.
+
+### map
+```bash
+codebase-intelligence map <path> [--focus <symbolOrFile>] [--scope <scope>] [--depth <n>] [--format <format>] [--context-budget <n>] [--json] [--force]
+```
+Focused codebase graph plus token-bounded context pack. Formats: markdown, json, dot, graphml.
 
 ### highways
 ```bash

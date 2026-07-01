@@ -8,6 +8,7 @@ import type { CodebaseGraph } from "../types/index.js";
 const require = createRequire(import.meta.url);
 const pkg = require("../../package.json") as { version: string };
 import { getHintsForOperation } from "./hints.js";
+import type { CodebaseMapEdge, CodebaseMapEvidence, CodebaseMapNode, CodebaseMapResult } from "../map/index.js";
 import { getIndexedHead, getRoot } from "../server/graph-store.js";
 import { runCheck } from "../rules/check.js";
 import { formatJson } from "../rules/format.js";
@@ -18,6 +19,8 @@ import {
   runOperation,
   type Operation,
 } from "../operations/index.js";
+
+export const extraMcpTools = ["get_scope_graph", "get_context_pack"] as const;
 
 interface OperationToolOptions<TResult> {
   successPayload?: (data: TResult) => unknown;
@@ -93,6 +96,66 @@ function registerOperationTool<TInput extends object, TResult>(
   );
 }
 
+function evidenceForMapSubset(
+  evidence: readonly CodebaseMapEvidence[],
+  nodes: readonly CodebaseMapNode[],
+  edges: readonly CodebaseMapEdge[],
+): CodebaseMapEvidence[] {
+  const evidenceIds = new Set<string>();
+  for (const node of nodes) {
+    for (const id of node.evidenceIds) evidenceIds.add(id);
+  }
+  for (const edge of edges) {
+    for (const id of edge.evidenceIds) evidenceIds.add(id);
+  }
+  return evidence.filter((item) => evidenceIds.has(item.id));
+}
+
+function scopeGraphPayload(result: CodebaseMapResult): Record<string, unknown> {
+  const nodes = result.nodes.filter((node) => node.kind === "file" || node.kind === "test" || node.kind === "scope");
+  const nodeIds = new Set(nodes.map((node) => node.id));
+  const edges = result.edges.filter((edge) =>
+    (edge.kind === "imports" || edge.kind === "tests")
+    && nodeIds.has(edge.from)
+    && nodeIds.has(edge.to)
+  );
+  return {
+    overview: result.overview,
+    focus: result.focus,
+    nodes,
+    edges,
+    evidence: evidenceForMapSubset(result.evidence, result.focus ? [...nodes, result.focus] : nodes, edges),
+    summary: `Scope graph for ${result.overview.focus ?? result.overview.scope ?? "overview"}: ${nodes.length} nodes, ${edges.length} edges.`,
+  };
+}
+
+function registerDerivedMapTool(
+  server: McpServer,
+  graph: CodebaseGraph,
+  name: typeof extraMcpTools[number],
+  description: string,
+  payload: (result: CodebaseMapResult) => unknown,
+): void {
+  server.registerTool(
+    name,
+    {
+      description,
+      inputSchema: mcpInputSchema(operations.codebaseMap),
+    },
+    async (rawInput) => {
+      const parsed = parseOperationInput(operations.codebaseMap, rawInput);
+      if (!parsed.ok) return jsonToolResult({ error: parsed.error }, true);
+
+      const result = runOperation(operations.codebaseMap, graph, parsed.data, { rootDir: getRoot() });
+      if (!result.ok) return jsonToolResult(errorPayload(result), true);
+
+      const computed = payload(result.data);
+      if (!isRecord(computed)) return jsonToolResult(computed);
+      return jsonToolResult({ ...computed, nextSteps: getHintsForOperation("codebaseMap") });
+    },
+  );
+}
+
 /** Register all MCP tools on a server instance. Shared by stdio and HTTP transports. */
 export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   registerOperationTool(server, graph, operations.overview);
@@ -115,8 +178,23 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   registerOperationTool(server, graph, operations.impact);
   registerOperationTool(server, graph, operations.rename);
   registerOperationTool(server, graph, operations.processes);
+  registerOperationTool(server, graph, operations.codebaseMap);
   registerOperationTool(server, graph, operations.highways);
   registerOperationTool(server, graph, operations.clusters);
+  registerDerivedMapTool(
+    server,
+    graph,
+    "get_scope_graph",
+    "Return the file/scope view from a focused codebase map: nodes, imports/tests edges, evidence, and next steps. Use when an agent needs graph topology without symbol details.",
+    scopeGraphPayload,
+  );
+  registerDerivedMapTool(
+    server,
+    graph,
+    "get_context_pack",
+    "Return only the token-bounded context pack from a focused codebase map. Use before sending compact code context to an LLM.",
+    (result) => result.contextPack,
+  );
 
   // MCP Prompts
   server.prompt(
@@ -187,7 +265,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
         totalFiles: graph.stats.totalFiles,
         totalFunctions: graph.stats.totalFunctions,
         modules: [...graph.moduleMetrics.keys()],
-        availableTools: [...operationList.map((operation) => operation.mcpTool), "check"],
+        availableTools: [...operationList.map((operation) => operation.mcpTool), ...extraMcpTools, "check"],
         indexedHead,
         gettingStarted: [
           "Call codebase_overview for a high-level map",

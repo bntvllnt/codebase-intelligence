@@ -171,6 +171,72 @@ CacheFacts {
 }
 ```
 
+## Codebase Map Result
+
+`map --json`, MCP `get_codebase_map`, `get_scope_graph`, and `get_context_pack`
+return deterministic graph/context data with stable evidence IDs.
+
+```typescript
+CodebaseMapResult {
+  overview: {
+    focus?: string
+    scope?: string
+    depth: number
+    contextBudget: number
+    totalNodes: number
+    totalEdges: number
+    totalEvidence: number
+  }
+  focus?: CodebaseMapNode
+  nodes: CodebaseMapNode[]
+  edges: CodebaseMapEdge[]
+  evidence: CodebaseMapEvidence[]
+  contextPack: CodebaseContextPack
+  summary: string
+}
+
+CodebaseMapNode {
+  id: string
+  kind: "file" | "symbol" | "test" | "scope"
+  label: string
+  file?: string
+  symbol?: string
+  type?: string
+  loc?: number
+  module?: string
+  score: number
+  evidenceIds: string[]
+}
+
+CodebaseMapEdge {
+  id: string                 // edge-<stable hash>
+  kind: "calls" | "contains" | "imports" | "tests"
+  from: string
+  to: string
+  label: string
+  weight: number
+  evidenceIds: string[]
+}
+
+CodebaseMapEvidence {
+  id: string                 // evidence-<stable hash>
+  kind: "focus" | "metric" | "call" | "contains" | "import" | "test" | "scope"
+  summary: string
+  file?: string
+  symbol?: string
+}
+
+CodebaseContextPack {
+  tokenBudget: number
+  tokenEstimate: number
+  rankedFiles: Array<{ path: string; rank: number; reason: string; tokenEstimate: number; evidenceIds: string[] }>
+  rankedSymbols: Array<{ file: string; symbol: string; rank: number; reason: string; tokenEstimate: number; evidenceIds: string[] }>
+  tests: Array<{ path: string; covers: string; rank: number; reason: string; tokenEstimate: number; evidenceIds: string[] }>
+  evidenceIds: string[]
+  nextCommands: string[]
+}
+```
+
 ## Highways Result
 
 `highways --json` and MCP `analyze_highways` return deterministic route-convergence opportunities.

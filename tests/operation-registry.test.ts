@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { computeOverview } from "../src/core/index.js";
 import { getHints, getHintsForOperation } from "../src/mcp/hints.js";
+import { extraMcpTools } from "../src/mcp/index.js";
 import {
   getOperation,
   getOperationByCliCommand,
@@ -38,6 +39,7 @@ const expectedOperations: Array<{
   { name: "impact", cliCommand: "impact", mcpTool: "impact_analysis", inputKeys: ["symbol"], sampleInput: { symbol: "getUserById" } },
   { name: "rename", cliCommand: "rename", mcpTool: "rename_symbol", inputKeys: ["oldName", "newName", "dryRun"], sampleInput: { oldName: "getUserById", newName: "findUserById" } },
   { name: "processes", cliCommand: "processes", mcpTool: "get_processes", inputKeys: ["entryPoint", "limit"], sampleInput: { entryPoint: "main" } },
+  { name: "codebaseMap", cliCommand: "map", mcpTool: "get_codebase_map", inputKeys: ["focus", "scope", "depth", "format", "contextBudget"], sampleInput: { focus: "getUserById", depth: 1, contextBudget: 420 } },
   { name: "highways", cliCommand: "highways", mcpTool: "analyze_highways", inputKeys: ["operation", "shape", "minRoutes", "propose", "trace"], sampleInput: { operation: "create", minRoutes: 2 } },
   { name: "clusters", cliCommand: "clusters", mcpTool: "get_clusters", inputKeys: ["minFiles"], sampleInput: { minFiles: 2 } },
 ];
@@ -100,7 +102,7 @@ describe("operation registry", () => {
 
   it("registers MCP tools from the operation registry plus check", async () => {
     const mcp = await createFixtureMcp();
-    expect(await mcp.listTools()).toEqual([...operationList.map((operation) => operation.mcpTool), "check"]);
+    expect(await mcp.listTools()).toEqual([...operationList.map((operation) => operation.mcpTool), ...extraMcpTools, "check"]);
   });
 
   it("keeps MCP operation input fields discoverable while registry validation owns errors", async () => {

@@ -202,6 +202,14 @@ interface ProcessesOptions extends CliCommandOptions {
   limit?: string;
 }
 
+interface CodebaseMapOptions extends CliCommandOptions {
+  focus?: string;
+  scope?: string;
+  depth?: string;
+  format?: string;
+  contextBudget?: string;
+}
+
 interface HighwaysOptions extends CliCommandOptions {
   operation?: string;
   shape?: string;
@@ -649,6 +657,38 @@ program
     }
 
     outputOperationText(operations.processes, result, input);
+  });
+
+// ── Subcommand: map ────────────────────────────────────────
+
+program
+  .command("map")
+  .description("Focused codebase graph plus token-bounded context pack")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--focus <symbolOrFile>", "Symbol, file, or scope to focus on")
+  .option("--scope <scope>", "Directory/module scope to include")
+  .option("--depth <n>", "Graph traversal depth (default: 1)")
+  .option("--format <format>", "Output format: markdown, json, dot, or graphml")
+  .option("--context-budget <n>", "Approximate context pack token budget (default: 1200)")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: CodebaseMapOptions) => {
+    const input = parseCliOperationInput(operations.codebaseMap, {
+      focus: options.focus,
+      scope: options.scope,
+      depth: optionalIntegerInput(options.depth),
+      format: options.format,
+      contextBudget: optionalIntegerInput(options.contextBudget),
+    });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.codebaseMap, graph, input);
+
+    if (options.json || input.format === "json") {
+      outputJson(result);
+      return;
+    }
+
+    outputOperationText(operations.codebaseMap, result, input);
   });
 
 // ── Subcommand: highways ───────────────────────────────────
