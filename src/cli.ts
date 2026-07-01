@@ -32,27 +32,12 @@ import {
   type IndexDirectoryResolution,
 } from "./persistence/index-dir.js";
 import {
-  computeOverview,
-  computeFileContext,
-  computeHotspots,
-  HOTSPOT_METRICS,
-  isHotspotMetric,
-  computeSearch,
-  computeChanges,
-  CHANGE_SCOPES,
-  isChangeScope,
-  computeDependents,
-  computeModuleStructure,
-  computeForces,
-  computeDeadExports,
-  computeOpportunities,
-  computeGroups,
-  computeSymbolContext,
-  computeProcesses,
-  computeClusters,
-  impactAnalysis,
-  renameSymbol,
-} from "./core/index.js";
+  operations,
+  parseOperationInput,
+  runOperation,
+  type Operation,
+  type OperationRunResult,
+} from "./operations/index.js";
 import {
   installRepoFiles,
   installGlobalSkill,
@@ -107,6 +92,52 @@ function isJsonObject(data: unknown): data is Record<string, unknown> {
 function outputJson(data: unknown): void {
   const payload = activeCacheFacts && isJsonObject(data) ? { ...data, cache: activeCacheFacts } : data;
   process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+}
+
+function optionalIntegerInput(value: string | undefined): unknown {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : value;
+}
+
+function optionalNumberInput(value: string | undefined): unknown {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? value : parsed;
+}
+
+function printOperationError(result: { error: string; data?: unknown }): never {
+  process.stderr.write(`Error: ${result.error}\n`);
+  if (isJsonObject(result.data) && Array.isArray(result.data.suggestions) && result.data.suggestions.length > 0) {
+    process.stderr.write(`\nDid you mean:\n`);
+    for (const suggestion of result.data.suggestions) {
+      process.stderr.write(`  ${suggestion}\n`);
+    }
+  }
+  process.exit(1);
+}
+
+function parseCliOperationInput<TInput extends object>(
+  operation: Operation<TInput, unknown>,
+  input: unknown,
+): TInput {
+  const parsed = parseOperationInput(operation, input);
+  if (!parsed.ok) {
+    process.stderr.write(`Error: ${parsed.error}\n`);
+    process.exit(2);
+  }
+  return parsed.data;
+}
+
+function runCliOperation<TInput extends object, TResult>(
+  operation: Operation<TInput, TResult>,
+  graph: CodebaseGraph,
+  input: TInput,
+  context = {},
+): TResult {
+  const result: OperationRunResult<TResult> = runOperation(operation, graph, input, context);
+  if (!result.ok) printOperationError(result);
+  return result.data;
 }
 
 /** Load (or parse+cache) the codebase graph for a target path. */
@@ -262,8 +293,9 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: CliCommandOptions) => {
+    const input = parseCliOperationInput(operations.overview, {});
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const result = computeOverview(graph);
+    const result = runCliOperation(operations.overview, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -306,18 +338,12 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: HotspotOptions) => {
-    const metric = options.metric ?? "coupling";
-    if (!isHotspotMetric(metric)) {
-      process.stderr.write(`Error: --metric must be one of: ${HOTSPOT_METRICS.join(", ")}\n`);
-      process.exit(2);
-    }
-    const limit = options.limit ? parseInt(options.limit, 10) : 10;
-    if (isNaN(limit) || limit < 1) {
-      process.stderr.write("Error: --limit must be a positive integer\n");
-      process.exit(2);
-    }
+    const input = parseCliOperationInput(operations.hotspots, {
+      metric: options.metric ?? "coupling",
+      limit: optionalIntegerInput(options.limit),
+    });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const result = computeHotspots(graph, metric, limit);
+    const result = runCliOperation(operations.hotspots, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -349,19 +375,10 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, filePath: string, options: CliCommandOptions) => {
+    const input = parseCliOperationInput(operations.fileContext, { filePath });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const result = computeFileContext(graph, filePath);
-
-    if ("error" in result) {
-      process.stderr.write(`Error: ${result.error}\n`);
-      if (result.suggestions.length > 0) {
-        process.stderr.write(`\nDid you mean:\n`);
-        for (const s of result.suggestions) {
-          process.stderr.write(`  ${s}\n`);
-        }
-      }
-      process.exit(1);
-    }
+    const result = runCliOperation(operations.fileContext, graph, input);
+    if ("error" in result) printOperationError({ error: result.error, data: result });
 
     if (options.json) {
       outputJson(result);
@@ -428,13 +445,12 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, query: string, options: SearchOptions) => {
+    const input = parseCliOperationInput(operations.search, {
+      query,
+      limit: options.limit === undefined ? 20 : optionalIntegerInput(options.limit),
+    });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const limit = options.limit ? parseInt(options.limit, 10) : 20;
-    if (isNaN(limit) || limit < 1) {
-      process.stderr.write("Error: --limit must be a positive integer\n");
-      process.exit(2);
-    }
-    const result = computeSearch(graph, query, limit);
+    const result = runCliOperation(operations.search, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -469,20 +485,10 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: ChangesOptions) => {
-    const scope = options.scope;
-    if (scope !== undefined) {
-      if (!isChangeScope(scope)) {
-        process.stderr.write(`Error: --scope must be one of: ${CHANGE_SCOPES.join(", ")}\n`);
-        process.exit(2);
-      }
-    }
+    const input = parseCliOperationInput(operations.changes, { scope: options.scope });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const result = computeChanges(graph, scope, path.resolve(targetPath));
-
-    if ("error" in result) {
-      process.stderr.write(`Error: ${result.error}\n`);
-      process.exit(1);
-    }
+    const result = runCliOperation(operations.changes, graph, input, { rootDir: path.resolve(targetPath) });
+    if ("error" in result) printOperationError({ error: result.error, data: result });
 
     if (options.json) {
       outputJson(result);
@@ -542,18 +548,13 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, filePath: string, options: DependentsOptions) => {
+    const input = parseCliOperationInput(operations.dependents, {
+      filePath,
+      depth: optionalIntegerInput(options.depth),
+    });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const depth = options.depth ? parseInt(options.depth, 10) : undefined;
-    if (depth !== undefined && (isNaN(depth) || depth < 1)) {
-      process.stderr.write("Error: --depth must be a positive integer\n");
-      process.exit(2);
-    }
-    const result = computeDependents(graph, filePath, depth);
-
-    if ("error" in result) {
-      process.stderr.write(`Error: ${result.error}\n`);
-      process.exit(1);
-    }
+    const result = runCliOperation(operations.dependents, graph, input);
+    if ("error" in result) printOperationError({ error: result.error, data: result });
 
     if (options.json) {
       outputJson(result);
@@ -591,8 +592,9 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: CliCommandOptions) => {
+    const input = parseCliOperationInput(operations.moduleStructure, {});
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const result = computeModuleStructure(graph);
+    const result = runCliOperation(operations.moduleStructure, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -638,11 +640,13 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: ForcesOptions) => {
+    const input = parseCliOperationInput(operations.forces, {
+      cohesionThreshold: optionalNumberInput(options.cohesion),
+      tensionThreshold: optionalNumberInput(options.tension),
+      escapeThreshold: optionalNumberInput(options.escape),
+    });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const cohesion = options.cohesion ? parseFloat(options.cohesion) : undefined;
-    const tension = options.tension ? parseFloat(options.tension) : undefined;
-    const escape = options.escape ? parseFloat(options.escape) : undefined;
-    const result = computeForces(graph, cohesion, tension, escape);
+    const result = runCliOperation(operations.forces, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -735,13 +739,12 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: DeadExportsOptions) => {
+    const input = parseCliOperationInput(operations.deadExports, {
+      module: options.module,
+      limit: optionalIntegerInput(options.limit),
+    });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const limit = options.limit ? parseInt(options.limit, 10) : undefined;
-    if (limit !== undefined && (isNaN(limit) || limit < 1)) {
-      process.stderr.write("Error: --limit must be a positive integer\n");
-      process.exit(2);
-    }
-    const result = computeDeadExports(graph, options.module, limit);
+    const result = runCliOperation(operations.deadExports, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -774,13 +777,11 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: OpportunitiesOptions) => {
+    const input = parseCliOperationInput(operations.opportunities, {
+      limit: optionalIntegerInput(options.limit),
+    });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const limit = options.limit ? parseInt(options.limit, 10) : undefined;
-    if (limit !== undefined && (isNaN(limit) || limit < 1)) {
-      process.stderr.write("Error: --limit must be a positive integer\n");
-      process.exit(2);
-    }
-    const result = computeOpportunities(graph, limit);
+    const result = runCliOperation(operations.opportunities, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -812,8 +813,9 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: CliCommandOptions) => {
+    const input = parseCliOperationInput(operations.groups, {});
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const result = computeGroups(graph);
+    const result = runCliOperation(operations.groups, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -841,13 +843,10 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, symbolName: string, options: CliCommandOptions) => {
+    const input = parseCliOperationInput(operations.symbolContext, { name: symbolName });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const result = computeSymbolContext(graph, symbolName);
-
-    if ("error" in result) {
-      process.stderr.write(`Error: ${result.error}\n`);
-      process.exit(1);
-    }
+    const result = runCliOperation(operations.symbolContext, graph, input);
+    if ("error" in result) printOperationError({ error: result.error, data: result });
 
     if (options.json) {
       outputJson(result);
@@ -893,13 +892,9 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, symbol: string, options: CliCommandOptions) => {
+    const input = parseCliOperationInput(operations.impact, { symbol });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const result = impactAnalysis(graph, symbol);
-
-    if (result.notFound) {
-      process.stderr.write(`Error: Symbol not found: ${symbol}\n`);
-      process.exit(1);
-    }
+    const result = runCliOperation(operations.impact, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -933,9 +928,10 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, oldName: string, newName: string, options: RenameOptions) => {
-    const { graph } = loadGraph(targetPath, forceOption(options));
     const dryRun = options.dryRun !== false;
-    const result = renameSymbol(graph, oldName, newName, dryRun);
+    const input = parseCliOperationInput(operations.rename, { oldName, newName, dryRun });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.rename, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -967,13 +963,12 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: ProcessesOptions) => {
+    const input = parseCliOperationInput(operations.processes, {
+      entryPoint: options.entry,
+      limit: optionalIntegerInput(options.limit),
+    });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const limit = options.limit ? parseInt(options.limit, 10) : undefined;
-    if (limit !== undefined && (isNaN(limit) || limit < 1)) {
-      process.stderr.write("Error: --limit must be a positive integer\n");
-      process.exit(2);
-    }
-    const result = computeProcesses(graph, options.entry, limit);
+    const result = runCliOperation(operations.processes, graph, input);
 
     if (options.json) {
       outputJson(result);
@@ -1008,13 +1003,11 @@ program
   .option("--json", "Output as JSON")
   .option("--force", "Re-index even if HEAD unchanged")
   .action((targetPath: string, options: ClustersOptions) => {
+    const input = parseCliOperationInput(operations.clusters, {
+      minFiles: optionalIntegerInput(options.minFiles),
+    });
     const { graph } = loadGraph(targetPath, forceOption(options));
-    const minFiles = options.minFiles ? parseInt(options.minFiles, 10) : undefined;
-    if (minFiles !== undefined && (isNaN(minFiles) || minFiles < 1)) {
-      process.stderr.write("Error: --min-files must be a positive integer\n");
-      process.exit(2);
-    }
-    const result = computeClusters(graph, minFiles);
+    const result = runCliOperation(operations.clusters, graph, input);
 
     if (options.json) {
       outputJson(result);

@@ -1,5 +1,4 @@
 import { spawnSync, execSync } from "node:child_process";
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
@@ -65,6 +64,12 @@ function withoutNextSteps(payload: Record<string, unknown>): Record<string, unkn
   return normalized;
 }
 
+function withoutCache(payload: Record<string, unknown>): Record<string, unknown> {
+  const normalized = { ...payload };
+  delete normalized.cache;
+  return normalized;
+}
+
 async function expectMcpMatchesRegistry<TInput extends object, TResult>(
   operation: Operation<TInput, TResult>,
   input: TInput,
@@ -80,8 +85,8 @@ async function expectMcpMatchesRegistry<TInput extends object, TResult>(
   expect(withoutNextSteps(mcpPayload)).toEqual(registryResult.data);
 }
 
-function runCliOverview(): Record<string, unknown> {
-  const res = spawnSync("node", [cli, "overview", getFixtureSrcPath(), "--json", "--force"], {
+function runCliJson(args: string[]): Record<string, unknown> {
+  const res = spawnSync("node", [cli, ...args, "--json", "--force"], {
     cwd: repoRoot,
     env: { ...process.env },
     encoding: "utf-8",
@@ -92,8 +97,22 @@ function runCliOverview(): Record<string, unknown> {
   return parseJsonObject(res.stdout);
 }
 
+function expectCliMatchesRegistry<TInput extends object, TResult>(
+  operation: Operation<TInput, TResult>,
+  input: TInput,
+  cliArgs: string[],
+  graph: CodebaseGraph,
+): void {
+  const registryResult = runOperation(operation, graph, input);
+  expect(registryResult.ok).toBe(true);
+  if (!registryResult.ok) throw new Error(registryResult.error);
+
+  const cliPayload = runCliJson(cliArgs);
+  expect(withoutCache(cliPayload)).toEqual(registryResult.data);
+}
+
 beforeAll(() => {
-  if (!fs.existsSync(cli)) execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
+  execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
 }, 120_000);
 
 describe("operation registry chained parity", () => {
@@ -103,7 +122,7 @@ describe("operation registry chained parity", () => {
     expect(registryResult.ok).toBe(true);
     if (!registryResult.ok) throw new Error(registryResult.error);
 
-    const cliPayload = runCliOverview();
+    const cliPayload = runCliJson(["overview", getFixtureSrcPath()]);
     expect(cliPayload).toHaveProperty("cache");
 
     const mcp = await createFixtureMcp();
@@ -113,6 +132,41 @@ describe("operation registry chained parity", () => {
     const registryOverview = normalizeOverviewResult(registryResult.data);
     expect(normalizeOverviewPayload(cliPayload)).toEqual(registryOverview);
     expect(normalizeOverviewPayload(mcpPayload)).toEqual(registryOverview);
+  });
+
+  it("CH-P1-01: registry-adapted CLI JSON commands match descriptor runs", () => {
+    const { codebaseGraph } = getFixturePipeline();
+
+    expectCliMatchesRegistry(
+      operations.fileContext,
+      { filePath: "index.ts" },
+      ["file", getFixtureSrcPath(), "index.ts"],
+      codebaseGraph,
+    );
+    expectCliMatchesRegistry(
+      operations.hotspots,
+      { metric: "coupling", limit: 3 },
+      ["hotspots", getFixtureSrcPath(), "--metric", "coupling", "--limit", "3"],
+      codebaseGraph,
+    );
+    expectCliMatchesRegistry(
+      operations.impact,
+      { symbol: "getUserById" },
+      ["impact", getFixtureSrcPath(), "getUserById"],
+      codebaseGraph,
+    );
+  });
+
+  it("CH-P1-02: CLI invalid input uses descriptor validation before indexing", () => {
+    const res = spawnSync("node", [cli, "hotspots", getFixtureSrcPath(), "--metric", "bad", "--json"], {
+      cwd: repoRoot,
+      env: { ...process.env },
+      encoding: "utf-8",
+    });
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("Error: metric: Invalid enum value");
+    expect(res.stderr).not.toContain("Parsing");
   });
 
   it("CH-P1-01: registry-adapted MCP tools match descriptor runs", async () => {
