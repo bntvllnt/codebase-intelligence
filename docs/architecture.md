@@ -7,7 +7,7 @@ CLI (commander)
   |
   v
 Parser (TS Compiler API)
-  | extracts: files, exports, imports, LOC, complexity, churn, test mapping
+  | extracts: files, exports, symbols, type facts, imports, LOC, complexity, churn, test mapping
   v
 Graph Builder (graphology)
   | creates: nodes (file + function), edges (imports with symbols/weights)
@@ -34,8 +34,10 @@ MCP (stdio)                    CLI (terminal/CI)
 ```
 src/
   types/index.ts       <- ALL interfaces (single source of truth)
-  parser/index.ts      <- TS AST extraction + git churn + test detection
-  graph/index.ts       <- graphology graph + circular dep detection
+  parser/index.ts      <- Parse orchestration + imports/exports/call sites + git churn/test detection
+  parser/type-facts.ts <- Type signatures, parameters, consumed/produced shape facts
+  parser/symbols.ts    <- Symbol inventory + symbol complexity
+  graph/index.ts       <- graphology graph + symbol/type graph + circular dep detection
   analyzer/index.ts    <- All metric computation
   graph-loader/index.ts <- Shared parse/build/analyze/cache pipeline + progress events
   core/index.ts        <- Shared result computation (MCP + CLI)
@@ -65,7 +67,7 @@ loadCodebaseGraph(rootDir)
   -> otherwise emits progress events through parse/build/analyze/cache
 
 parseCodebase(rootDir)
-  -> ParsedFile[] (with churn, complexity, test mapping)
+  -> ParsedFile[] (with churn, complexity, test mapping, symbol type facts)
 
 buildGraph(parsedFiles)
   -> BuiltGraph { graph: Graph, nodes: GraphNode[], edges: GraphEdge[] }
@@ -88,6 +90,7 @@ runOperation(operation, codebaseGraph, input, context)
 
 - **Dual interface**: MCP stdio for LLM agents, CLI subcommands for humans/CI. Both consume `src/core/`.
 - **Operation registry foundation**: Analysis operations now have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, discriminated run results, and result-object text formatters. MCP tool registration and CLI command execution consume those descriptors; CLI JSON remains raw result data plus cache facts.
+- **Type/Shape facts**: Full-program parsing stores compact parameter/return/type-parameter facts on parsed symbols. `file`, `symbol`, and `search` JSON expose those facts additively; search indexes consumed/produced shape tokens so agents can ask which symbols touch a shape without a new command.
 - **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
@@ -102,8 +105,8 @@ runOperation(operation, codebaseGraph, input, context)
 
 Vertical slice through all layers:
 
-1. **types/index.ts** — Add field to `FileMetrics` (and `ParsedFile`/`ParsedExport` if extracted at parse time)
-2. **parser/index.ts** — Extract raw data from AST or external source (git, filesystem)
+1. **types/index.ts** — Add field to `FileMetrics`, `ParsedFile` / `ParsedExport`, or `SymbolTypeFacts` if extracted at parse time
+2. **parser/index.ts / parser/type-facts.ts / parser/symbols.ts** — Extract raw data from AST or external source (git, filesystem)
 3. **analyzer/index.ts** — Compute derived metric, store in `fileMetrics` map
 4. **operations/index.ts / operations/formatters.ts** — Add or update the operation descriptor, input schema, text formatter, and CLI/MCP mapping
 5. **mcp/index.ts / cli.ts** — Expose via existing adapter or new command/tool

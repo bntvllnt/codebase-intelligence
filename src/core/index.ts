@@ -1,6 +1,6 @@
 import { execSync } from "node:child_process";
 import path from "node:path";
-import type { AnalysisMode, CallGraphPrecision, CodebaseGraph } from "../types/index.js";
+import type { AnalysisMode, CallGraphPrecision, CodebaseGraph, SymbolTypeFacts } from "../types/index.js";
 import { createSearchIndex, search, getSuggestions } from "../search/index.js";
 import type { SearchIndex } from "../search/index.js";
 import { impactAnalysis, renameSymbol } from "../impact/index.js";
@@ -147,7 +147,7 @@ export function computeOverview(graph: CodebaseGraph): OverviewResult {
 export interface FileContextResult {
   path: string;
   loc: number;
-  exports: Array<{ name: string; type: string; loc: number }>;
+  exports: Array<{ name: string; type: string; loc: number; typeFacts?: SymbolTypeFacts }>;
   imports: Array<{ from: string; symbols: string[]; isTypeOnly: boolean; weight: number }>;
   dependents: Array<{ path: string; symbols: string[]; isTypeOnly: boolean; weight: number }>;
   metrics: {
@@ -191,9 +191,9 @@ export function computeFileContext(
 
   const nodeById = buildNodeById(graph);
   const node = nodeById.get(filePath);
-  const fileExports = graph.nodes
-    .filter((n) => n.parentFile === filePath)
-    .map((n) => ({ name: n.label, type: n.type, loc: n.loc }));
+  const fileExports = graph.symbolNodes
+    .filter((symbol) => symbol.file === filePath && symbol.isExported !== false)
+    .map((symbol) => ({ name: symbol.name, type: symbol.type, loc: symbol.loc, typeFacts: symbol.typeFacts }));
 
   const imports = graph.edges
     .filter((e) => e.source === filePath)
@@ -352,7 +352,7 @@ export function computeHotspots(
 export interface SearchResultEntry {
   file: string;
   score: number;
-  symbols: Array<{ name: string; type: string; loc: number; relevance: number }>;
+  symbols: Array<{ name: string; type: string; loc: number; relevance: number; typeFacts?: SymbolTypeFacts }>;
 }
 
 export interface SearchResult {
@@ -382,6 +382,7 @@ export function computeSearch(
       type: s.type,
       loc: s.loc,
       relevance: s.score,
+      typeFacts: s.typeFacts,
     })),
   }));
 
@@ -1036,6 +1037,7 @@ export function computeGroups(graph: CodebaseGraph): GroupsResult {
 export interface SymbolContextResult {
   name: string; file: string; type: string; loc: number;
   isDefault: boolean; complexity: number;
+  typeFacts?: SymbolTypeFacts;
   fanIn: number; fanOut: number; pageRank: number; betweenness: number;
   callers: Array<{ symbol: string; file: string; confidence: string }>;
   callees: Array<{ symbol: string; file: string; confidence: string }>;
@@ -1069,6 +1071,7 @@ export function computeSymbolContext(
     name: sym.name, file: sym.file,
     type: symNode?.type ?? "function", loc: symNode?.loc ?? 0,
     isDefault: symNode?.isDefault ?? false, complexity: symNode?.complexity ?? 0,
+    typeFacts: symNode?.typeFacts,
     fanIn: sym.fanIn, fanOut: sym.fanOut,
     pageRank: Math.round(sym.pageRank * 10000) / 10000,
     betweenness: Math.round(sym.betweenness * 10000) / 10000,

@@ -22,7 +22,7 @@ CLI mode (humans/CI) — 18 commands (16 analysis with MCP parity + `check` + `i
 codebase-intelligence overview ./src
 codebase-intelligence hotspots ./src --metric coupling
 codebase-intelligence file ./src parser/index.ts
-codebase-intelligence search ./src "auth"
+codebase-intelligence search ./src "auth"             # keyword or type/shape query
 codebase-intelligence changes ./src --json
 codebase-intelligence dependents ./src types.ts --depth 3
 codebase-intelligence modules ./src

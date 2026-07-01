@@ -34,7 +34,7 @@ codebase-intelligence file <path> <file> [--json] [--force]
 
 `<file>` is relative to the codebase root (e.g., `parser/index.ts`).
 
-**Output:** LOC, exports, imports, dependents, all FileMetrics. Error: prints top 3 similar path suggestions.
+**Output:** LOC, exports (including additive `typeFacts` when known), imports, dependents, all FileMetrics. Error: prints top 3 similar path suggestions.
 
 ### search
 
@@ -44,7 +44,7 @@ BM25 keyword search.
 codebase-intelligence search <path> <query> [--limit <n>] [--json] [--force]
 ```
 
-**Output:** Ranked results grouped by file, with symbol name, type, LOC, and relevance score.
+**Output:** Ranked results grouped by file, with symbol name, type, LOC, relevance score, and additive `typeFacts` when known. Type facts are indexed, so shape names like `CreateUserInput` find producers/consumers.
 
 ### changes
 
@@ -124,7 +124,7 @@ Function/class context with callers and callees.
 codebase-intelligence symbol <path> <name> [--json] [--force]
 ```
 
-**Output:** symbol metadata, fan-in/out, PageRank, betweenness, callers, callees.
+**Output:** symbol metadata, additive `typeFacts` when known, fan-in/out, PageRank, betweenness, callers, callees.
 
 ### impact
 

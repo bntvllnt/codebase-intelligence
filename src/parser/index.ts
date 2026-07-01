@@ -2,7 +2,24 @@ import ts from "typescript";
 import path from "path";
 import fs from "fs";
 import { execFileSync } from "child_process";
-import type { ParsedFile, ParsedExport, ParsedImport, CallSite } from "../types/index.js";
+import type {
+  CallSite,
+  ParsedExport,
+  ParsedFile,
+  ParsedImport,
+} from "../types/index.js";
+import {
+  canHaveDeclarationTypeFacts,
+  declarationTypeFactsFromChecker,
+  declarationTypeFactsFromSyntax,
+  nodeLocation,
+} from "./type-facts.js";
+import {
+  computeComplexity,
+  extractSymbols,
+  extractSymbolsSyntax,
+  getExportType,
+} from "./symbols.js";
 
 interface PathAlias {
   pattern: string;
@@ -298,10 +315,11 @@ function parseFile(sourceFile: ts.SourceFile, checker: ts.TypeChecker | undefine
   const relativePath = path.relative(rootDir, filePath);
   const loc = sourceFile.getEnd() === 0 ? 0 : sourceFile.getLineAndCharacterOfPosition(sourceFile.getEnd() - 1).line + 1;
   const exports = checker ? extractExports(sourceFile, checker) : extractExportsSyntax(sourceFile);
+  const symbols = checker ? extractSymbols(sourceFile, checker) : extractSymbolsSyntax(sourceFile);
   const imports = extractImports(sourceFile, aliases);
   const callSites = checker ? extractCallSites(sourceFile, checker, rootDir) : [];
 
-  return { path: filePath, relativePath, loc, exports, imports, callSites, churn: 0, isTestFile: false };
+  return { path: filePath, relativePath, loc, exports, symbols, imports, callSites, churn: 0, isTestFile: false };
 }
 
 function extractExports(sourceFile: ts.SourceFile, checker: ts.TypeChecker): ParsedExport[] {
@@ -331,15 +349,15 @@ function extractExports(sourceFile: ts.SourceFile, checker: ts.TypeChecker): Par
     const isLocal = declSourceFile.fileName === sourceFile.fileName;
 
     const exportType = getExportType(decl);
-    const startLine = declSourceFile.getLineAndCharacterOfPosition(decl.getStart()).line;
-    const endLine = declSourceFile.getLineAndCharacterOfPosition(decl.getEnd()).line;
+    const { loc } = nodeLocation(declSourceFile, decl);
 
     exports.push({
       name: exportName,
       type: exportType,
-      loc: isLocal ? endLine - startLine + 1 : 1,
+      loc: isLocal ? loc : 1,
       isDefault: exportName === "default",
       complexity: isLocal ? computeComplexity(decl) : 0,
+      typeFacts: declarationTypeFactsFromChecker(exportName, decl, checker),
     });
   }
 
@@ -358,14 +376,14 @@ function extractExportsSyntax(sourceFile: ts.SourceFile): ParsedExport[] {
     if (seen.has(name)) return;
     seen.add(name);
 
-    const startLine = sourceFile.getLineAndCharacterOfPosition(node.getStart()).line;
-    const endLine = sourceFile.getLineAndCharacterOfPosition(node.getEnd()).line;
+    const { loc } = nodeLocation(sourceFile, node);
     exports.push({
       name,
       type,
-      loc: endLine - startLine + 1,
+      loc,
       isDefault,
       complexity: computeComplexity(node),
+      typeFacts: canHaveDeclarationTypeFacts(node) ? declarationTypeFactsFromSyntax(name, node) : undefined,
     });
   }
 
@@ -416,23 +434,6 @@ function extractExportsSyntax(sourceFile: ts.SourceFile): ParsedExport[] {
   });
 
   return exports;
-}
-
-function getExportType(node: ts.Declaration): ParsedExport["type"] {
-  if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node)) {
-    return "function";
-  }
-  if (ts.isClassDeclaration(node)) return "class";
-  if (ts.isInterfaceDeclaration(node)) return "interface";
-  if (ts.isTypeAliasDeclaration(node)) return "type";
-  if (ts.isEnumDeclaration(node)) return "enum";
-  if (ts.isVariableDeclaration(node)) {
-    const init = node.initializer;
-    if (init && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
-      return "function";
-    }
-  }
-  return "variable";
 }
 
 function extractImports(sourceFile: ts.SourceFile, aliases: PathAlias[]): ParsedImport[] {
@@ -635,35 +636,6 @@ function resolveExistingModulePath(basePath: string): string | null {
     if (fs.existsSync(candidate)) return candidate;
   }
   return null;
-}
-
-function computeComplexity(node: ts.Node): number {
-  let branches = 1;
-  function visit(n: ts.Node): void {
-    if (
-      ts.isIfStatement(n) ||
-      ts.isConditionalExpression(n) ||
-      ts.isCaseClause(n) ||
-      ts.isCatchClause(n) ||
-      ts.isForStatement(n) ||
-      ts.isForInStatement(n) ||
-      ts.isForOfStatement(n) ||
-      ts.isWhileStatement(n) ||
-      ts.isDoStatement(n)
-    ) {
-      branches++;
-    }
-    if (ts.isBinaryExpression(n)) {
-      if (n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
-          n.operatorToken.kind === ts.SyntaxKind.BarBarToken ||
-          n.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
-        branches++;
-      }
-    }
-    ts.forEachChild(n, visit);
-  }
-  ts.forEachChild(node, visit);
-  return branches;
 }
 
 function getGitChurn(rootDir: string): Map<string, number> {

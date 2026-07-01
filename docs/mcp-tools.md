@@ -19,7 +19,7 @@ High-level summary of the entire codebase.
 Detailed context for a single file.
 
 **Input:** `{ filePath: string }` (relative path)
-**Returns:** path, loc, exports, imports (with symbols, isTypeOnly, weight), dependents (with symbols, isTypeOnly, weight), metrics (all FileMetrics including churn, complexity, blastRadius, deadExports, totalExports, package-entrypoint metadata, hasTests, testFile)
+**Returns:** path, loc, exports (with additive `typeFacts` when known), imports (with symbols, isTypeOnly, weight), dependents (with symbols, isTypeOnly, weight), metrics (all FileMetrics including churn, complexity, blastRadius, deadExports, totalExports, package-entrypoint metadata, hasTests, testFile)
 
 **Path normalization:** Backslashes are normalized to forward slashes. The exact graph path is tried first; if not found, common prefixes (`src/`, `lib/`, `app/`) are stripped once from the leading position and retried. If the file is not found, the error includes up to 3 suggested similar paths.
 
@@ -104,7 +104,7 @@ Top-level directory groups with aggregate metrics.
 Callers, callees, and importance metrics for a function, class, or method.
 
 **Input:** `{ name: string }` (e.g., 'AuthService', 'getUserById')
-**Returns:** name, file, type, loc, isDefault, complexity, fanIn, fanOut, pageRank, betweenness, callers (with confidence), callees (with confidence)
+**Returns:** name, file, type, loc, isDefault, complexity, additive `typeFacts` when known, fanIn, fanOut, pageRank, betweenness, callers (with confidence), callees (with confidence)
 
 **Use when:** "Who calls X?" "Trace this function." "What depends on this symbol?"
 **Not for:** Text search (use search) or file-level dependencies (use get_dependents).
@@ -114,7 +114,7 @@ Callers, callees, and importance metrics for a function, class, or method.
 Search files and symbols by keyword.
 
 **Input:** `{ query: string, limit?: number }` (default limit: 20)
-**Returns:** ranked results grouped by file with symbol names, types, LOC, and relevance scores. Suggests alternatives on empty results.
+**Returns:** ranked results grouped by file with symbol names, types, LOC, relevance scores, and additive `typeFacts` when known. Type facts are indexed, so shape names can find symbols that consume or produce that shape. Suggests alternatives on empty results.
 
 **Use when:** "Find files related to auth." "Where is getUserById defined?"
 **Not for:** Structured call graph queries (use symbol_context).

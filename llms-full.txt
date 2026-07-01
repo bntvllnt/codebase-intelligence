@@ -40,8 +40,10 @@ MCP (stdio) + CLI
 ```
 src/
   types/index.ts       <- ALL interfaces (single source of truth)
-  parser/index.ts      <- TS AST extraction + git churn + test detection
-  graph/index.ts       <- graphology graph + circular dep detection
+  parser/index.ts      <- Parse orchestration + imports/exports/call sites + git churn/test detection
+  parser/type-facts.ts <- Type signatures, parameters, consumed/produced shape facts
+  parser/symbols.ts    <- Symbol inventory + symbol complexity
+  graph/index.ts       <- graphology graph + symbol/type graph + circular dep detection
   analyzer/index.ts    <- All metric computation
   graph-loader/index.ts <- Shared parse/build/analyze/cache pipeline + progress events
   core/index.ts        <- Shared result computation (MCP + CLI)
@@ -109,6 +111,7 @@ ParsedFile {
   relativePath: string    // Relative to root (used as graph node ID)
   loc: number             // Lines of code
   exports: ParsedExport[] // Named exports
+  symbols?: ParsedSymbol[] // Exported/local symbols with type facts
   imports: ParsedImport[] // Relative imports (external skipped)
   churn: number           // Git commit count (0 if non-git)
   isTestFile: boolean     // Matches *.test.ts / *.spec.ts / __tests__/
@@ -121,6 +124,21 @@ ParsedExport {
   loc: number             // Lines of code for this export
   isDefault: boolean
   complexity: number      // Cyclomatic complexity (branch count, min 1)
+  typeFacts?: SymbolTypeFacts
+}
+
+ParsedSymbol extends ParsedExport {
+  isExported: boolean
+}
+
+SymbolTypeFacts {
+  signature: string
+  parameters: Array<{ name: string, type: string, optional: boolean, rest: boolean }>
+  returnType?: string
+  typeParameters: Array<{ name: string, constraint?: string, default?: string }>
+  consumes: string[]
+  produces: string[]
+  confidence: "resolved" | "syntax"
 }
 
 ParsedImport {
@@ -271,10 +289,10 @@ Rank code quality and refactoring opportunities. Input: `{ limit?: number }`. Re
 Top-level directory groups. Input: `{}`. Returns: groups with rank, files, loc, importance, coupling.
 
 ## 10. symbol_context
-Function/class context. Input: `{ name: string }`. Returns: callers, callees, metrics.
+Function/class/method context. Input: `{ name: string }`. Returns: callers, callees, metrics, additive typeFacts when known.
 
 ## 11. search
-Keyword search (BM25). Input: `{ query: string, limit?: number }`. Returns: ranked files + symbols.
+Keyword/search shape facts (BM25). Input: `{ query: string, limit?: number }`. Returns: ranked files + symbols with additive typeFacts when known.
 
 ## 12. detect_changes
 Git diff analysis. Input: `{ scope?: "staged" | "unstaged" | "all" }`. Returns: changed files, affected files, risk metrics.
@@ -347,7 +365,7 @@ Detailed file context: exports, imports, dependents, all metrics.
 ```bash
 codebase-intelligence search <path> <query> [--limit <n>] [--json] [--force]
 ```
-BM25 keyword search across files and symbols.
+BM25 keyword search across files, symbols, and type/shape facts.
 
 ### changes
 ```bash
