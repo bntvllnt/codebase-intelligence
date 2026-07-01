@@ -1,6 +1,6 @@
 import Graph from "graphology";
 import path from "path";
-import type { ParsedFile, GraphNode, GraphEdge, CallEdge, SymbolNode } from "../types/index.js";
+import type { ParsedFile, GraphNode, GraphEdge, CallEdge, SymbolNode, ParsedSymbol } from "../types/index.js";
 
 export interface BuiltGraph {
   graph: Graph;
@@ -124,23 +124,26 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
   const symbolNodes: SymbolNode[] = [];
   const callGraphNodeIds = new Set<string>();
 
-  // Build symbol nodes from all exported symbols (functions, classes, interfaces, types, enums)
+  // Build symbol nodes from parsed symbols when available, including local methods.
   const symbolTypes = new Set(["function", "class", "interface", "type", "enum"]);
   for (const file of files) {
-    for (const exp of file.exports) {
-      if (symbolTypes.has(exp.type)) {
-        const symbolId = `${file.relativePath}::${exp.name}`;
+    const parsedSymbols = symbolsForGraph(file);
+    for (const symbol of parsedSymbols) {
+      if (symbolTypes.has(symbol.type)) {
+        const symbolId = `${file.relativePath}::${symbol.name}`;
         symbolNodes.push({
           id: symbolId,
-          name: exp.name,
-          type: exp.type,
+          name: symbol.name,
+          type: symbol.type,
           file: file.relativePath,
-          loc: exp.loc,
-          isDefault: exp.isDefault,
-          complexity: exp.complexity,
+          loc: symbol.loc,
+          isDefault: symbol.isDefault,
+          complexity: symbol.complexity,
+          isExported: symbol.isExported,
+          typeFacts: symbol.typeFacts,
         });
         if (!callGraphNodeIds.has(symbolId)) {
-          callGraph.addNode(symbolId, { name: exp.name, type: exp.type, file: file.relativePath });
+          callGraph.addNode(symbolId, { name: symbol.name, type: symbol.type, file: file.relativePath });
           callGraphNodeIds.add(symbolId);
         }
       }
@@ -170,6 +173,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           loc: 0,
           isDefault: false,
           complexity: 0,
+          isExported: false,
         });
         symbolNodeIds.add(sourceId);
       }
@@ -184,6 +188,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           loc: 0,
           isDefault: false,
           complexity: 0,
+          isExported: false,
         });
         symbolNodeIds.add(targetId);
       }
@@ -211,6 +216,20 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
   }
 
   return { graph, callGraph, nodes, edges, callEdges, symbolNodes };
+}
+
+function symbolsForGraph(file: ParsedFile): ParsedSymbol[] {
+  const symbols = [...(file.symbols ?? [])];
+  const seen = new Set(symbols.map((symbol) => `${symbol.name}\0${symbol.type}`));
+
+  for (const fileExport of file.exports) {
+    const key = `${fileExport.name}\0${fileExport.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    symbols.push({ ...fileExport, isExported: true });
+  }
+
+  return symbols;
 }
 
 function getModule(relativePath: string): string {

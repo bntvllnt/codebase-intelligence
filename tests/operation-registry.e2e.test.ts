@@ -449,6 +449,60 @@ describe("operation registry chained parity", () => {
     expect(withoutCache(parseJsonObject(second.stdout))).toEqual(withoutCache(parseJsonObject(first.stdout)));
   });
 
+  it("CH-P1-03: type/shape facts flow through real CLI and MCP surfaces", async () => {
+    runCliJson(["overview", getFixtureSrcPath()]);
+    const cachedRun = { force: false };
+
+    const cliFile = runCliJson(["file", getFixtureSrcPath(), "users/user-service.ts"], cachedRun);
+    const fileExports = cliFile.exports;
+    expect(Array.isArray(fileExports)).toBe(true);
+    if (!Array.isArray(fileExports)) throw new Error("Expected file exports array");
+    const userServiceExport = fileExports.find((fileExport) =>
+      isRecord(fileExport) && fileExport.name === "UserService"
+    );
+    expect(userServiceExport).toMatchObject({
+      name: "UserService",
+      typeFacts: {
+        produces: ["UserService"],
+        confidence: "resolved",
+      },
+    });
+
+    const cliSymbol = runCliJson(["symbol", getFixtureSrcPath(), "UserService.createUser"], cachedRun);
+    expect(cliSymbol).toMatchObject({
+      name: "UserService.createUser",
+      typeFacts: {
+        returnType: "User",
+        consumes: ["CreateUserInput"],
+        produces: ["User"],
+        confidence: "resolved",
+      },
+    });
+
+    const cliSearch = runCliJson(["search", getFixtureSrcPath(), "CreateUserInput", "--limit", "5"], cachedRun);
+    const searchResults = cliSearch.results;
+    expect(Array.isArray(searchResults)).toBe(true);
+    if (!Array.isArray(searchResults)) throw new Error("Expected search results array");
+    const searchSymbols: unknown[] = [];
+    for (const result of searchResults) {
+      if (!isRecord(result) || !Array.isArray(result.symbols)) continue;
+      for (const symbol of result.symbols) {
+        searchSymbols.push(symbol);
+      }
+    }
+    expect(searchSymbols.some((symbol) =>
+      isRecord(symbol)
+      && symbol.name === "UserService.createUser"
+      && isRecord(symbol.typeFacts)
+      && Array.isArray(symbol.typeFacts.consumes)
+      && symbol.typeFacts.consumes.includes("CreateUserInput")
+    )).toBe(true);
+
+    const mcp = await createFixtureMcp();
+    const mcpSymbol = await mcp.callTool("symbol_context", { name: "UserService.createUser" });
+    expect(withoutNextSteps(mcpSymbol)).toEqual(withoutCache(cliSymbol));
+  });
+
   it("CH-P1-01: registry-adapted MCP tools match descriptor runs for every operation", async () => {
     const { codebaseGraph } = getFixturePipeline();
     const mcp = await createFixtureMcp();

@@ -287,10 +287,16 @@ Collapse CLI + MCP operation duplication into one descriptor registry before add
 
 Capture resolved parameter and return types per symbol.
 
-**To do:**
+**Foundation slice:**
 
 - Store compact type signatures on parsed symbols.
-- Support "which functions produce/consume shape X" queries.
+- Carry type facts into graph `SymbolNode` data.
+- Expose additive `typeFacts` in `file`, `symbol`, and `search` JSON.
+- Index consumed/produced type names in search so shape queries find producer/consumer symbols.
+- Add CH-P1-03 coverage for aliases, generics, default exports, unresolved types, file/symbol/search JSON, CLI, and MCP parity.
+
+**Remaining:**
+
 - Unlock type-aware dead code and Highways H2 shape grouping.
 - Use type facts for synthesized highway signatures.
 

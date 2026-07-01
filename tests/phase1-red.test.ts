@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getFixturePipeline } from "./helpers/pipeline.js";
+import { computeFileContext } from "../src/core/index.js";
 import path from "path";
 import fs from "fs";
 
@@ -63,6 +64,18 @@ describe("1.1 — parser re-export resolution", () => {
     expect(toAuthService).toBeDefined();
     if (!toAuthService) return;
     expect(toAuthService.symbols).toContain("AuthService");
+  });
+
+  it("file context keeps barrel re-export symbols", () => {
+    const { codebaseGraph } = getFixturePipeline();
+    const context = computeFileContext(codebaseGraph, "auth/index.ts");
+    expect(context).not.toHaveProperty("error");
+    if ("error" in context) throw new Error(context.error);
+
+    const exportNames = context.exports.map((fileExport) => fileExport.name);
+    expect(exportNames).toContain("AuthService");
+    expect(exportNames).toContain("authenticate");
+    expect(exportNames).toContain("requireAuth");
   });
 });
 

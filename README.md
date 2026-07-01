@@ -62,7 +62,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **Cache migration facts** in JSON (`cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`)
 - **11 architectural metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity
 - **Symbol-level analysis** — callers/callees, symbol importance, impact blast radius
-- **BM25 search** — ranked keyword search across files and symbols
+- **BM25 search** — ranked keyword search across files, symbols, and type/shape facts
 - **Process tracing** — detect entry points and execution flows through the call graph
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
@@ -96,7 +96,7 @@ codebase-intelligence <command> <path> [options]
 | `overview` | High-level codebase snapshot |
 | `hotspots` | Rank files by metric (coupling, churn, complexity, blast radius, coverage, etc.) |
 | `file` | Full context for one file |
-| `search` | BM25 keyword search |
+| `search` | BM25 keyword and shape search |
 | `changes` | Git diff analysis with risk metrics |
 | `dependents` | File-level blast radius |
 | `modules` | Module architecture + cross-dependencies |

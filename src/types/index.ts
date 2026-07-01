@@ -6,6 +6,7 @@ export interface ParsedFile {
   relativePath: string;
   loc: number;
   exports: ParsedExport[];
+  symbols?: ParsedSymbol[];
   imports: ParsedImport[];
   callSites: CallSite[];
   churn: number;
@@ -14,12 +15,40 @@ export interface ParsedFile {
   testFile?: string;
 }
 
+export interface TypeParameterFact {
+  name: string;
+  constraint?: string;
+  default?: string;
+}
+
+export interface ParameterTypeFact {
+  name: string;
+  type: string;
+  optional: boolean;
+  rest: boolean;
+}
+
+export interface SymbolTypeFacts {
+  signature: string;
+  parameters: ParameterTypeFact[];
+  returnType?: string;
+  typeParameters: TypeParameterFact[];
+  consumes: string[];
+  produces: string[];
+  confidence: "resolved" | "syntax";
+}
+
 export interface ParsedExport {
   name: string;
   type: "function" | "class" | "variable" | "type" | "interface" | "enum";
   loc: number;
   isDefault: boolean;
   complexity: number;
+  typeFacts?: SymbolTypeFacts;
+}
+
+export interface ParsedSymbol extends ParsedExport {
+  isExported: boolean;
 }
 
 export interface ParsedImport {
@@ -73,6 +102,8 @@ export interface SymbolNode {
   loc: number;
   isDefault: boolean;
   complexity: number;
+  isExported?: boolean;
+  typeFacts?: SymbolTypeFacts;
 }
 
 export interface SymbolMetrics {

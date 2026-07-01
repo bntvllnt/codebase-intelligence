@@ -24,6 +24,10 @@ function text(lines: readonly string[]): string {
   return lines.join("\n");
 }
 
+function signatureSuffix(signature: string | undefined): string {
+  return signature ? ` — ${signature}` : "";
+}
+
 /**
  * Format an overview operation result for human CLI output.
  */
@@ -84,7 +88,10 @@ export function formatFileContextText(result: FileContextResult | FileContextErr
   if (result.exports.length > 0) {
     lines.push(
       `Exports (${result.exports.length})`,
-      ...result.exports.map((fileExport) => `  ${fileExport.type.padEnd(12)} ${fileExport.name} (${fileExport.loc} LOC)`),
+      ...result.exports.map(
+        (fileExport) =>
+          `  ${fileExport.type.padEnd(12)} ${fileExport.name} (${fileExport.loc} LOC)${signatureSuffix(fileExport.typeFacts?.signature)}`,
+      ),
       "",
     );
   }
@@ -435,6 +442,11 @@ export function formatSymbolContextText(result: SymbolContextResult | SymbolCont
     `LOC:        ${result.loc}`,
     `Default:    ${result.isDefault ? "yes" : "no"}`,
     `Complexity: ${result.complexity}`,
+    ...(result.typeFacts ? [
+      `Signature:  ${result.typeFacts.signature}`,
+      `Consumes:   ${result.typeFacts.consumes.length > 0 ? result.typeFacts.consumes.join(", ") : "none"}`,
+      `Produces:   ${result.typeFacts.produces.length > 0 ? result.typeFacts.produces.join(", ") : "none"}`,
+    ] : []),
     `Fan-in:     ${result.fanIn}`,
     `Fan-out:    ${result.fanOut}`,
     `PageRank:   ${result.pageRank}`,

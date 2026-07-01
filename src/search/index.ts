@@ -1,15 +1,15 @@
-import type { CodebaseGraph } from "../types/index.js";
+import type { CodebaseGraph, SymbolTypeFacts } from "../types/index.js";
 
 interface SearchDocument {
   file: string;
-  symbols: Array<{ name: string; type: string; loc: number }>;
+  symbols: Array<{ name: string; type: string; loc: number; typeFacts?: SymbolTypeFacts }>;
   terms: string[];
 }
 
 interface SearchResult {
   file: string;
   score: number;
-  symbols: Array<{ name: string; type: string; loc: number; score: number }>;
+  symbols: Array<{ name: string; type: string; loc: number; score: number; typeFacts?: SymbolTypeFacts }>;
 }
 
 export interface SearchIndex {
@@ -31,12 +31,23 @@ export function tokenize(text: string): string[] {
   return parts;
 }
 
+function typeFactTerms(typeFacts: SymbolTypeFacts | undefined): string[] {
+  if (!typeFacts) return [];
+  return [
+    ...tokenize(typeFacts.signature),
+    ...typeFacts.parameters.flatMap((parameter) => tokenize(parameter.type)),
+    ...typeFacts.consumes.flatMap((shape) => tokenize(shape)),
+    ...typeFacts.produces.flatMap((shape) => tokenize(shape)),
+    ...(typeFacts.returnType ? tokenize(typeFacts.returnType) : []),
+  ];
+}
+
 /** Build BM25 search index from a CodebaseGraph */
 export function createSearchIndex(graph: CodebaseGraph): SearchIndex {
   const documents: SearchDocument[] = [];
 
   // Group symbols by file
-  const fileSymbols = new Map<string, Array<{ name: string; type: string; loc: number }>>();
+  const fileSymbols = new Map<string, Array<{ name: string; type: string; loc: number; typeFacts?: SymbolTypeFacts }>>();
   for (const node of graph.nodes) {
     if (node.type === "file") continue;
     const file = node.parentFile ?? node.path;
@@ -48,8 +59,11 @@ export function createSearchIndex(graph: CodebaseGraph): SearchIndex {
   // Also add from symbolNodes (call graph symbols)
   for (const sym of graph.symbolNodes) {
     const existing = fileSymbols.get(sym.file) ?? [];
-    if (!existing.some((s) => s.name === sym.name)) {
-      existing.push({ name: sym.name, type: sym.type, loc: sym.loc });
+    const existingSymbol = existing.find((s) => s.name === sym.name);
+    if (existingSymbol) {
+      existingSymbol.typeFacts = existingSymbol.typeFacts ?? sym.typeFacts;
+    } else {
+      existing.push({ name: sym.name, type: sym.type, loc: sym.loc, typeFacts: sym.typeFacts });
       fileSymbols.set(sym.file, existing);
     }
   }
@@ -62,6 +76,7 @@ export function createSearchIndex(graph: CodebaseGraph): SearchIndex {
       ...tokenize(node.id),
       ...tokenize(node.label),
       ...symbols.flatMap((s) => tokenize(s.name)),
+      ...symbols.flatMap((s) => typeFactTerms(s.typeFacts)),
     ];
     documents.push({ file: node.id, symbols, terms });
   }
@@ -121,7 +136,7 @@ export function search(index: SearchIndex, query: string, limit = 20): SearchRes
     if (docScore > 0) {
       // Score individual symbols too
       const symbolScores = doc.symbols.map((sym) => {
-        const symTerms = tokenize(sym.name);
+        const symTerms = [...tokenize(sym.name), ...typeFactTerms(sym.typeFacts)];
         let symScore = 0;
         for (const qt of queryTerms) {
           if (symTerms.includes(qt)) symScore += 1;

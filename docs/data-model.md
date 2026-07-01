@@ -10,6 +10,7 @@ ParsedFile {
   relativePath: string    // Relative to root (used as graph node ID)
   loc: number             // Lines of code
   exports: ParsedExport[] // Named exports
+  symbols?: ParsedSymbol[] // Exported and local symbols with type facts
   imports: ParsedImport[] // Relative imports (external skipped)
   churn: number           // Git commit count (0 if non-git)
   isTestFile: boolean     // Matches *.test.ts / *.spec.ts / __tests__/
@@ -22,6 +23,21 @@ ParsedExport {
   loc: number             // Lines of code for this export
   isDefault: boolean
   complexity: number      // Cyclomatic complexity (branch count, min 1)
+  typeFacts?: SymbolTypeFacts
+}
+
+ParsedSymbol extends ParsedExport {
+  isExported: boolean     // false for local class methods / helper symbols
+}
+
+SymbolTypeFacts {
+  signature: string       // Compact display signature
+  parameters: Array<{ name: string, type: string, optional: boolean, rest: boolean }>
+  returnType?: string
+  typeParameters: Array<{ name: string, constraint?: string, default?: string }>
+  consumes: string[]      // Shape/type names read by parameters
+  produces: string[]      // Shape/type names returned or declared
+  confidence: "resolved" | "syntax"
 }
 
 ParsedImport {
@@ -37,7 +53,7 @@ ParsedImport {
 ```typescript
 GraphNode {
   id: string              // = relativePath for files, parentFile+name for functions
-  type: "file" | "function"
+  type: "file" | "function" | "class"
   path: string            // Display path
   label: string           // File basename or function name
   loc: number
@@ -51,6 +67,18 @@ GraphEdge {
   symbols: string[]       // What's imported
   isTypeOnly: boolean     // Type-only import (no runtime dep)
   weight: number          // Edge weight (default 1)
+}
+
+SymbolNode {
+  id: string              // file::symbol
+  name: string
+  type: ParsedExport["type"]
+  file: string
+  loc: number
+  isDefault: boolean
+  complexity: number
+  isExported?: boolean
+  typeFacts?: SymbolTypeFacts
 }
 ```
 
@@ -102,6 +130,9 @@ ModuleMetrics {
 CodebaseGraph {
   nodes: GraphNode[]
   edges: GraphEdge[]
+  callEdges: CallEdge[]
+  symbolNodes: SymbolNode[]
+  symbolMetrics: Map<string, SymbolMetrics>
   fileMetrics: Map<string, FileMetrics>
   moduleMetrics: Map<string, ModuleMetrics>
   forceAnalysis: ForceAnalysis
