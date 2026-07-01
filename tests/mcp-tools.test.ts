@@ -483,7 +483,20 @@ describe("Tool 18: get_context_pack", () => {
   });
 });
 
-describe("Tool 19: analyze_highways", () => {
+describe("Tool 19: detect_content_drift", () => {
+  it("returns report-only drift findings with evidence", async () => {
+    const r = await callTool("detect_content_drift", { minScore: 35 });
+    expect(r).toHaveProperty("mode", "report-only");
+    expect(r).toHaveProperty("baseline");
+    expect(r).toHaveProperty("findings");
+    expect(r).toHaveProperty("evidence");
+    expect(r).toHaveProperty("nextSteps");
+    expect(Array.isArray(r.findings)).toBe(true);
+    expect(Array.isArray(r.evidence)).toBe(true);
+  });
+});
+
+describe("Tool 20: analyze_highways", () => {
   it("returns highway opportunities envelope", async () => {
     const r = await callTool("analyze_highways", { operation: "get", minRoutes: 2 });
     expect(r).toHaveProperty("totalRoutes");
@@ -495,7 +508,7 @@ describe("Tool 19: analyze_highways", () => {
   });
 });
 
-describe("Tool 20: get_clusters", () => {
+describe("Tool 21: get_clusters", () => {
   it("returns community-detected clusters", async () => {
     const r = await callTool("get_clusters");
     expect(r).toHaveProperty("clusters");
@@ -576,6 +589,7 @@ describe("MCP Resources", () => {
     expect(availableTools).toContain("get_codebase_map");
     expect(availableTools).toContain("get_scope_graph");
     expect(availableTools).toContain("get_context_pack");
+    expect(availableTools).toContain("detect_content_drift");
     expect(availableTools).toContain("analyze_highways");
     expect(availableTools).toContain("check");
   });

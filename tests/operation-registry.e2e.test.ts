@@ -336,6 +336,14 @@ describe("operation registry chained parity", () => {
       cachedRun,
     );
     expectCliMatchesRegistry(
+      operations.contentDrift,
+      { scope: "users", minScore: 35 },
+      ["drift", getFixtureSrcPath(), "--scope", "users", "--min-score", "35"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
       operations.highways,
       { operation: "get", minRoutes: 2 },
       ["highways", getFixtureSrcPath(), "--operation", "get", "--min-routes", "2"],
@@ -469,6 +477,14 @@ describe("operation registry chained parity", () => {
       operations.codebaseMap,
       { focus: "UserService.getUserById", depth: 1, contextBudget: 420 },
       ["map", getFixtureSrcPath(), "--focus", "UserService.getUserById", "--depth", "1", "--context-budget", "420"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.contentDrift,
+      { scope: "users", minScore: 35 },
+      ["drift", getFixtureSrcPath(), "--scope", "users", "--min-score", "35"],
       codebaseGraph,
       {},
       cachedRun,
@@ -745,6 +761,13 @@ describe("operation registry chained parity", () => {
       operations.codebaseMap,
       { focus: "UserService.getUserById", depth: 1, contextBudget: 420 },
       { focus: "UserService.getUserById", depth: 1, contextBudget: 420 },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.contentDrift,
+      { scope: "users", minScore: 35 },
+      { scope: "users", minScore: 35 },
       codebaseGraph,
       mcp,
     );

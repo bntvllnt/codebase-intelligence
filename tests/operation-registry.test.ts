@@ -40,6 +40,7 @@ const expectedOperations: Array<{
   { name: "rename", cliCommand: "rename", mcpTool: "rename_symbol", inputKeys: ["oldName", "newName", "dryRun"], sampleInput: { oldName: "getUserById", newName: "findUserById" } },
   { name: "processes", cliCommand: "processes", mcpTool: "get_processes", inputKeys: ["entryPoint", "limit"], sampleInput: { entryPoint: "main" } },
   { name: "codebaseMap", cliCommand: "map", mcpTool: "get_codebase_map", inputKeys: ["focus", "scope", "depth", "format", "contextBudget"], sampleInput: { focus: "getUserById", depth: 1, contextBudget: 420 } },
+  { name: "contentDrift", cliCommand: "drift", mcpTool: "detect_content_drift", inputKeys: ["focus", "scope", "minScore"], sampleInput: { scope: "users", minScore: 35 } },
   { name: "highways", cliCommand: "highways", mcpTool: "analyze_highways", inputKeys: ["operation", "shape", "minRoutes", "propose", "trace"], sampleInput: { operation: "create", minRoutes: 2 } },
   { name: "clusters", cliCommand: "clusters", mcpTool: "get_clusters", inputKeys: ["minFiles"], sampleInput: { minFiles: 2 } },
 ];

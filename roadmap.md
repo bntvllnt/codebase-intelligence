@@ -458,13 +458,20 @@ actual behavior = imports + calls + types + side effects + tests + churn
 drift score = mismatch(declared intent, actual behavior)
 ```
 
-**To do:**
+**Status:** CH-P2-04 shipped in the canary train.
+
+**Shipped:**
 
 - Emit `name-drift`, `scope-drift`, `mixed-responsibility`, `hidden-side-effect`, `shape-drift`, `orphan-scope`, and `misplaced-test`.
 - CLI: add `drift <path>` with `--focus`, `--scope`, `--min-score`, `--json`.
 - MCP: add `detect_content_drift`.
-- Make first run report-only; allow CI gating only after a baseline exists.
-- Keep implementation deterministic: tokenized names, resolved symbols/types, imports/calls, side-effect sinks, tests, churn.
+- Make first run report-only with baseline status in JSON.
+- Keep implementation deterministic: tokenized names, resolved symbols/types, imports/calls, side-effect signals, tests, stable finding IDs, and stable evidence IDs.
+- Add CH-P2-04 chained CLI + real stdio MCP coverage for drift score, deterministic evidence, recommendations, and report-only baseline behavior.
+
+**Remaining:**
+
+- Add drift baselines and CI gating after the first report-only canary so teams can gate only new severe drift.
 
 ### Health Score + Maintainability
 
@@ -625,16 +632,17 @@ Competitor names stay in docs only. This section exists to preserve comparison c
 9. Start `map` with JSON only, or include DOT/GraphML/Obsidian-compatible export immediately?
 10. Build a first-party local 2D/3D viewer, or export only?
 11. Rank context packs by graph metrics first, or by task intent?
-12. Name drift command `drift`, `content-drift`, or fold into `check --rule naming/*`?
-13. Use report-only first run for drift, then gate only new severe drift?
-14. Which doctor profiles ship first: `local`, `ci`, `agent`, `mcp`?
-15. Generate agent docs only, or publish first-party Codex/Claude Code skills/plugins from this repo?
-16. Keep `.code-visualizer/` ignored forever, or remove it from generated `.gitignore` after one stable release?
-17. Name gitignore support `init --gitignore`, a separate command, or something else?
-18. Ship `ci` as first-class command, or `check --ci` wrapper?
-19. Generate PR markdown only, or integrate with GitHub/GitLab APIs directly?
-20. Store baselines in `.codebase-intelligence/baseline.json`, config path, or external artifact?
-21. Use one global quality score first, or per-scope scores plus global rollup?
+12. Which doctor profiles ship first: `local`, `ci`, `agent`, `mcp`?
+13. Generate agent docs only, or publish first-party Codex/Claude Code skills/plugins from this repo?
+14. Keep `.code-visualizer/` ignored forever, or remove it from generated `.gitignore` after one stable release?
+15. Ship `ci` as first-class command, or `check --ci` wrapper?
+16. Generate PR markdown only, or integrate with GitHub/GitLab APIs directly?
+17. Store baselines in `.codebase-intelligence/baseline.json`, config path, or external artifact?
+18. Use one global quality score first, or per-scope scores plus global rollup?
+
+## Resolved Decisions
+
+- 2026-07-01: Content drift ships as `drift` / `detect_content_drift`; first run is report-only, and CI gating waits for a baseline feature.
 
 ---
 

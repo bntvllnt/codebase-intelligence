@@ -57,7 +57,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 ## Features
 
-- **21 CLI commands** for architecture analysis, dependency impact, duplicate families, focused map/context packs, Highways convergence, improvement opportunities, dead code detection, search, CI rules, and agent setup
+- **22 CLI commands** for architecture analysis, dependency impact, duplicate families, focused map/context packs, content drift, Highways convergence, improvement opportunities, dead code detection, search, CI rules, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.codebase-intelligence/` for fast repeat queries
 - **Cache migration facts** in JSON (`cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`)
@@ -66,10 +66,11 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **BM25 search** — ranked keyword search across files, symbols, and type/shape facts
 - **Process tracing** — detect entry points and execution flows through the call graph
 - **Codebase maps + context packs** — focused file/symbol/test graph with deterministic evidence IDs and token-bounded context for agents
+- **Content drift** — report-only detection for file/name/scope/side-effect/shape/test placement mismatch with stable evidence
 - **Highways analysis** — find repeated routes that bypass canonical dataflow paths and synthesize safe proposed highways
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
-- **MCP parity (secondary)** — same analysis and rules gate available as 22 MCP tools, 2 prompts, and 3 resources
+- **MCP parity (secondary)** — same analysis and rules gate available as 23 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
 
@@ -113,6 +114,7 @@ codebase-intelligence <command> <path> [options]
 | `rename` | Reference discovery for rename planning |
 | `processes` | Entry-point execution flow tracing |
 | `map` | Focused codebase graph + token-bounded context pack |
+| `drift` | Report-only content drift findings with evidence and recommendations |
 | `highways` | Repeated route convergence, canonical path opportunities, and synthesis proposals |
 | `clusters` | Community-detected file clusters |
 | `check` | Rules-engine gate for CI, including opt-in dead-code and dependency gates |
@@ -126,13 +128,14 @@ codebase-intelligence <command> <path> [options]
 | `--force` | Rebuild index even if cache is valid |
 | `--limit <n>` | Limit results on supported commands |
 | `--metric <m>` | Select ranking metric for `hotspots` |
-| `--scope <s>` | Select git diff scope for `changes`: `staged`, `unstaged`, `all` |
+| `--scope <s>` | Select git diff scope for `changes`; directory/module scope for `map` and `drift` |
 | `--mode <m>` | Select clone mode for `duplicates`: `strict`, `mild`, `weak` |
 | `--min-tokens <n>` | Minimum duplicate token size for `duplicates` |
 | `--skip-local` | Ignore duplicate families confined to one file |
 | `--trace <id>` | Return token evidence for one duplicate family |
-| `--focus <name>` | Focus `map` on one symbol, file, or scope |
+| `--focus <name>` | Focus `map` or `drift` on one symbol, file, or scope |
 | `--context-budget <n>` | Bound `map` context pack size |
+| `--min-score <n>` | Minimum drift score for `drift` findings |
 | `--format <fmt>` | Export `map` as `markdown`, `json`, `dot`, or `graphml`; export `check` as `text`, `json`, or `sarif` |
 | `--operation <verb>` | Focus `highways` on one operation verb |
 | `--shape <name>` | Focus `highways` on one type/DTO shape |

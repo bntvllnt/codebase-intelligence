@@ -372,7 +372,7 @@ for (const inputTarget of targets) {
     return `${result.totalAffected} affected`;
   });
 
-  for (const command of ["modules", "forces", "dead-exports", "opportunities", "groups", "processes", "map", "highways", "clusters"]) {
+  for (const command of ["modules", "forces", "dead-exports", "opportunities", "groups", "processes", "map", "drift", "highways", "clusters"]) {
     record(`${target.name}: ${command}`, () => {
       const args = command === "highways"
         ? [command, target.path, "--operation", "get", "--min-routes", "3"]
@@ -383,6 +383,9 @@ for (const inputTarget of targets) {
       if (!result || typeof result !== "object") throw new Error("invalid JSON object");
       if (command === "map" && (!result.contextPack || !Array.isArray(result.nodes))) {
         throw new Error("bad map payload");
+      }
+      if (command === "drift" && (result.mode !== "report-only" || !Array.isArray(result.findings))) {
+        throw new Error("bad drift payload");
       }
       return "json ok";
     });

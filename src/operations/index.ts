@@ -23,10 +23,12 @@ import {
 import { DUPLICATION_MODES } from "../duplication/index.js";
 import { computeHighways } from "../highways/index.js";
 import { CODEBASE_MAP_FORMATS, computeCodebaseMap } from "../map/index.js";
+import { computeContentDrift } from "../drift/index.js";
 import type { CodebaseGraph } from "../types/index.js";
 import {
   formatCodebaseMapText,
   formatChangesText,
+  formatContentDriftText,
   formatClustersText,
   formatDeadExportsText,
   formatDependentsText,
@@ -64,6 +66,7 @@ export const operationNames = [
   "rename",
   "processes",
   "codebaseMap",
+  "contentDrift",
   "highways",
   "clusters",
 ] as const;
@@ -171,6 +174,12 @@ const codebaseMapInputShape = {
   contextBudget: z.number().int().positive().optional().describe("Approximate token budget for the context pack (default: 1200)"),
 } satisfies z.ZodRawShape;
 const codebaseMapInputSchema = z.object(codebaseMapInputShape).strict();
+const contentDriftInputShape = {
+  focus: z.string().min(1).optional().describe("File, scope, or symbol text to focus drift findings on"),
+  scope: z.string().min(1).optional().describe("Directory/module scope to include"),
+  minScore: z.number().min(0).max(100).optional().describe("Minimum drift score to report (default: 35)"),
+} satisfies z.ZodRawShape;
+const contentDriftInputSchema = z.object(contentDriftInputShape).strict();
 const highwaysInputShape = {
   operation: z.string().min(1).optional().describe("Operation verb to focus on, such as create, update, or validate"),
   shape: z.string().min(1).optional().describe("Type/DTO shape to focus on"),
@@ -201,6 +210,7 @@ type ImpactInput = z.infer<typeof impactInputSchema>;
 type RenameInput = z.infer<typeof renameInputSchema>;
 type ProcessesInput = z.infer<typeof processesInputSchema>;
 export type CodebaseMapInput = z.infer<typeof codebaseMapInputSchema>;
+type ContentDriftInput = z.infer<typeof contentDriftInputSchema>;
 type HighwaysInput = z.infer<typeof highwaysInputSchema>;
 type ClustersInput = z.infer<typeof clustersInputSchema>;
 
@@ -378,6 +388,16 @@ export const operations = {
     run: (graph: CodebaseGraph, input: CodebaseMapInput) => computeCodebaseMap(graph, input),
     formatText: formatCodebaseMapText,
   } satisfies Operation<CodebaseMapInput, ReturnType<typeof computeCodebaseMap>>,
+  contentDrift: {
+    name: "contentDrift",
+    cliCommand: "drift",
+    mcpTool: "detect_content_drift",
+    description: "Detect deterministic file, folder, side-effect, shape, and test placement drift. Use when: checking whether names and scopes still match behavior before refactors or CI baselining. Not for: enforcing CI gates without a baseline (use check or future ci wrapper)",
+    inputShape: contentDriftInputShape,
+    inputSchema: contentDriftInputSchema,
+    run: (graph: CodebaseGraph, input: ContentDriftInput) => computeContentDrift(graph, input),
+    formatText: formatContentDriftText,
+  } satisfies Operation<ContentDriftInput, ReturnType<typeof computeContentDrift>>,
   highways: {
     name: "highways",
     cliCommand: "highways",
