@@ -12,30 +12,32 @@ import {
   runOperation,
   type OperationName,
 } from "../src/operations/index.js";
+import { createFixtureMcp } from "./helpers/mcp.js";
 import { getFixturePipeline } from "./helpers/pipeline.js";
 
 const expectedOperations: Array<{
   name: OperationName;
   cliCommand: string;
   mcpTool: string;
+  inputKeys: string[];
   sampleInput: Record<string, unknown>;
 }> = [
-  { name: "overview", cliCommand: "overview", mcpTool: "codebase_overview", sampleInput: {} },
-  { name: "fileContext", cliCommand: "file", mcpTool: "file_context", sampleInput: { filePath: "index.ts" } },
-  { name: "dependents", cliCommand: "dependents", mcpTool: "get_dependents", sampleInput: { filePath: "index.ts", depth: 2 } },
-  { name: "hotspots", cliCommand: "hotspots", mcpTool: "find_hotspots", sampleInput: { metric: "coupling", limit: 3 } },
-  { name: "moduleStructure", cliCommand: "modules", mcpTool: "get_module_structure", sampleInput: {} },
-  { name: "forces", cliCommand: "forces", mcpTool: "analyze_forces", sampleInput: { cohesionThreshold: 0.6 } },
-  { name: "deadExports", cliCommand: "dead-exports", mcpTool: "find_dead_exports", sampleInput: { limit: 5 } },
-  { name: "opportunities", cliCommand: "opportunities", mcpTool: "find_opportunities", sampleInput: { limit: 5 } },
-  { name: "groups", cliCommand: "groups", mcpTool: "get_groups", sampleInput: {} },
-  { name: "symbolContext", cliCommand: "symbol", mcpTool: "symbol_context", sampleInput: { name: "getUserById" } },
-  { name: "search", cliCommand: "search", mcpTool: "search", sampleInput: { query: "auth", limit: 5 } },
-  { name: "changes", cliCommand: "changes", mcpTool: "detect_changes", sampleInput: { scope: "all" } },
-  { name: "impact", cliCommand: "impact", mcpTool: "impact_analysis", sampleInput: { symbol: "getUserById" } },
-  { name: "rename", cliCommand: "rename", mcpTool: "rename_symbol", sampleInput: { oldName: "getUserById", newName: "findUserById" } },
-  { name: "processes", cliCommand: "processes", mcpTool: "get_processes", sampleInput: { entryPoint: "main" } },
-  { name: "clusters", cliCommand: "clusters", mcpTool: "get_clusters", sampleInput: { minFiles: 2 } },
+  { name: "overview", cliCommand: "overview", mcpTool: "codebase_overview", inputKeys: ["depth"], sampleInput: {} },
+  { name: "fileContext", cliCommand: "file", mcpTool: "file_context", inputKeys: ["filePath"], sampleInput: { filePath: "index.ts" } },
+  { name: "dependents", cliCommand: "dependents", mcpTool: "get_dependents", inputKeys: ["filePath", "depth"], sampleInput: { filePath: "index.ts", depth: 2 } },
+  { name: "hotspots", cliCommand: "hotspots", mcpTool: "find_hotspots", inputKeys: ["metric", "limit"], sampleInput: { metric: "coupling", limit: 3 } },
+  { name: "moduleStructure", cliCommand: "modules", mcpTool: "get_module_structure", inputKeys: ["depth"], sampleInput: {} },
+  { name: "forces", cliCommand: "forces", mcpTool: "analyze_forces", inputKeys: ["cohesionThreshold", "tensionThreshold", "escapeThreshold"], sampleInput: { cohesionThreshold: 0.6 } },
+  { name: "deadExports", cliCommand: "dead-exports", mcpTool: "find_dead_exports", inputKeys: ["module", "limit"], sampleInput: { limit: 5 } },
+  { name: "opportunities", cliCommand: "opportunities", mcpTool: "find_opportunities", inputKeys: ["limit"], sampleInput: { limit: 5 } },
+  { name: "groups", cliCommand: "groups", mcpTool: "get_groups", inputKeys: [], sampleInput: {} },
+  { name: "symbolContext", cliCommand: "symbol", mcpTool: "symbol_context", inputKeys: ["name"], sampleInput: { name: "getUserById" } },
+  { name: "search", cliCommand: "search", mcpTool: "search", inputKeys: ["query", "limit"], sampleInput: { query: "auth", limit: 5 } },
+  { name: "changes", cliCommand: "changes", mcpTool: "detect_changes", inputKeys: ["scope"], sampleInput: { scope: "all" } },
+  { name: "impact", cliCommand: "impact", mcpTool: "impact_analysis", inputKeys: ["symbol"], sampleInput: { symbol: "getUserById" } },
+  { name: "rename", cliCommand: "rename", mcpTool: "rename_symbol", inputKeys: ["oldName", "newName", "dryRun"], sampleInput: { oldName: "getUserById", newName: "findUserById" } },
+  { name: "processes", cliCommand: "processes", mcpTool: "get_processes", inputKeys: ["entryPoint", "limit"], sampleInput: { entryPoint: "main" } },
+  { name: "clusters", cliCommand: "clusters", mcpTool: "get_clusters", inputKeys: ["minFiles"], sampleInput: { minFiles: 2 } },
 ];
 
 describe("operation registry", () => {
@@ -50,6 +52,7 @@ describe("operation registry", () => {
       const operation = getOperation(expected.name);
       expect(operation.cliCommand).toBe(expected.cliCommand);
       expect(operation.mcpTool).toBe(expected.mcpTool);
+      expect(Object.keys(operation.inputShape)).toEqual(expected.inputKeys);
       expect(operation.inputSchema.safeParse(expected.sampleInput).success).toBe(true);
       expect(getOperationByCliCommand(expected.cliCommand)).toBe(operation);
       expect(getOperationByMcpTool(expected.mcpTool)).toBe(operation);
@@ -89,5 +92,18 @@ describe("operation registry", () => {
   it("types next-step hints by operation name and preserves MCP tool lookup", () => {
     expect(getHintsForOperation("overview")).toEqual(getHints("codebase_overview"));
     expect(getHints("unknown_tool")).toEqual([]);
+  });
+
+  it("registers MCP tools from the operation registry plus check", async () => {
+    const mcp = await createFixtureMcp();
+    expect(await mcp.listTools()).toEqual([...operationList.map((operation) => operation.mcpTool), "check"]);
+  });
+
+  it("keeps registry-adapted MCP lookup errors in the existing envelope", async () => {
+    const mcp = await createFixtureMcp();
+    const result = await mcp.callToolWithMeta("impact_analysis", { symbol: "MissingSymbol" });
+
+    expect(result.isError).toBe(true);
+    expect(result.payload).toEqual({ error: "Symbol not found: MissingSymbol" });
   });
 });

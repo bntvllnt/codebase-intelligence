@@ -11,6 +11,7 @@ export interface ToolPayload {
 }
 
 export interface FixtureMcp {
+  listTools(): Promise<string[]>;
   callTool(name: string, args?: Record<string, unknown>): Promise<Record<string, unknown>>;
   callToolWithMeta(name: string, args?: Record<string, unknown>): Promise<ToolPayload>;
 }
@@ -54,6 +55,10 @@ export async function createFixtureMcp(rootDir = getFixtureSrcPath()): Promise<F
   await client.connect(clientTransport);
 
   return {
+    async listTools(): Promise<string[]> {
+      const result = await client.listTools();
+      return result.tools.map((tool) => tool.name);
+    },
     async callTool(name: string, args: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
       const result = await client.callTool({ name, arguments: args });
       return parsePayload(firstTextContent(result));
