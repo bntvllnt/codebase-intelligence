@@ -51,6 +51,7 @@ export interface Operation<TInput extends object, TResult> {
   cliCommand: string;
   mcpTool: string;
   description: string;
+  inputShape: z.ZodRawShape;
   inputSchema: z.ZodType<TInput>;
   run: (graph: CodebaseGraph, input: TInput, context: OperationContext) => TResult;
 }
@@ -59,55 +60,77 @@ export type OperationRunResult<TResult> =
   | { ok: true; data: TResult }
   | { ok: false; error: string; data?: TResult };
 
-const overviewInputSchema = z.object({
-  depth: z.number().int().positive().optional(),
-}).strict();
-const fileContextInputSchema = z.object({ filePath: z.string().min(1) }).strict();
-const dependentsInputSchema = z.object({
-  filePath: z.string().min(1),
-  depth: z.number().int().positive().optional(),
-}).strict();
-const hotspotsInputSchema = z.object({
-  metric: z.enum(HOTSPOT_METRICS),
-  limit: z.number().int().positive().optional(),
-}).strict();
-const moduleStructureInputSchema = z.object({
-  depth: z.number().int().positive().optional(),
-}).strict();
-const forcesInputSchema = z.object({
-  cohesionThreshold: z.number().optional(),
-  tensionThreshold: z.number().optional(),
-  escapeThreshold: z.number().optional(),
-}).strict();
-const deadExportsInputSchema = z.object({
-  module: z.string().min(1).optional(),
-  limit: z.number().int().positive().optional(),
-}).strict();
-const opportunitiesInputSchema = z.object({
-  limit: z.number().int().positive().optional(),
-}).strict();
-const emptyInputSchema = z.object({}).strict();
-const symbolContextInputSchema = z.object({ name: z.string().min(1) }).strict();
-const searchInputSchema = z.object({
-  query: z.string().min(1),
-  limit: z.number().int().positive().optional(),
-}).strict();
-const changesInputSchema = z.object({
-  scope: z.enum(CHANGE_SCOPES).optional(),
-}).strict();
-const impactInputSchema = z.object({ symbol: z.string().min(1) }).strict();
-const renameInputSchema = z.object({
-  oldName: z.string().min(1),
-  newName: z.string().min(1),
-  dryRun: z.boolean().optional(),
-}).strict();
-const processesInputSchema = z.object({
-  entryPoint: z.string().min(1).optional(),
-  limit: z.number().int().positive().optional(),
-}).strict();
-const clustersInputSchema = z.object({
-  minFiles: z.number().int().positive().optional(),
-}).strict();
+const overviewInputShape = {
+  depth: z.number().int().positive().optional().describe("Module depth (default: 1)"),
+} satisfies z.ZodRawShape;
+const overviewInputSchema = z.object(overviewInputShape).strict();
+const fileContextInputShape = {
+  filePath: z.string().min(1).describe("Relative path to the file"),
+} satisfies z.ZodRawShape;
+const fileContextInputSchema = z.object(fileContextInputShape).strict();
+const dependentsInputShape = {
+  filePath: z.string().min(1).describe("Relative path to the file"),
+  depth: z.number().int().positive().optional().describe("Max traversal depth (default: 2)"),
+} satisfies z.ZodRawShape;
+const dependentsInputSchema = z.object(dependentsInputShape).strict();
+const hotspotsInputShape = {
+  metric: z.enum(HOTSPOT_METRICS).describe("Metric to rank by"),
+  limit: z.number().int().positive().optional().describe("Number of results (default: 10)"),
+} satisfies z.ZodRawShape;
+const hotspotsInputSchema = z.object(hotspotsInputShape).strict();
+const moduleStructureInputShape = {
+  depth: z.number().int().positive().optional().describe("Module depth (default: 2)"),
+} satisfies z.ZodRawShape;
+const moduleStructureInputSchema = z.object(moduleStructureInputShape).strict();
+const forcesInputShape = {
+  cohesionThreshold: z.number().optional().describe("Min cohesion to be 'COHESIVE' (default: 0.6)"),
+  tensionThreshold: z.number().optional().describe("Min tension to flag (default: 0.3)"),
+  escapeThreshold: z.number().optional().describe("Min escape velocity to flag (default: 0.5)"),
+} satisfies z.ZodRawShape;
+const forcesInputSchema = z.object(forcesInputShape).strict();
+const deadExportsInputShape = {
+  module: z.string().min(1).optional().describe("Filter by module path (default: all modules)"),
+  limit: z.number().int().positive().optional().describe("Max results (default: 20)"),
+} satisfies z.ZodRawShape;
+const deadExportsInputSchema = z.object(deadExportsInputShape).strict();
+const opportunitiesInputShape = {
+  limit: z.number().int().positive().optional().describe("Max opportunities (default: 20)"),
+} satisfies z.ZodRawShape;
+const opportunitiesInputSchema = z.object(opportunitiesInputShape).strict();
+const emptyInputShape = {} satisfies z.ZodRawShape;
+const emptyInputSchema = z.object(emptyInputShape).strict();
+const symbolContextInputShape = {
+  name: z.string().min(1).describe("Symbol name (e.g., 'AuthService', 'getUserById')"),
+} satisfies z.ZodRawShape;
+const symbolContextInputSchema = z.object(symbolContextInputShape).strict();
+const searchInputShape = {
+  query: z.string().min(1).describe("Search query (supports camelCase, snake_case splitting)"),
+  limit: z.number().int().positive().optional().describe("Max results (default: 20)"),
+} satisfies z.ZodRawShape;
+const searchInputSchema = z.object(searchInputShape).strict();
+const changesInputShape = {
+  scope: z.enum(CHANGE_SCOPES).optional().describe("Git diff scope (default: all)"),
+} satisfies z.ZodRawShape;
+const changesInputSchema = z.object(changesInputShape).strict();
+const impactInputShape = {
+  symbol: z.string().min(1).describe("Symbol name or qualified name (e.g., 'getUserById' or 'UserService.getUserById')"),
+} satisfies z.ZodRawShape;
+const impactInputSchema = z.object(impactInputShape).strict();
+const renameInputShape = {
+  oldName: z.string().min(1).describe("Current symbol name"),
+  newName: z.string().min(1).describe("New symbol name"),
+  dryRun: z.boolean().optional().describe("If true, only report references without renaming (default: true)"),
+} satisfies z.ZodRawShape;
+const renameInputSchema = z.object(renameInputShape).strict();
+const processesInputShape = {
+  entryPoint: z.string().min(1).optional().describe("Filter by entry point symbol name"),
+  limit: z.number().int().positive().optional().describe("Max processes to return (default: all)"),
+} satisfies z.ZodRawShape;
+const processesInputSchema = z.object(processesInputShape).strict();
+const clustersInputShape = {
+  minFiles: z.number().int().positive().optional().describe("Filter clusters with at least N files (default: 0)"),
+} satisfies z.ZodRawShape;
+const clustersInputSchema = z.object(clustersInputShape).strict();
 
 type OverviewInput = z.infer<typeof overviewInputSchema>;
 type FileContextInput = z.infer<typeof fileContextInputSchema>;
@@ -131,7 +154,8 @@ export const operations = {
     name: "overview",
     cliCommand: "overview",
     mcpTool: "codebase_overview",
-    description: "High-level codebase snapshot: files, functions, modules, dependencies.",
+    description: "Get a high-level overview of the codebase: total files, modules, top-depended files, and key metrics. Use when: first exploring a codebase, 'what does this project look like'. Not for: module details (use get_module_structure) or data flow (use analyze_forces)",
+    inputShape: overviewInputShape,
     inputSchema: overviewInputSchema,
     run: (graph: CodebaseGraph, _input: OverviewInput) => computeOverview(graph),
   } satisfies Operation<OverviewInput, ReturnType<typeof computeOverview>>,
@@ -139,7 +163,8 @@ export const operations = {
     name: "fileContext",
     cliCommand: "file",
     mcpTool: "file_context",
-    description: "Detailed file context: exports, imports, dependents, and metrics.",
+    description: "Get detailed context for a specific file: exports, imports, dependents, and all metrics. Use when: 'tell me about this file', understanding a file before modifying it. Not for: symbol-level detail (use symbol_context)",
+    inputShape: fileContextInputShape,
     inputSchema: fileContextInputSchema,
     run: (graph: CodebaseGraph, input: FileContextInput) => computeFileContext(graph, input.filePath),
   } satisfies Operation<FileContextInput, ReturnType<typeof computeFileContext>>,
@@ -147,7 +172,8 @@ export const operations = {
     name: "dependents",
     cliCommand: "dependents",
     mcpTool: "get_dependents",
-    description: "File-level blast radius with direct and transitive dependents.",
+    description: "Get all files that import a given file, with transitive dependents. File-level blast radius. Use when: 'what breaks if I change this file'. Not for: symbol-level impact (use impact_analysis)",
+    inputShape: dependentsInputShape,
     inputSchema: dependentsInputSchema,
     run: (graph: CodebaseGraph, input: DependentsInput) => computeDependents(graph, input.filePath, input.depth),
   } satisfies Operation<DependentsInput, ReturnType<typeof computeDependents>>,
@@ -155,7 +181,8 @@ export const operations = {
     name: "hotspots",
     cliCommand: "hotspots",
     mcpTool: "find_hotspots",
-    description: "Rank files or modules by architectural risk metric.",
+    description: "Rank files by any metric: coupling, pagerank, fan_in, fan_out, betweenness, tension, escape_velocity, churn, complexity, blast_radius, coverage. Use when: 'what are the riskiest files', 'which files need tests', 'most complex files'. Not for: module-level analysis (use get_module_structure)",
+    inputShape: hotspotsInputShape,
     inputSchema: hotspotsInputSchema,
     run: (graph: CodebaseGraph, input: HotspotsInput) => computeHotspots(graph, input.metric, input.limit),
   } satisfies Operation<HotspotsInput, ReturnType<typeof computeHotspots>>,
@@ -163,7 +190,8 @@ export const operations = {
     name: "moduleStructure",
     cliCommand: "modules",
     mcpTool: "get_module_structure",
-    description: "Module structure with cohesion, cross-module dependencies, and circular dependencies.",
+    description: "Get module/directory structure with cross-module dependencies, cohesion scores, and circular deps. Use when: 'how are modules organized', 'what depends on what module'. Not for: emergent clusters (use get_clusters) or file-level metrics (use find_hotspots)",
+    inputShape: moduleStructureInputShape,
     inputSchema: moduleStructureInputSchema,
     run: (graph: CodebaseGraph, _input: ModuleStructureInput) => computeModuleStructure(graph),
   } satisfies Operation<ModuleStructureInput, ReturnType<typeof computeModuleStructure>>,
@@ -171,7 +199,8 @@ export const operations = {
     name: "forces",
     cliCommand: "forces",
     mcpTool: "analyze_forces",
-    description: "Architectural force analysis for tension, bridge files, and extraction candidates.",
+    description: "Analyze module health: find misplaced files (tension), bridge files connecting otherwise-disconnected modules, and extraction candidates. Use when: 'what is architecturally wrong', 'which modules are coupled', 'what files should be moved'. Not for: file-level metrics (use find_hotspots)",
+    inputShape: forcesInputShape,
     inputSchema: forcesInputSchema,
     run: (graph: CodebaseGraph, input: ForcesInput) =>
       computeForces(graph, input.cohesionThreshold, input.tensionThreshold, input.escapeThreshold),
@@ -180,7 +209,8 @@ export const operations = {
     name: "deadExports",
     cliCommand: "dead-exports",
     mcpTool: "find_dead_exports",
-    description: "Unused exports across the codebase.",
+    description: "Find unused exports across the codebase - exports that no other file imports. Use when: cleaning up dead code, reducing API surface. Not for: finding used exports (use file_context)",
+    inputShape: deadExportsInputShape,
     inputSchema: deadExportsInputSchema,
     run: (graph: CodebaseGraph, input: DeadExportsInput) => computeDeadExports(graph, input.module, input.limit),
   } satisfies Operation<DeadExportsInput, ReturnType<typeof computeDeadExports>>,
@@ -188,7 +218,8 @@ export const operations = {
     name: "opportunities",
     cliCommand: "opportunities",
     mcpTool: "find_opportunities",
-    description: "Ranked code quality and refactoring opportunities.",
+    description: "Rank code quality and refactoring opportunities with evidence, confidence, and suggested follow-up commands. Use when: 'what should I improve', 'find refactoring opportunities', 'what needs tests'. Not for: raw metrics only (use find_hotspots or analyze_forces)",
+    inputShape: opportunitiesInputShape,
     inputSchema: opportunitiesInputSchema,
     run: (graph: CodebaseGraph, input: OpportunitiesInput) => computeOpportunities(graph, input.limit),
   } satisfies Operation<OpportunitiesInput, ReturnType<typeof computeOpportunities>>,
@@ -196,7 +227,8 @@ export const operations = {
     name: "groups",
     cliCommand: "groups",
     mcpTool: "get_groups",
-    description: "Top-level directory groups with aggregate metrics.",
+    description: "Get top-level directory groups with aggregate metrics: files, LOC, importance (PageRank), coupling. Use when: 'what are the main areas of this codebase', high-level grouping overview. Not for: detailed module metrics (use get_module_structure)",
+    inputShape: emptyInputShape,
     inputSchema: emptyInputSchema,
     run: (graph: CodebaseGraph, _input: EmptyInput) => computeGroups(graph),
   } satisfies Operation<EmptyInput, ReturnType<typeof computeGroups>>,
@@ -204,7 +236,8 @@ export const operations = {
     name: "symbolContext",
     cliCommand: "symbol",
     mcpTool: "symbol_context",
-    description: "Symbol callers, callees, and importance metrics.",
+    description: "Find all callers and callees of a function, class, or method with importance metrics. Use when: 'who calls X', 'trace this function', 'what depends on this symbol'. Not for: text search (use search) or file-level dependencies (use get_dependents)",
+    inputShape: symbolContextInputShape,
     inputSchema: symbolContextInputSchema,
     run: (graph: CodebaseGraph, input: SymbolContextInput) => computeSymbolContext(graph, input.name),
   } satisfies Operation<SymbolContextInput, ReturnType<typeof computeSymbolContext>>,
@@ -212,7 +245,8 @@ export const operations = {
     name: "search",
     cliCommand: "search",
     mcpTool: "search",
-    description: "Keyword search across files and symbols.",
+    description: "Search files and symbols by keyword. Returns ranked results with symbol locations. Use when: 'find files related to auth', 'where is getUserById defined'. Not for: structured call graph queries (use symbol_context)",
+    inputShape: searchInputShape,
     inputSchema: searchInputSchema,
     run: (graph: CodebaseGraph, input: SearchInput) => computeSearch(graph, input.query, input.limit),
   } satisfies Operation<SearchInput, ReturnType<typeof computeSearch>>,
@@ -220,7 +254,8 @@ export const operations = {
     name: "changes",
     cliCommand: "changes",
     mcpTool: "detect_changes",
-    description: "Git diff analysis with changed files, symbols, and risk metrics.",
+    description: "Detect changed files from git diff with risk metrics per file. Use when: starting a review, triaging changes, 'what changed'. Not for: symbol-level impact (use impact_analysis)",
+    inputShape: changesInputShape,
     inputSchema: changesInputSchema,
     run: (graph: CodebaseGraph, input: ChangesInput, context: OperationContext) =>
       computeChanges(graph, input.scope, context.rootDir),
@@ -229,7 +264,8 @@ export const operations = {
     name: "impact",
     cliCommand: "impact",
     mcpTool: "impact_analysis",
-    description: "Symbol-level blast radius with depth-grouped impact levels.",
+    description: "Analyze blast radius of changing a specific function or class. Symbol-level, depth-grouped, with risk labels (WILL BREAK / LIKELY / MAY NEED TESTING). Use when: 'what breaks if I change getUserById'. Not for: file-level dependencies (use get_dependents)",
+    inputShape: impactInputShape,
     inputSchema: impactInputSchema,
     run: (graph: CodebaseGraph, input: ImpactInput) => impactAnalysis(graph, input.symbol),
   } satisfies Operation<ImpactInput, ReturnType<typeof impactAnalysis>>,
@@ -237,7 +273,8 @@ export const operations = {
     name: "rename",
     cliCommand: "rename",
     mcpTool: "rename_symbol",
-    description: "Read-only rename reference planning for a symbol.",
+    description: "Read-only: find all reference locations for a symbol across the codebase, with confidence levels. Does not modify files. Use when: planning a rename, finding all usages. Not for: call graph analysis (use symbol_context)",
+    inputShape: renameInputShape,
     inputSchema: renameInputSchema,
     run: (graph: CodebaseGraph, input: RenameInput) =>
       renameSymbol(graph, input.oldName, input.newName, input.dryRun ?? true),
@@ -246,7 +283,8 @@ export const operations = {
     name: "processes",
     cliCommand: "processes",
     mcpTool: "get_processes",
-    description: "Execution flows from entry points through the call graph.",
+    description: "Trace execution flows from entry points through the call graph. Returns step-by-step paths showing how requests flow through the codebase. Use when: 'how does this app start', 'trace request flow', 'what are the entry points'. Not for: static file dependencies (use get_dependents)",
+    inputShape: processesInputShape,
     inputSchema: processesInputSchema,
     run: (graph: CodebaseGraph, input: ProcessesInput) => computeProcesses(graph, input.entryPoint, input.limit),
   } satisfies Operation<ProcessesInput, ReturnType<typeof computeProcesses>>,
@@ -254,7 +292,8 @@ export const operations = {
     name: "clusters",
     cliCommand: "clusters",
     mcpTool: "get_clusters",
-    description: "Community-detected file clusters.",
+    description: "Get community-detected clusters of related files using Louvain algorithm. Discovers emergent groupings that may differ from directory structure. Use when: 'what files are related', 'find natural groupings', 'which files change together'. Not for: directory-based modules (use get_module_structure)",
+    inputShape: clustersInputShape,
     inputSchema: clustersInputSchema,
     run: (graph: CodebaseGraph, input: ClustersInput) => computeClusters(graph, input.minFiles),
   } satisfies Operation<ClustersInput, ReturnType<typeof computeClusters>>,

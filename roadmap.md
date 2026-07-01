@@ -267,14 +267,17 @@ Collapse CLI + MCP operation duplication into one descriptor registry before add
 - Add `runOperation(...)` discriminated result/error wrapper for descriptor-level tests.
 - Type MCP next-step hint keys against the operation-name union.
 - Add CH-P1-01 coverage for registry -> CLI JSON -> MCP JSON overview parity.
+- Reuse registry descriptors and input shapes in MCP tool registration.
+- Route MCP operation success/error envelopes through `runOperation(...)` while preserving existing `nextSteps` and `isError` contracts.
+- Add MCP registry parity coverage for representative operation descriptor runs.
 
 **Remaining:**
 
-- Reuse registry schemas in CLI coercion and MCP tool registration.
-- Move shared CLI/MCP failures over descriptor-level validation errors.
+- Reuse registry schemas in CLI coercion.
+- Move CLI failures over descriptor-level validation errors.
 - Use one graph-load pipeline with progress callbacks.
 - Move text/SARIF/markdown formatting over result objects into formatters.
-- Expand CH-P1-01 from overview to every operation.
+- Expand CH-P1-01 from overview/representative MCP operations to every operation.
 - Add CH-P1-02 coverage for success, invalid input, parse failure, and cache reuse through registry adapters.
 
 ### Type/Shape Layer

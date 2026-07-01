@@ -22,7 +22,7 @@ Core (shared computation)
   | result builders used by MCP, CLI, and operation descriptors
   |\
   | \-> Operation Registry
-  |     typed descriptors, input schemas, CLI/MCP names, result wrappers
+  |     typed descriptors, input schemas, MCP adapter, result wrappers
   v
 MCP (stdio)                    CLI (terminal/CI)
   | 17 tools, 2 prompts,        | 18 commands with text + JSON
@@ -81,7 +81,7 @@ runOperation(operation, codebaseGraph, input, context)
 ## Key Design Decisions
 
 - **Dual interface**: MCP stdio for LLM agents, CLI subcommands for humans/CI. Both consume `src/core/`.
-- **Operation registry foundation**: Analysis operations now have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. CLI/MCP handlers still call `src/core/` directly until the adapter migration lands.
+- **Operation registry foundation**: Analysis operations now have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. MCP tool registration consumes those descriptors; CLI commands still call `src/core/` directly until the CLI adapter migration lands.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Monorepo import resolution**: Root `tsconfig.json` path aliases and local `package.json` package names resolve to source files before graph construction.
