@@ -30,6 +30,7 @@ const expectedOperations: Array<{
   { name: "forces", cliCommand: "forces", mcpTool: "analyze_forces", inputKeys: ["cohesionThreshold", "tensionThreshold", "escapeThreshold"], sampleInput: { cohesionThreshold: 0.6 } },
   { name: "deadExports", cliCommand: "dead-exports", mcpTool: "find_dead_exports", inputKeys: ["module", "limit"], sampleInput: { limit: 5 } },
   { name: "opportunities", cliCommand: "opportunities", mcpTool: "find_opportunities", inputKeys: ["limit"], sampleInput: { limit: 5 } },
+  { name: "duplication", cliCommand: "duplicates", mcpTool: "find_duplicates", inputKeys: ["mode", "minTokens", "skipLocal", "trace"], sampleInput: { mode: "mild", minTokens: 30, skipLocal: true } },
   { name: "groups", cliCommand: "groups", mcpTool: "get_groups", inputKeys: [], sampleInput: {} },
   { name: "symbolContext", cliCommand: "symbol", mcpTool: "symbol_context", inputKeys: ["name"], sampleInput: { name: "getUserById" } },
   { name: "search", cliCommand: "search", mcpTool: "search", inputKeys: ["query", "limit"], sampleInput: { query: "auth", limit: 5 } },

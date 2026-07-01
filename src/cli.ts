@@ -190,6 +190,13 @@ interface OpportunitiesOptions extends CliCommandOptions {
   limit?: string;
 }
 
+interface DuplicationOptions extends CliCommandOptions {
+  mode?: string;
+  minTokens?: string;
+  skipLocal?: boolean;
+  trace?: string;
+}
+
 interface ProcessesOptions extends CliCommandOptions {
   entry?: string;
   limit?: string;
@@ -487,6 +494,36 @@ program
     }
 
     outputOperationText(operations.opportunities, result, input);
+  });
+
+// ── Subcommand: duplicates ─────────────────────────────────
+
+program
+  .command("duplicates")
+  .description("Detect duplicate function families (strict, mild, weak)")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--mode <mode>", "Clone mode: strict, mild, or weak (default: mild)")
+  .option("--min-tokens <n>", "Minimum tokens to consider (default: 30)")
+  .option("--skip-local", "Ignore duplicate families confined to one file")
+  .option("--trace <id>", "Return token evidence for a duplicate family id")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: DuplicationOptions) => {
+    const input = parseCliOperationInput(operations.duplication, {
+      mode: options.mode,
+      minTokens: optionalIntegerInput(options.minTokens),
+      skipLocal: options.skipLocal,
+      trace: options.trace,
+    });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.duplication, graph, input);
+
+    if (options.json) {
+      outputJson(result);
+      return;
+    }
+
+    outputOperationText(operations.duplication, result, input);
   });
 
 // ── Subcommand: groups ─────────────────────────────────────

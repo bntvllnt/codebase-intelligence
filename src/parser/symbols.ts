@@ -5,6 +5,7 @@ import {
   declarationTypeFactsFromSyntax,
   nodeLocation,
 } from "./type-facts.js";
+import { extractDuplicationFacts } from "./duplication.js";
 
 function parsedSymbol(
   name: string,
@@ -27,6 +28,7 @@ function parsedSymbol(
     complexity: computeComplexity(node),
     isExported,
     typeFacts,
+    duplication: extractDuplicationFacts(node, sourceFile),
   };
 }
 

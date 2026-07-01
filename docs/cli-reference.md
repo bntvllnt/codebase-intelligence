@@ -1,6 +1,6 @@
 # CLI Reference
 
-18 commands for terminal and CI use. The 16 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
+19 commands for terminal and CI use. The 17 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -106,6 +106,18 @@ codebase-intelligence opportunities <path> [--limit <n>] [--json] [--force]
 
 **Output:** ranked opportunities with kind, priority, confidence, score, target, evidence, and suggested follow-up commands.
 
+### duplicates
+
+Detect duplicate function families.
+
+```bash
+codebase-intelligence duplicates <path> [--mode <mode>] [--min-tokens <n>] [--skip-local] [--trace <id>] [--json] [--force]
+```
+
+**Modes:** `strict` preserves identifiers/literals, `mild` normalizes identifiers/literals for renamed clones, `weak` uses deterministic sequence similarity for near-miss clones.
+
+**Output:** duplicate family IDs, member symbols, token counts, similarity threshold/score, and optional trace evidence for one family.
+
 ### groups
 
 Top-level directory groups with aggregate metrics.
@@ -209,6 +221,10 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitigno
 | `--force` | All commands | Re-parse even if cached index matches HEAD |
 | `--metric <m>` | hotspots | Metric to rank by (default: coupling) |
 | `--limit <n>` | hotspots, search, dead-exports, opportunities, processes | Max results |
+| `--mode <m>` | duplicates | Clone mode: strict, mild, weak |
+| `--min-tokens <n>` | duplicates | Minimum function body token count (default: 30) |
+| `--skip-local` | duplicates | Ignore families confined to one file |
+| `--trace <id>` | duplicates | Return token evidence for one family id |
 | `--scope <s>` | changes | Git diff scope: staged, unstaged, all |
 | `--depth <n>` | dependents | Max traversal depth (default: 2) |
 | `--cohesion <n>` | forces | Min cohesion threshold (default: 0.6) |

@@ -6,6 +6,7 @@ import {
   computeClusters,
   computeDeadExports,
   computeDependents,
+  computeDuplication,
   computeFileContext,
   computeForces,
   computeGroups,
@@ -19,12 +20,14 @@ import {
   impactAnalysis,
   renameSymbol,
 } from "../core/index.js";
+import { DUPLICATION_MODES } from "../duplication/index.js";
 import type { CodebaseGraph } from "../types/index.js";
 import {
   formatChangesText,
   formatClustersText,
   formatDeadExportsText,
   formatDependentsText,
+  formatDuplicationText,
   formatFileContextText,
   formatForcesText,
   formatGroupsText,
@@ -48,6 +51,7 @@ export const operationNames = [
   "forces",
   "deadExports",
   "opportunities",
+  "duplication",
   "groups",
   "symbolContext",
   "search",
@@ -116,6 +120,13 @@ const opportunitiesInputShape = {
   limit: z.number().int().positive().optional().describe("Max opportunities (default: 20)"),
 } satisfies z.ZodRawShape;
 const opportunitiesInputSchema = z.object(opportunitiesInputShape).strict();
+const duplicationInputShape = {
+  mode: z.enum(DUPLICATION_MODES).optional().describe("Clone mode: strict, mild, or weak (default: mild)"),
+  minTokens: z.number().int().positive().optional().describe("Minimum function body tokens to consider (default: 30)"),
+  skipLocal: z.boolean().optional().describe("Ignore duplicate families confined to one file"),
+  trace: z.string().min(1).optional().describe("Return token evidence for a duplicate family id"),
+} satisfies z.ZodRawShape;
+const duplicationInputSchema = z.object(duplicationInputShape).strict();
 const emptyInputShape = {} satisfies z.ZodRawShape;
 const emptyInputSchema = z.object(emptyInputShape).strict();
 const symbolContextInputShape = {
@@ -159,6 +170,7 @@ type ModuleStructureInput = z.infer<typeof moduleStructureInputSchema>;
 type ForcesInput = z.infer<typeof forcesInputSchema>;
 type DeadExportsInput = z.infer<typeof deadExportsInputSchema>;
 type OpportunitiesInput = z.infer<typeof opportunitiesInputSchema>;
+type DuplicationInput = z.infer<typeof duplicationInputSchema>;
 type EmptyInput = z.infer<typeof emptyInputSchema>;
 type SymbolContextInput = z.infer<typeof symbolContextInputSchema>;
 type SearchInput = z.infer<typeof searchInputSchema>;
@@ -250,6 +262,16 @@ export const operations = {
     run: (graph: CodebaseGraph, input: OpportunitiesInput) => computeOpportunities(graph, input.limit),
     formatText: formatOpportunitiesText,
   } satisfies Operation<OpportunitiesInput, ReturnType<typeof computeOpportunities>>,
+  duplication: {
+    name: "duplication",
+    cliCommand: "duplicates",
+    mcpTool: "find_duplicates",
+    description: "Detect duplicate function families with strict, mild, or weak clone modes. Use when: finding copy-paste logic, drift between similar functions, or refactor candidates. Not for: unused code (use find_dead_exports) or module-level cohesion (use analyze_forces)",
+    inputShape: duplicationInputShape,
+    inputSchema: duplicationInputSchema,
+    run: (graph: CodebaseGraph, input: DuplicationInput) => computeDuplication(graph, input),
+    formatText: formatDuplicationText,
+  } satisfies Operation<DuplicationInput, ReturnType<typeof computeDuplication>>,
   groups: {
     name: "groups",
     cliCommand: "groups",

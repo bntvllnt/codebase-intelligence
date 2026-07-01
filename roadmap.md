@@ -304,13 +304,18 @@ Capture resolved parameter and return types per symbol.
 
 Add deterministic clone detection on the existing parser path.
 
-**To do:**
+**Foundation slice:**
 
 - Implement `strict`, `mild`, and `weak` clone modes.
 - Emit clone families, not isolated pair findings.
 - Support `--min-tokens`, `--skip-local`, `--trace <id>`, and `--json`.
-- Feed step-similarity signals into Highways.
-- Defer semantic/shape-based duplication until the Type/Shape layer exists.
+- Add CH-P1-04 coverage for exact clones, renamed clones, near-miss clones, below-threshold noise, trace output, stable IDs/order, CLI/MCP parity, and local-only skipping.
+- Expose deterministic similarity scores for later Highways routing.
+
+**Remaining:**
+
+- Feed duplication similarity signals into Highways once Highways exists.
+- Add semantic/shape-based duplication on top of the Type/Shape layer.
 
 ### Dead Code Beyond Exports
 

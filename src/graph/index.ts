@@ -141,6 +141,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           complexity: symbol.complexity,
           isExported: symbol.isExported,
           typeFacts: symbol.typeFacts,
+          duplication: symbol.duplication,
         });
         if (!callGraphNodeIds.has(symbolId)) {
           callGraph.addNode(symbolId, { name: symbol.name, type: symbol.type, file: file.relativePath });

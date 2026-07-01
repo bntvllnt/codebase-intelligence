@@ -103,6 +103,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   registerOperationTool(server, graph, operations.forces);
   registerOperationTool(server, graph, operations.deadExports);
   registerOperationTool(server, graph, operations.opportunities);
+  registerOperationTool(server, graph, operations.duplication);
   registerOperationTool(server, graph, operations.groups, {
     successPayload: (computed) => computed.groups.length === 0 ? { message: "No groups found." } : computed,
   });
