@@ -81,7 +81,7 @@
         },
         "no-unused-deps": {
           "$ref": "#/$defs/severity",
-          "description": "Report package.json dependencies that are never imported."
+          "description": "Report unused, unlisted, type-only, test-only, and wrong-section dependencies per package.json/workspace manifest."
         },
         "no-stale-suppressions": {
           "$ref": "#/$defs/severity",

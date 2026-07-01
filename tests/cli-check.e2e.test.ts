@@ -125,6 +125,71 @@ const DEAD_CODE_EXPANSION = {
   "src/deps.test.ts": 'import { describe } from "vitest";\ndescribe("deps", () => {});\n',
 };
 
+const WORKSPACE_DEPENDENCY_POLICY = {
+  "package.json": JSON.stringify(
+    {
+      private: true,
+      workspaces: ["packages/*"],
+      dependencies: {
+        "root-unused": "1.0.0",
+      },
+    },
+    null,
+    2,
+  ),
+  "packages/app/package.json": JSON.stringify(
+    {
+      name: "@repo/app",
+      dependencies: {
+        "@repo/core": "workspace:*",
+        "app-left": "1.0.0",
+        "app-test-only": "1.0.0",
+      },
+      devDependencies: {
+        "app-dev-runtime": "1.0.0",
+      },
+    },
+    null,
+    2,
+  ),
+  "packages/app/src/index.ts": [
+    'import { core } from "@repo/core";',
+    'import { tool } from "@repo/tool";',
+    'import leftPad from "app-left";',
+    'import devRuntime from "app-dev-runtime";',
+    'import missing from "app-missing";',
+    "export const app = leftPad(`${core()}-${tool()}-${devRuntime}-${missing}`, 2);",
+    "",
+  ].join("\n"),
+  "packages/app/src/index.test.ts": 'import { describe } from "app-test-only";\ndescribe("app", () => {});\n',
+  "packages/core/package.json": JSON.stringify(
+    {
+      name: "@repo/core",
+      dependencies: {
+        "core-unused": "1.0.0",
+        "core-type-only": "1.0.0",
+      },
+    },
+    null,
+    2,
+  ),
+  "packages/core/src/index.ts": [
+    'import type { Static } from "core-type-only";',
+    "type CoreShape = Static;",
+    "export function core(): string { return 'core'; }",
+    "export type { CoreShape };",
+    "",
+  ].join("\n"),
+  "packages/tool/package.json": JSON.stringify(
+    {
+      name: "@repo/tool",
+    },
+    null,
+    2,
+  ),
+  "packages/tool/src/index.ts": "export function tool(): string { return 'tool'; }\n",
+};
+
 const DEAD_CODE_RULES = {
   rules: {
     "no-circular-deps": "off",
@@ -412,5 +477,51 @@ describe("check command (e2e)", () => {
     expect(sarifFinding?.ruleId).toBe("no-dead-files");
     expect(sarifFinding?.properties?.confidence).toBe("medium");
     expect(sarifFinding?.properties?.evidence).toContain("entrypoint=false");
+  }, 90_000);
+
+  it("CH-P1-07: scopes dependency hygiene to workspace package manifests", async () => {
+    const dir = makeProject(
+      WORKSPACE_DEPENDENCY_POLICY,
+      { rules: { "no-circular-deps": "off", "no-dead-exports": "off", "no-unused-deps": "warn" } },
+    );
+    const jsonRun = await run(["check", dir, "--json", "--fail-on", "warn", "--force"]);
+    expect(jsonRun.status).toBe(1);
+
+    const parsed = JSON.parse(jsonRun.stdout) as {
+      findings: Array<{
+        kind?: string;
+        file: string;
+        message: string;
+        evidence?: string[];
+      }>;
+    };
+    const findings = parsed.findings;
+
+    expect(findings.some((finding) => finding.kind === "unused-dependency"
+      && finding.file === "package.json"
+      && finding.message.includes("root-unused"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "unused-dependency"
+      && finding.file === "packages/core/package.json"
+      && finding.message.includes("core-unused")
+      && finding.evidence?.includes("package=packages/core"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "type-only-dependency"
+      && finding.file === "packages/core/package.json"
+      && finding.message.includes("core-type-only"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "test-only-dependency"
+      && finding.file === "packages/app/package.json"
+      && finding.message.includes("app-test-only")
+      && finding.evidence?.includes("package=packages/app"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "runtime-dev-dependency"
+      && finding.file === "packages/app/package.json"
+      && finding.message.includes("app-dev-runtime"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "unlisted-dependency"
+      && finding.file === "packages/app/src/index.ts"
+      && finding.message.includes("app-missing"))).toBe(true);
+    expect(findings.some((finding) => finding.kind === "unlisted-dependency"
+      && finding.file === "packages/app/src/index.ts"
+      && finding.message.includes("@repo/tool"))).toBe(true);
+
+    expect(findings.some((finding) => finding.message.includes("app-left"))).toBe(false);
+    expect(findings.some((finding) => finding.message.includes("@repo/core"))).toBe(false);
   }, 90_000);
 });

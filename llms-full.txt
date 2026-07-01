@@ -470,7 +470,7 @@ content between the `codebase-intelligence:start`/`:end` markers is ever touched
 codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on <severity>] [--gate <mode>] [--base <ref>] [--quiet] [--summary] [--json] [--force]
 ```
 Rules-engine gate for CI. Formats: text, json, sarif. Fail-on: error, warn, never.
-Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, suppression ledger, and summary counts. Built-in rules include no-comments, no-circular-deps, no-dead-exports, no-stale-suppressions, and opt-in no-dead-files, no-unused-types, no-unused-members, no-unused-deps. Reports active/stale `ci-ignore-*` and `@expected-unused` suppressions; `@public` protects exported cleanup declarations while `@internal` remains checkable.
+Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, suppression ledger, and summary counts. Built-in rules include no-comments, no-circular-deps, no-dead-exports, no-stale-suppressions, and opt-in no-dead-files, no-unused-types, no-unused-members, no-unused-deps. Dependency findings are scoped to the nearest package/workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. Reports active/stale `ci-ignore-*` and `@expected-unused` suppressions; `@public` protects exported cleanup declarations while `@internal` remains checkable.
 
 ## Global Behavior
 

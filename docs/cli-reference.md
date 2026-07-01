@@ -194,7 +194,7 @@ codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on
 
 **Output:** pass/warn/fail verdict, findings, suppression ledger, and summary counts. Findings include stable `fingerprint`; cleanup findings may also include `kind`, `confidence`, and `evidence`. Summary counts include `suppressed` and `staleSuppressions`; `--summary` prints those counts when present. Exit code `0` on pass, `1` when the configured gate fails, `2` for invalid config or arguments.
 
-**Rules:** `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), plus opt-in cleanup gates: `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities in `codebase-intelligence.json`.
+**Rules:** `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), plus opt-in cleanup gates: `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities in `codebase-intelligence.json`.
 
 ### init
 
