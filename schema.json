@@ -227,7 +227,7 @@
       "additionalProperties": false,
       "properties": {
         "preset": {
-          "enum": ["layered", "hexagonal", "feature-sliced"],
+          "enum": ["bulletproof", "layered", "hexagonal", "feature-sliced"],
           "description": "Start from a preset architecture, then override with zones/rules."
         },
         "zones": {

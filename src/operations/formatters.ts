@@ -24,6 +24,7 @@ import type { HealthOptions, HealthResult } from "../health/index.js";
 import type { ImpactResult, RenameResult } from "../impact/index.js";
 import type { CodebaseMapOptions, CodebaseMapResult } from "../map/index.js";
 import type { ContentDriftResult } from "../drift/index.js";
+import type { BoundariesResult } from "../types/index.js";
 
 function text(lines: readonly string[]): string {
   return lines.join("\n");
@@ -756,6 +757,54 @@ export function formatHealthText(result: HealthResult, input: HealthOptions = {}
   }
 
   lines.push("", result.summary);
+  return text(lines);
+}
+
+/**
+ * Format a boundaries operation result for human CLI output.
+ */
+export function formatBoundariesText(result: BoundariesResult, input: { list?: boolean } = {}): string {
+  const lines = [
+    `Boundaries: ${result.verdict.toUpperCase()}`,
+    "────────────────",
+    `Preset: ${result.preset}`,
+    `Zones: ${result.summary.zones}`,
+    `Rules: ${result.summary.rules}`,
+    `Checked edges: ${result.summary.checkedEdges}`,
+    `Violations: ${result.summary.violations}`,
+    `Unassigned files: ${result.summary.unassignedFiles}`,
+  ];
+
+  if (input.list) {
+    lines.push("", "Zones");
+    for (const zone of result.zones) {
+      lines.push(`  ${zone.name}: ${zone.matchedFiles.length} file(s)`);
+      lines.push(`    patterns: ${zone.patterns.join(", ")}`);
+    }
+
+    lines.push("", "Rules");
+    for (const rule of result.rules) {
+      const allow = rule.allow ? ` allow=${rule.allow.join(",")}` : "";
+      const forbid = rule.forbid ? ` forbid=${rule.forbid.join(",")}` : "";
+      lines.push(`  from=${rule.from}${allow}${forbid}`);
+    }
+  }
+
+  if (result.violations.length === 0) {
+    lines.push("", "No boundary violations.");
+    return text(lines);
+  }
+
+  lines.push("", "Violations");
+  for (const violation of result.violations.slice(0, 20)) {
+    lines.push(
+      `  ${violation.id} ${violation.source} -> ${violation.target}`,
+      `    ${violation.message}`,
+      `    rule=${violation.ruleId}; symbols=${violation.symbols.length > 0 ? violation.symbols.join(",") : "*"}`,
+      `    next=${violation.actions[0]?.command ?? "Inspect manually"}`,
+    );
+  }
+
   return text(lines);
 }
 

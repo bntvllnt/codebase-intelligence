@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-24 tools available via MCP stdio.
+25 tools available via MCP stdio.
 
 Operation tools return JSON text payloads. Invalid operation inputs return `isError: true` with `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.
 
@@ -219,7 +219,17 @@ Compute a CI-gateable codebase health score.
 **Use when:** Gating PR quality, ranking complexity/churn/coupling/size hotspots, or tracking maintainability.
 **Not for:** Route discipline (use analyze_highways) or naming drift (use detect_content_drift).
 
-## 22. analyze_highways
+## 22. check_boundaries
+
+Evaluate architecture boundary zones against import edges.
+
+**Input:** `{ preset?: "bulletproof"|"layered"|"hexagonal"|"feature-sliced", list?: boolean }`
+**Returns:** preset, zones, rules, summary, verdict, and violations. Violations include stable IDs, kind (`forbidden-edge`, `disallowed-edge`, `risky-re-export-chain`), source/target files, source/target zones, symbols, evidence, and advisory actions.
+
+**Use when:** Enforcing layering, ports/adapters, feature-sliced imports, or custom zone rules.
+**Not for:** General quality gates with suppressions/new-only behavior (use check).
+
+## 23. analyze_highways
 
 Detect repeated entry-to-sink routes that should converge on one canonical operation path.
 
@@ -229,7 +239,7 @@ Detect repeated entry-to-sink routes that should converge on one canonical opera
 **Use when:** Enforcing dataflow discipline, finding ad-hoc routes, or planning canonical shared paths.
 **Not for:** Raw execution flow listing (use get_processes).
 
-## 23. get_clusters
+## 24. get_clusters
 
 Community-detected clusters of related files.
 
@@ -239,14 +249,14 @@ Community-detected clusters of related files.
 **Use when:** "What files are related?" "Find natural groupings." Discovering emergent groupings that differ from directory structure.
 **Not for:** Directory-based modules (use get_module_structure).
 
-## 23. check
+## 25. check
 
 Run the configurable rules engine and gate on findings.
 
 **Input:** `{}` (uses the loaded graph + discovered config)
 **Returns:** `{ verdict: "pass"|"warn"|"fail", summary: { error, warn, suppressed, staleSuppressions, rules }, configPath, suppressions[], findings[] }`. Each finding has ruleId, severity, file, line, column, message, fingerprint, optional `kind`, optional `confidence`, optional `evidence[]`, and optional advisory `actions[]` (the tool is read-only — actions are hints, never applied). Each suppression records directive, status, file, line, targetLine, matched rule IDs, and suppressed count.
 
-Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), and opt-in cleanup gates `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
+Rules: `no-comments` (off by default), `no-boundary-violations` (error when `boundaries` config exists), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), and opt-in cleanup gates `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
 
 **Use when:** Linting a codebase or enforcing a CI gate. "What rule violations exist?"
 **Not for:** Architecture metrics (use analyze_forces).
@@ -277,6 +287,7 @@ Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-expo
 | "What are the riskiest files?" | `find_hotspots` (risk, coupling, churn, or blast_radius) |
 | "Which files need tests?" | `find_hotspots` (coverage) |
 | "What is the PR quality score?" | `get_health_score` |
+| "Which imports violate architecture boundaries?" | `check_boundaries` |
 | "What should I improve first?" | `find_opportunities` |
 | "Find refactoring opportunities." | `find_opportunities` |
 | "Where is logic duplicated?" | `find_duplicates` |

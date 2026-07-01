@@ -97,6 +97,11 @@ const OPERATION_HINTS: Record<OperationName, string[]> = {
     "Use file_context on top health hotspots before refactoring",
     "Use --min-score in CI when you want health to fail below a threshold",
   ],
+  boundaries: [
+    "Use --list to inspect resolved zones and rules before changing config",
+    "Use get_dependents on violation targets to inspect blast radius",
+    "Use check with no-boundary-violations enabled to gate boundary debt in CI",
+  ],
   highways: [
     "Use impact_analysis on the proposed canonical node before editing",
     "Use symbol_context on bypass route entry points to inspect call chains",

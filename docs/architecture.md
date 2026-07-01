@@ -25,7 +25,7 @@ Core (shared computation)
   |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers, text formatters
   v
 MCP (stdio)                    CLI (terminal/CI)
-  | 24 tools, 2 prompts,        | 23 commands with text + JSON
+  | 25 tools, 2 prompts,        | 24 commands with text + JSON
   | 3 resources for LLMs        | output for humans and CI
 ```
 
@@ -50,8 +50,9 @@ src/
   map/index.ts         <- Focused codebase maps + token-bounded context packs
   drift/               <- Content drift scoring, profiles, findings, tokens, and stable evidence
   health/              <- Health score, maintainability, CRAP, coverage lookup, and risk scoring
+  boundaries/          <- Architecture zones, allow/forbid edge rules, and violation evidence
   highways/index.ts    <- Repeated route convergence + bypass/cowpath/synthesis evidence
-  mcp/index.ts         <- 24 MCP tools for LLM integration
+  mcp/index.ts         <- 25 MCP tools for LLM integration
   mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
@@ -86,7 +87,7 @@ analyzeGraph(builtGraph, parsedFiles)
      }
 
 startMcpServer(codebaseGraph)
-  -> stdio MCP server with 24 tools, 2 prompts, 3 resources
+  -> stdio MCP server with 25 tools, 2 prompts, 3 resources
 
 runOperation(operation, codebaseGraph, input, context)
   -> { ok: true, data } | { ok: false, error, data? }
@@ -104,6 +105,7 @@ runOperation(operation, codebaseGraph, input, context)
 - **Codebase map context packs**: `map` / `get_codebase_map` builds deterministic file/symbol/test/scope graphs with stable evidence IDs. `get_scope_graph` and `get_context_pack` are MCP-only filtered views derived from the same result, so agents get compact context without a second analyzer path.
 - **Content drift**: `drift` / `detect_content_drift` compares path/name/export intent with import/call/type/side-effect/test behavior. Findings are deterministic, evidence-backed, report-only, and baseline-gated before any future CI enforcement.
 - **Health score**: `health` / `get_health_score` computes one gateable score plus per-file maintainability, CRAP, coverage, and risk evidence. `hotspots --metric risk` uses the same file-risk formula.
+- **Architecture boundaries**: `boundaries` / `check_boundaries` evaluates graph import edges against preset or custom zones and directed allow/forbid rules. The `no-boundary-violations` check rule reuses the same analyzer so CLI, MCP, and CI emit one stable finding shape.
 - **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.

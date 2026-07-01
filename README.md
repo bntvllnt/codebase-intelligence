@@ -31,6 +31,7 @@ npx codebase-intelligence duplicates ./src --mode mild --min-tokens 30
 npx codebase-intelligence impact ./src parseCodebase
 npx codebase-intelligence dead-exports ./src --limit 20
 npx codebase-intelligence changes ./src --json
+npx codebase-intelligence boundaries ./src --preset layered --list --json
 ```
 
 ### MCP (optional)
@@ -57,7 +58,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 ## Features
 
-- **23 CLI commands** for architecture analysis, dependency impact, duplicate families, focused map/context packs, content drift, health scoring, Highways convergence, improvement opportunities, dead code detection, search, CI rules, and agent setup
+- **24 CLI commands** for architecture analysis, dependency impact, duplicate families, focused map/context packs, content drift, health scoring, boundary enforcement, Highways convergence, improvement opportunities, dead code detection, search, CI rules, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.codebase-intelligence/` for fast repeat queries
 - **Cache migration facts** in JSON (`cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`)
@@ -71,7 +72,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **Highways analysis** — find repeated routes that bypass canonical dataflow paths and synthesize safe proposed highways
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
-- **MCP parity (secondary)** — same analysis and rules gate available as 24 MCP tools, 2 prompts, and 3 resources
+- **MCP parity (secondary)** — same analysis and rules gate available as 25 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
 
@@ -117,6 +118,7 @@ codebase-intelligence <command> <path> [options]
 | `map` | Focused codebase graph + token-bounded context pack |
 | `drift` | Report-only content drift findings with evidence and recommendations |
 | `health` | CI-gateable health score with maintainability, CRAP, coverage, and risk hotspots |
+| `boundaries` | Architecture boundary zones, allow/forbid import rules, and violation evidence |
 | `highways` | Repeated route convergence, canonical path opportunities, and synthesis proposals |
 | `clusters` | Community-detected file clusters |
 | `check` | Rules-engine gate for CI, including opt-in dead-code and dependency gates |
@@ -139,6 +141,8 @@ codebase-intelligence <command> <path> [options]
 | `--context-budget <n>` | Bound `map` context pack size |
 | `--min-score <n>` | Minimum drift score for `drift` findings; minimum health score before `health` exits 1 |
 | `--score` | Print compact `health` score text |
+| `--preset <name>` | Run `boundaries` with `bulletproof`, `layered`, `hexagonal`, or `feature-sliced` |
+| `--list` | List resolved `boundaries` zones and rules |
 | `--format <fmt>` | Export `map` as `markdown`, `json`, `dot`, or `graphml`; export `check` as `text`, `json`, or `sarif` |
 | `--operation <verb>` | Focus `highways` on one operation verb |
 | `--shape <name>` | Focus `highways` on one type/DTO shape |
