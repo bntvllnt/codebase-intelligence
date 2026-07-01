@@ -11,26 +11,23 @@ process.on("uncaughtException", (err) => {
 
 import fs from "fs";
 import path from "path";
-import { execSync } from "child_process";
 import { createRequire } from "module";
 import { Command } from "commander";
 
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json") as { version: string };
-import { parseCodebase } from "./parser/index.js";
-import { buildGraph } from "./graph/index.js";
-import { analyzeGraph } from "./analyzer/index.js";
 import { startMcpServer } from "./mcp/index.js";
-import { setIndexedHead, setRoot } from "./server/graph-store.js";
-import { exportGraph, importGraph } from "./persistence/index.js";
-import { getCacheKey } from "./persistence/cache-key.js";
+import { importGraph } from "./persistence/index.js";
 import {
   cleanIndexDirectories,
-  getCacheFacts,
   getCacheFactsForTarget,
-  prepareIndexDirectory,
-  type IndexDirectoryResolution,
 } from "./persistence/index-dir.js";
+import {
+  GraphLoadError,
+  loadCodebaseGraph,
+  prepareGraphCache,
+  type GraphLoadProgress,
+} from "./graph-loader/index.js";
 import {
   operations,
   parseOperationInput,
@@ -54,28 +51,6 @@ import type { CacheFacts, CodebaseGraph, OutputFormat } from "./types/index.js";
 // ── Helpers ─────────────────────────────────────────────────
 
 let activeCacheFacts: CacheFacts | null = null;
-
-function reportIndexMigration(resolution: IndexDirectoryResolution): void {
-  if (resolution.migration === "migrated-legacy") {
-    progress(`Migrated legacy index ${resolution.legacyDir} to ${resolution.canonicalDir}`);
-  }
-  if (resolution.migration === "ignored-legacy") {
-    progress(`Using ${resolution.canonicalDir}; legacy index remains at ${resolution.legacyDir}`);
-  }
-}
-
-function getHeadHash(targetPath: string): string {
-  try {
-    return execSync("git rev-parse HEAD", {
-      cwd: path.resolve(targetPath),
-      encoding: "utf-8",
-      timeout: 5000,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-  } catch {
-    return "unknown";
-  }
-}
 
 function progress(msg: string): void {
   process.stderr.write(`${msg}\n`);
@@ -140,59 +115,32 @@ function runCliOperation<TInput extends object, TResult>(
   return result.data;
 }
 
-/** Load (or parse+cache) the codebase graph for a target path. */
+function reportGraphLoadProgress(event: GraphLoadProgress): void {
+  progress(event.message);
+}
+
+function printGraphLoadError(err: unknown): never {
+  if (err instanceof GraphLoadError) {
+    process.stderr.write(`Error: ${err.message}\n`);
+    process.exit(1);
+  }
+  throw err;
+}
+
 function loadGraph(targetPath: string, force = false): { graph: CodebaseGraph; headHash: string } {
-  const resolved = path.resolve(targetPath);
-  if (!fs.existsSync(resolved)) {
-    process.stderr.write(`Error: Path does not exist: ${targetPath}\n`);
-    process.exit(1);
+  try {
+    const result = loadCodebaseGraph({
+      targetPath,
+      force,
+      persist: true,
+      cliVersion: pkg.version,
+      onProgress: reportGraphLoadProgress,
+    });
+    activeCacheFacts = result.cacheFacts;
+    return { graph: result.graph, headHash: result.headHash };
+  } catch (err) {
+    printGraphLoadError(err);
   }
-  setRoot(resolved);
-
-  const indexResolution = prepareIndexDirectory(targetPath);
-  reportIndexMigration(indexResolution);
-  activeCacheFacts = getCacheFacts(indexResolution);
-  const indexDir = indexResolution.activeDir;
-  const headHash = getHeadHash(targetPath);
-  const cacheKey = getCacheKey(targetPath, { headHash, cliVersion: pkg.version });
-
-  if (!force && headHash !== "unknown") {
-    const cached = importGraph(indexDir);
-    if (cached?.headHash === headHash && cached.cacheKey === cacheKey) {
-      progress(`Using cached index (HEAD: ${headHash.slice(0, 7)})`);
-      setIndexedHead(cached.headHash);
-      return { graph: cached.graph, headHash };
-    }
-  }
-
-  progress(`Parsing ${targetPath}...`);
-  const files = parseCodebase(targetPath);
-  progress(`Parsed ${files.length} files`);
-
-  if (files.length === 0) {
-    process.stderr.write(`Error: No TypeScript files found at ${targetPath}\n`);
-    process.exit(1);
-  }
-
-  const built = buildGraph(files);
-  progress(
-    `Built graph: ${built.nodes.filter((n) => n.type === "file").length} files, ` +
-      `${built.nodes.filter((n) => n.type === "function").length} functions, ` +
-      `${built.edges.length} dependencies`,
-  );
-
-  const graph = analyzeGraph(built, files);
-  progress(
-    `Analysis complete: ${graph.stats.circularDeps.length} circular deps, ` +
-      `${graph.forceAnalysis.tensionFiles.length} tension files`,
-  );
-
-  setIndexedHead(headHash);
-
-  exportGraph(graph, indexDir, headHash, cacheKey);
-  progress(`Index saved to ${indexDir}`);
-
-  return { graph, headHash };
 }
 
 // ── CLI Program ─────────────────────────────────────────────
@@ -1218,8 +1166,6 @@ program
   });
 
 async function runMcpMode(targetPath: string, options: McpOptions): Promise<void> {
-  setRoot(path.resolve(targetPath));
-
   if (options.clean) {
     const removed = cleanIndexDirectories(targetPath);
     if (removed.length === 0) {
@@ -1230,12 +1176,10 @@ async function runMcpMode(targetPath: string, options: McpOptions): Promise<void
     return;
   }
 
-  const indexResolution = prepareIndexDirectory(targetPath);
-  reportIndexMigration(indexResolution);
-  activeCacheFacts = getCacheFacts(indexResolution);
-  const indexDir = indexResolution.activeDir;
-
   if (options.status) {
+    const cache = prepareGraphCache({ targetPath, onProgress: reportGraphLoadProgress });
+    activeCacheFacts = cache.cacheFacts;
+    const indexDir = cache.indexDir;
     const result = importGraph(indexDir);
     if (!result) {
       progress("No index found. Run with --index to create one.");
@@ -1257,44 +1201,19 @@ async function runMcpMode(targetPath: string, options: McpOptions): Promise<void
     return;
   }
 
-  const headHash = getHeadHash(targetPath);
-  const cacheKey = getCacheKey(targetPath, { headHash, cliVersion: pkg.version });
-
-  if (!options.force && headHash !== "unknown") {
-    const cached = importGraph(indexDir);
-    if (cached?.headHash === headHash && cached.cacheKey === cacheKey) {
-      progress(`Using cached index (HEAD: ${headHash.slice(0, 7)})`);
-      setIndexedHead(cached.headHash);
-      await startMcpServer(cached.graph);
-      return;
-    }
+  try {
+    const result = loadCodebaseGraph({
+      targetPath,
+      force: options.force === true,
+      persist: options.index === true,
+      cliVersion: pkg.version,
+      onProgress: reportGraphLoadProgress,
+    });
+    activeCacheFacts = result.cacheFacts;
+    await startMcpServer(result.graph);
+  } catch (err) {
+    printGraphLoadError(err);
   }
-
-  progress(`Parsing ${targetPath}...`);
-  const files = parseCodebase(targetPath);
-  progress(`Parsed ${files.length} files`);
-
-  const built = buildGraph(files);
-  progress(
-    `Built graph: ${built.nodes.filter((n) => n.type === "file").length} files, ` +
-      `${built.nodes.filter((n) => n.type === "function").length} functions, ` +
-      `${built.edges.length} dependencies`,
-  );
-
-  const codebaseGraph = analyzeGraph(built, files);
-  progress(
-    `Analysis complete: ${codebaseGraph.stats.circularDeps.length} circular deps, ` +
-      `${codebaseGraph.forceAnalysis.tensionFiles.length} tension files`,
-  );
-
-  setIndexedHead(headHash);
-
-  if (options.index) {
-    exportGraph(codebaseGraph, indexDir, headHash, cacheKey);
-    progress(`Index saved to ${indexDir}`);
-  }
-
-  await startMcpServer(codebaseGraph);
 }
 
 // ── Default action: bare <path> → MCP mode ──────────────────

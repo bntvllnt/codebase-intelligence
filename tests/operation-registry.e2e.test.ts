@@ -294,7 +294,7 @@ describe("operation registry chained parity", () => {
     }
   });
 
-  it("CH-P1-02: CLI graph adapter reuses cache after a successful registry command", () => {
+  it("CH-P1-02: shared graph-load pipeline reuses cache after a successful registry command", () => {
     const first = runCli(["overview", getFixtureSrcPath()]);
     expect(first.status).toBe(0);
     expect(first.stderr).toContain("Index saved");

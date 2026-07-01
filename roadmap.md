@@ -275,12 +275,12 @@ Collapse CLI + MCP operation duplication into one descriptor registry before add
 - Add CLI registry parity coverage for representative descriptor runs and invalid input.
 - Expand CH-P1-01 coverage from overview/representative CLI/MCP operations to every operation.
 - Expand CH-P1-02 coverage for descriptor validation, CLI parse failure, and cache reuse through registry-adapted commands.
+- Use one graph-load pipeline with progress callbacks.
+- Extend CH-P1-02 coverage to MCP/stdio graph-load behavior.
 
 **Remaining:**
 
-- Use one graph-load pipeline with progress callbacks.
 - Move text/SARIF/markdown formatting over result objects into formatters.
-- Extend CH-P1-02 coverage to MCP/stdio graph-load behavior after the shared graph-load pipeline exists.
 
 ### Type/Shape Layer
 
