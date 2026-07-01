@@ -1,9 +1,11 @@
-import { spawnSync, execSync } from "node:child_process";
+import { spawnSync, execSync, type SpawnSyncReturns } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, describe, expect, it } from "vitest";
 import type { OverviewResult } from "../src/core/index.js";
-import { operations, runOperation, type Operation } from "../src/operations/index.js";
+import { operations, runOperation, type Operation, type OperationContext } from "../src/operations/index.js";
 import type { CodebaseGraph } from "../src/types/index.js";
 import { createFixtureMcp, type FixtureMcp } from "./helpers/mcp.js";
 import { getFixturePipeline, getFixtureSrcPath } from "./helpers/pipeline.js";
@@ -76,8 +78,9 @@ async function expectMcpMatchesRegistry<TInput extends object, TResult>(
   mcpArgs: Record<string, unknown>,
   graph: CodebaseGraph,
   mcp: FixtureMcp,
+  context: OperationContext = {},
 ): Promise<void> {
-  const registryResult = runOperation(operation, graph, input);
+  const registryResult = runOperation(operation, graph, input, context);
   expect(registryResult.ok).toBe(true);
   if (!registryResult.ok) throw new Error(registryResult.error);
 
@@ -85,15 +88,30 @@ async function expectMcpMatchesRegistry<TInput extends object, TResult>(
   expect(withoutNextSteps(mcpPayload)).toEqual(registryResult.data);
 }
 
-function runCliJson(args: string[]): Record<string, unknown> {
-  const res = spawnSync("node", [cli, ...args, "--json", "--force"], {
+interface CliRunOptions {
+  force?: boolean;
+}
+
+function runCli(args: string[], options: CliRunOptions = {}): SpawnSyncReturns<string> {
+  const cliArgs = ["node", cli, ...args, "--json"];
+  if (options.force !== false) {
+    cliArgs.push("--force");
+  }
+
+  return spawnSync(cliArgs[0], cliArgs.slice(1), {
     cwd: repoRoot,
     env: { ...process.env },
     encoding: "utf-8",
   });
+}
+
+function runCliJson(args: string[], options: CliRunOptions = {}): Record<string, unknown> {
+  const res = runCli(args, options);
 
   expect(res.status).toBe(0);
-  expect(res.stderr).toContain("Parsed");
+  if (options.force !== false) {
+    expect(res.stderr).toContain("Parsed");
+  }
   return parseJsonObject(res.stdout);
 }
 
@@ -102,12 +120,14 @@ function expectCliMatchesRegistry<TInput extends object, TResult>(
   input: TInput,
   cliArgs: string[],
   graph: CodebaseGraph,
+  context: OperationContext = {},
+  runOptions: CliRunOptions = {},
 ): void {
-  const registryResult = runOperation(operation, graph, input);
+  const registryResult = runOperation(operation, graph, input, context);
   expect(registryResult.ok).toBe(true);
   if (!registryResult.ok) throw new Error(registryResult.error);
 
-  const cliPayload = runCliJson(cliArgs);
+  const cliPayload = runCliJson(cliArgs, runOptions);
   expect(withoutCache(cliPayload)).toEqual(registryResult.data);
 }
 
@@ -134,49 +154,173 @@ describe("operation registry chained parity", () => {
     expect(normalizeOverviewPayload(mcpPayload)).toEqual(registryOverview);
   });
 
-  it("CH-P1-01: registry-adapted CLI JSON commands match descriptor runs", () => {
+  it("CH-P1-01: registry-adapted CLI JSON commands match descriptor runs for every operation", () => {
     const { codebaseGraph } = getFixturePipeline();
+    runCliJson(["overview", getFixtureSrcPath()]);
+    const cachedRun = { force: false };
 
+    expectCliMatchesRegistry(operations.overview, {}, ["overview", getFixtureSrcPath()], codebaseGraph, {}, cachedRun);
     expectCliMatchesRegistry(
       operations.fileContext,
       { filePath: "index.ts" },
       ["file", getFixtureSrcPath(), "index.ts"],
       codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.dependents,
+      { filePath: "auth/auth-service.ts", depth: 2 },
+      ["dependents", getFixtureSrcPath(), "auth/auth-service.ts", "--depth", "2"],
+      codebaseGraph,
+      {},
+      cachedRun,
     );
     expectCliMatchesRegistry(
       operations.hotspots,
       { metric: "coupling", limit: 3 },
       ["hotspots", getFixtureSrcPath(), "--metric", "coupling", "--limit", "3"],
       codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(operations.moduleStructure, {}, ["modules", getFixtureSrcPath()], codebaseGraph, {}, cachedRun);
+    expectCliMatchesRegistry(
+      operations.forces,
+      { cohesionThreshold: 0.6, tensionThreshold: 0.3, escapeThreshold: 0.5 },
+      ["forces", getFixtureSrcPath(), "--cohesion", "0.6", "--tension", "0.3", "--escape", "0.5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.deadExports,
+      { limit: 5 },
+      ["dead-exports", getFixtureSrcPath(), "--limit", "5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.opportunities,
+      { limit: 5 },
+      ["opportunities", getFixtureSrcPath(), "--limit", "5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(operations.groups, {}, ["groups", getFixtureSrcPath()], codebaseGraph, {}, cachedRun);
+    expectCliMatchesRegistry(
+      operations.symbolContext,
+      { name: "getUserById" },
+      ["symbol", getFixtureSrcPath(), "getUserById"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.search,
+      { query: "auth", limit: 5 },
+      ["search", getFixtureSrcPath(), "auth", "--limit", "5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.changes,
+      { scope: "all" },
+      ["changes", getFixtureSrcPath(), "--scope", "all"],
+      codebaseGraph,
+      { rootDir: getFixtureSrcPath() },
+      cachedRun,
     );
     expectCliMatchesRegistry(
       operations.impact,
       { symbol: "getUserById" },
       ["impact", getFixtureSrcPath(), "getUserById"],
       codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.rename,
+      { oldName: "getUserById", newName: "findUserById", dryRun: true },
+      ["rename", getFixtureSrcPath(), "getUserById", "findUserById"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.processes,
+      { entryPoint: "main", limit: 1 },
+      ["processes", getFixtureSrcPath(), "--entry", "main", "--limit", "1"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.clusters,
+      { minFiles: 2 },
+      ["clusters", getFixtureSrcPath(), "--min-files", "2"],
+      codebaseGraph,
+      {},
+      cachedRun,
     );
   });
 
-  it("CH-P1-02: CLI invalid input uses descriptor validation before indexing", () => {
-    const res = spawnSync("node", [cli, "hotspots", getFixtureSrcPath(), "--metric", "bad", "--json"], {
-      cwd: repoRoot,
-      env: { ...process.env },
-      encoding: "utf-8",
-    });
+  it("CH-P1-02: invalid input uses shared descriptor validation before indexing", async () => {
+    const res = runCli(["hotspots", getFixtureSrcPath(), "--metric", "bad"], { force: false });
 
     expect(res.status).toBe(2);
     expect(res.stderr).toContain("Error: metric: Invalid enum value");
     expect(res.stderr).not.toContain("Parsing");
+
+    const cliError = res.stderr.trim().replace(/^Error: /, "");
+    const mcp = await createFixtureMcp();
+    const mcpResult = await mcp.callToolWithMeta("find_hotspots", { metric: "bad" });
+    expect(mcpResult.isError).toBe(true);
+    expect(mcpResult.payload).toEqual({ error: cliError });
   });
 
-  it("CH-P1-01: registry-adapted MCP tools match descriptor runs", async () => {
+  it("CH-P1-02: CLI graph adapter reports parse failures without JSON noise", () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "cbi-empty-"));
+    try {
+      const res = runCli(["overview", tempDir], { force: false });
+      expect(res.status).toBe(1);
+      expect(res.stdout).toBe("");
+      expect(res.stderr).toContain("Error: No TypeScript files found");
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("CH-P1-02: CLI graph adapter reuses cache after a successful registry command", () => {
+    const first = runCli(["overview", getFixtureSrcPath()]);
+    expect(first.status).toBe(0);
+    expect(first.stderr).toContain("Index saved");
+
+    const second = runCli(["overview", getFixtureSrcPath()], { force: false });
+    expect(second.status).toBe(0);
+    expect(second.stderr).toContain("Using cached index");
+    expect(withoutCache(parseJsonObject(second.stdout))).toEqual(withoutCache(parseJsonObject(first.stdout)));
+  });
+
+  it("CH-P1-01: registry-adapted MCP tools match descriptor runs for every operation", async () => {
     const { codebaseGraph } = getFixturePipeline();
     const mcp = await createFixtureMcp();
 
+    await expectMcpMatchesRegistry(operations.overview, {}, {}, codebaseGraph, mcp);
     await expectMcpMatchesRegistry(
       operations.fileContext,
       { filePath: "index.ts" },
       { filePath: "index.ts" },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.dependents,
+      { filePath: "auth/auth-service.ts", depth: 2 },
+      { filePath: "auth/auth-service.ts", depth: 2 },
       codebaseGraph,
       mcp,
     );
@@ -187,10 +331,76 @@ describe("operation registry chained parity", () => {
       codebaseGraph,
       mcp,
     );
+    await expectMcpMatchesRegistry(operations.moduleStructure, {}, {}, codebaseGraph, mcp);
+    await expectMcpMatchesRegistry(
+      operations.forces,
+      { cohesionThreshold: 0.6, tensionThreshold: 0.3, escapeThreshold: 0.5 },
+      { cohesionThreshold: 0.6, tensionThreshold: 0.3, escapeThreshold: 0.5 },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.deadExports,
+      { limit: 5 },
+      { limit: 5 },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.opportunities,
+      { limit: 5 },
+      { limit: 5 },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(operations.groups, {}, {}, codebaseGraph, mcp);
+    await expectMcpMatchesRegistry(
+      operations.symbolContext,
+      { name: "getUserById" },
+      { name: "getUserById" },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.search,
+      { query: "auth", limit: 5 },
+      { query: "auth", limit: 5 },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.changes,
+      { scope: "all" },
+      { scope: "all" },
+      codebaseGraph,
+      mcp,
+      { rootDir: getFixtureSrcPath() },
+    );
     await expectMcpMatchesRegistry(
       operations.impact,
       { symbol: "getUserById" },
       { symbol: "getUserById" },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.rename,
+      { oldName: "getUserById", newName: "findUserById", dryRun: true },
+      { oldName: "getUserById", newName: "findUserById", dryRun: true },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.processes,
+      { entryPoint: "main", limit: 1 },
+      { entryPoint: "main", limit: 1 },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.clusters,
+      { minFiles: 2 },
+      { minFiles: 2 },
       codebaseGraph,
       mcp,
     );

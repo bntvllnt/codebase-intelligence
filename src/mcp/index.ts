@@ -54,16 +54,28 @@ function errorPayload(
   return nextSteps ? { ...payload, nextSteps } : payload;
 }
 
+function mcpInputSchema<TInput extends object>(
+  operation: Operation<TInput, unknown>,
+): z.ZodType<Record<string, unknown>> {
+  const shape: z.ZodRawShape = {};
+  for (const [key, schema] of Object.entries(operation.inputShape)) {
+    shape[key] = schema.catch((context: { input: unknown }) => context.input);
+  }
+  return z.object(shape).passthrough();
+}
+
 function registerOperationTool<TInput extends object, TResult>(
   server: McpServer,
   graph: CodebaseGraph,
   operation: Operation<TInput, TResult>,
   options: OperationToolOptions<TResult> = {},
 ): void {
-  server.tool(
+  server.registerTool(
     operation.mcpTool,
-    operation.description,
-    operation.inputShape,
+    {
+      description: operation.description,
+      inputSchema: mcpInputSchema(operation),
+    },
     async (rawInput) => {
       const parsed = parseOperationInput(operation, rawInput);
       if (!parsed.ok) {

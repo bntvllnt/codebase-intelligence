@@ -2,6 +2,8 @@
 
 17 tools available via MCP stdio.
 
+Operation tools return JSON text payloads. Invalid operation inputs return `isError: true` with `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.
+
 ## 1. codebase_overview
 
 High-level summary of the entire codebase.

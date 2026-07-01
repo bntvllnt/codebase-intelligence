@@ -145,6 +145,17 @@ describe("3.6 — Louvain clustering", () => {
       expect(cluster.cohesion).toBeGreaterThanOrEqual(0);
     }
   });
+
+  it("returns stable cluster ids and membership across repeated runs", async () => {
+    const { detectCommunities } = await import("../src/community/index.js");
+    const { codebaseGraph } = getFixturePipeline();
+
+    const first = detectCommunities(codebaseGraph);
+    const second = detectCommunities(codebaseGraph);
+
+    expect(second).toEqual(first);
+    expect(first.map((cluster) => cluster.id)).toEqual(first.map((_, index) => `cluster-${index}`));
+  });
 });
 
 describe("3.7 — detect_changes MCP tool", () => {
@@ -164,8 +175,8 @@ describe("3.8 — detect_changes without git", () => {
   it("detect_changes returns clear error when git unavailable", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ci-detect-no-git-"));
     try {
-      const { callToolWithMeta } = await createFixtureMcp(dir);
-      const { payload, isError } = await callToolWithMeta("detect_changes");
+      const mcp = await createFixtureMcp(dir);
+      const { payload, isError } = await mcp.callToolWithMeta("detect_changes");
 
       expect(isError).toBe(true);
       expect(payload).toHaveProperty("scope", "all");

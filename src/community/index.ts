@@ -6,46 +6,73 @@ import type { CodebaseGraph, Cluster } from "../types/index.js";
 export function detectCommunities(graph: CodebaseGraph): Cluster[] {
   const undirected = new Graph({ type: "undirected" });
 
-  for (const node of graph.nodes) {
+  const fileNodes = graph.nodes
+    .filter((node) => node.type === "file")
+    .sort((a, b) => a.id.localeCompare(b.id));
+
+  for (const node of fileNodes) {
     if (node.type !== "file") continue;
     if (!undirected.hasNode(node.id)) {
       undirected.addNode(node.id, { module: node.module });
     }
   }
 
+  const dependencyEdges = new Map<string, { source: string; target: string; weight: number }>();
+
   for (const edge of graph.edges) {
     if (!undirected.hasNode(edge.source) || !undirected.hasNode(edge.target)) continue;
     if (edge.source === edge.target) continue;
-    if (!undirected.hasEdge(edge.source, edge.target) && !undirected.hasEdge(edge.target, edge.source)) {
-      undirected.addEdge(edge.source, edge.target, { weight: edge.weight });
+
+    const source = edge.source.localeCompare(edge.target) <= 0 ? edge.source : edge.target;
+    const target = source === edge.source ? edge.target : edge.source;
+    const key = `${source}\t${target}`;
+    const existing = dependencyEdges.get(key);
+    if (existing) {
+      existing.weight += edge.weight;
+    } else {
+      dependencyEdges.set(key, { source, target, weight: edge.weight });
     }
+  }
+
+  const sortedDependencyEdges = [...dependencyEdges.values()].sort((a, b) =>
+    `${a.source}\t${a.target}`.localeCompare(`${b.source}\t${b.target}`)
+  );
+
+  for (const edge of sortedDependencyEdges) {
+    undirected.addEdge(edge.source, edge.target, { weight: edge.weight });
   }
 
   if (undirected.order === 0) return [];
 
-  const communities = louvain(undirected) as Record<string, number>;
+  const communities = louvain(undirected, { randomWalk: false }) as Record<string, number>;
 
   const clusterMap = new Map<number, string[]>();
-  for (const [nodeId, clusterId] of Object.entries(communities)) {
+  for (const [nodeId, clusterId] of Object.entries(communities).sort(([a], [b]) => a.localeCompare(b))) {
     const existing = clusterMap.get(clusterId) ?? [];
     existing.push(nodeId);
     clusterMap.set(clusterId, existing);
   }
 
-  const clusters: Cluster[] = [];
-  for (const [clusterId, files] of clusterMap) {
+  const clusters: Array<Omit<Cluster, "id">> = [];
+  for (const files of clusterMap.values()) {
+    files.sort((a, b) => a.localeCompare(b));
     const commonModule = findDominantModule(files, graph);
     const cohesion = computeClusterCohesion(files, graph);
 
     clusters.push({
-      id: `cluster-${clusterId}`,
       name: commonModule,
       files,
       cohesion,
     });
   }
 
-  return clusters.sort((a, b) => b.files.length - a.files.length);
+  return clusters
+    .sort((a, b) =>
+      b.files.length - a.files.length ||
+      a.name.localeCompare(b.name) ||
+      (a.files[0] ?? "").localeCompare(b.files[0] ?? "")
+    )
+    .map((cluster, index) => ({ id: `cluster-${index}`, ...cluster }));
 }
 
 function findDominantModule(files: string[], graph: CodebaseGraph): string {
