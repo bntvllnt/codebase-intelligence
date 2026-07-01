@@ -1,31 +1,31 @@
 import type { CodebaseGraph, CallConfidence } from "../types/index.js";
 
-interface AffectedSymbol {
+export interface AffectedSymbol {
   file: string;
   symbol: string;
   confidence: CallConfidence;
 }
 
-interface ImpactLevel {
+export interface ImpactLevel {
   depth: number;
   risk: "WILL BREAK" | "LIKELY" | "MAY NEED TESTING";
   affected: AffectedSymbol[];
 }
 
-interface ImpactResult {
+export interface ImpactResult {
   symbol: string;
   levels: ImpactLevel[];
   totalAffected: number;
   notFound?: boolean;
 }
 
-interface RenameReference {
+export interface RenameReference {
   file: string;
   symbol: string;
   confidence: CallConfidence;
 }
 
-interface RenameResult {
+export interface RenameResult {
   dryRun: boolean;
   oldName: string;
   newName: string;

@@ -19,7 +19,10 @@ Analyzer
   | produces: ForceAnalysis (tension files, bridges, extraction candidates)
   v
 Core (shared computation)
-  | result builders used by both MCP and CLI
+  | result builders used by MCP, CLI, and operation descriptors
+  |\
+  | \-> Operation Registry
+  |     typed descriptors, input schemas, CLI/MCP names, result wrappers
   v
 MCP (stdio)                    CLI (terminal/CI)
   | 17 tools, 2 prompts,        | 18 commands with text + JSON
@@ -35,10 +38,11 @@ src/
   graph/index.ts       <- graphology graph + circular dep detection
   analyzer/index.ts    <- All metric computation
   core/index.ts        <- Shared result computation (MCP + CLI)
+  operations/index.ts  <- Analysis operation descriptors + typed input schemas
   config/index.ts      <- Config discovery + zod validation
   rules/index.ts       <- Rules engine + registry (check command + MCP check tool)
   mcp/index.ts         <- 17 MCP tools for LLM integration
-  mcp/hints.ts         <- Next-step hints for MCP tool responses
+  mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
   process/index.ts     <- Entry point detection + call chain tracing
@@ -69,11 +73,15 @@ analyzeGraph(builtGraph, parsedFiles)
 
 startMcpServer(codebaseGraph)
   -> stdio MCP server with 17 tools, 2 prompts, 3 resources
+
+runOperation(operation, codebaseGraph, input, context)
+  -> { ok: true, data } | { ok: false, error, data? }
 ```
 
 ## Key Design Decisions
 
 - **Dual interface**: MCP stdio for LLM agents, CLI subcommands for humans/CI. Both consume `src/core/`.
+- **Operation registry foundation**: Analysis operations now have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. CLI/MCP handlers still call `src/core/` directly until the adapter migration lands.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Monorepo import resolution**: Root `tsconfig.json` path aliases and local `package.json` package names resolve to source files before graph construction.
@@ -90,5 +98,6 @@ Vertical slice through all layers:
 1. **types/index.ts** — Add field to `FileMetrics` (and `ParsedFile`/`ParsedExport` if extracted at parse time)
 2. **parser/index.ts** — Extract raw data from AST or external source (git, filesystem)
 3. **analyzer/index.ts** — Compute derived metric, store in `fileMetrics` map
-4. **mcp/index.ts** — Expose via `find_hotspots` enum or new tool
-5. **Tests** — Cover parser extraction + analyzer computation
+4. **operations/index.ts** — Add or update the operation descriptor, input schema, and CLI/MCP mapping
+5. **mcp/index.ts / cli.ts** — Expose via existing adapter or new command/tool
+6. **Tests** — Cover parser extraction, analyzer computation, operation descriptor parity, and adapter output

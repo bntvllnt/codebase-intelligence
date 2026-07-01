@@ -260,15 +260,22 @@ Package public entrypoints already have coverage. Only fix remaining framework/c
 
 Collapse CLI + MCP operation duplication into one descriptor registry before adding more analyzers.
 
-**To do:**
+**Foundation slice:**
 
 - Add `Operation<TInput, TResult>` descriptors per analysis operation.
-- Use one input schema per operation for CLI coercion and MCP schemas.
-- Return discriminated result/error unions instead of process exits in shared code.
+- Add typed operation names, CLI command names, MCP tool names, and input schemas.
+- Add `runOperation(...)` discriminated result/error wrapper for descriptor-level tests.
+- Type MCP next-step hint keys against the operation-name union.
+- Add CH-P1-01 coverage for registry -> CLI JSON -> MCP JSON overview parity.
+
+**Remaining:**
+
+- Reuse registry schemas in CLI coercion and MCP tool registration.
+- Move shared CLI/MCP failures over descriptor-level validation errors.
 - Use one graph-load pipeline with progress callbacks.
-- Type hint keys against the operation-name union.
 - Move text/SARIF/markdown formatting over result objects into formatters.
-- Target tests at `op.run(graph, input)` instead of duplicating CLI and MCP behavior tests for every operation.
+- Expand CH-P1-01 from overview to every operation.
+- Add CH-P1-02 coverage for success, invalid input, parse failure, and cache reuse through registry adapters.
 
 ### Type/Shape Layer
 

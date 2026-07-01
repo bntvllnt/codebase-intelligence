@@ -24,6 +24,12 @@ Analyzer
   | computes: churn, complexity, blast radius, dead exports, test coverage
   | produces: ForceAnalysis (tension files, bridges, extraction candidates)
   v
+Core (shared computation)
+  | result builders used by MCP, CLI, and operation descriptors
+  |\
+  | \-> Operation Registry
+  |     typed descriptors, input schemas, CLI/MCP names, result wrappers
+  v
 MCP (stdio) + CLI
   | MCP: 17 tools, 2 prompts, 3 resources for LLM agents
   | CLI: 18 commands with formatted + JSON output for humans/CI
@@ -38,8 +44,9 @@ src/
   graph/index.ts       <- graphology graph + circular dep detection
   analyzer/index.ts    <- All metric computation
   core/index.ts        <- Shared result computation (MCP + CLI)
+  operations/index.ts  <- Analysis operation descriptors + typed input schemas
   mcp/index.ts         <- 17 MCP tools for LLM integration
-  mcp/hints.ts         <- Next-step hints for MCP tool responses
+  mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
   process/index.ts     <- Entry point detection + call chain tracing
@@ -66,11 +73,15 @@ analyzeGraph(builtGraph, parsedFiles)
        fileMetrics, moduleMetrics, forceAnalysis, stats,
        groups, processes, clusters
      }
+
+runOperation(operation, codebaseGraph, input, context)
+  -> { ok: true, data } | { ok: false, error, data? }
 ```
 
 ## Key Design Decisions
 
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
+- **Operation registry foundation**: Analysis operations have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, and discriminated run results. CLI/MCP handlers still call `src/core/` directly until the adapter migration lands.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.
 - **Dead export detection**: Cross-references parsed exports against edge symbol lists. May miss `import *` or re-exports.
 - **Graceful degradation**: Non-git dirs get churn=0, no-test codebases get coverage=false. Never crashes.
