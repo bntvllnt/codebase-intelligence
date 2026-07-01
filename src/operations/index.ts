@@ -20,6 +20,24 @@ import {
   renameSymbol,
 } from "../core/index.js";
 import type { CodebaseGraph } from "../types/index.js";
+import {
+  formatChangesText,
+  formatClustersText,
+  formatDeadExportsText,
+  formatDependentsText,
+  formatFileContextText,
+  formatForcesText,
+  formatGroupsText,
+  formatHotspotsText,
+  formatImpactText,
+  formatModuleStructureText,
+  formatOpportunitiesText,
+  formatOverviewText,
+  formatProcessesText,
+  formatRenameText,
+  formatSearchText,
+  formatSymbolContextText,
+} from "./formatters.js";
 
 export const operationNames = [
   "overview",
@@ -54,6 +72,7 @@ export interface Operation<TInput extends object, TResult> {
   inputShape: z.ZodRawShape;
   inputSchema: z.ZodType<TInput>;
   run: (graph: CodebaseGraph, input: TInput, context: OperationContext) => TResult;
+  formatText: (result: TResult, input: TInput) => string;
 }
 
 export type OperationRunResult<TResult> =
@@ -158,6 +177,7 @@ export const operations = {
     inputShape: overviewInputShape,
     inputSchema: overviewInputSchema,
     run: (graph: CodebaseGraph, _input: OverviewInput) => computeOverview(graph),
+    formatText: formatOverviewText,
   } satisfies Operation<OverviewInput, ReturnType<typeof computeOverview>>,
   fileContext: {
     name: "fileContext",
@@ -167,6 +187,7 @@ export const operations = {
     inputShape: fileContextInputShape,
     inputSchema: fileContextInputSchema,
     run: (graph: CodebaseGraph, input: FileContextInput) => computeFileContext(graph, input.filePath),
+    formatText: formatFileContextText,
   } satisfies Operation<FileContextInput, ReturnType<typeof computeFileContext>>,
   dependents: {
     name: "dependents",
@@ -176,6 +197,7 @@ export const operations = {
     inputShape: dependentsInputShape,
     inputSchema: dependentsInputSchema,
     run: (graph: CodebaseGraph, input: DependentsInput) => computeDependents(graph, input.filePath, input.depth),
+    formatText: formatDependentsText,
   } satisfies Operation<DependentsInput, ReturnType<typeof computeDependents>>,
   hotspots: {
     name: "hotspots",
@@ -185,6 +207,7 @@ export const operations = {
     inputShape: hotspotsInputShape,
     inputSchema: hotspotsInputSchema,
     run: (graph: CodebaseGraph, input: HotspotsInput) => computeHotspots(graph, input.metric, input.limit),
+    formatText: formatHotspotsText,
   } satisfies Operation<HotspotsInput, ReturnType<typeof computeHotspots>>,
   moduleStructure: {
     name: "moduleStructure",
@@ -194,6 +217,7 @@ export const operations = {
     inputShape: moduleStructureInputShape,
     inputSchema: moduleStructureInputSchema,
     run: (graph: CodebaseGraph, _input: ModuleStructureInput) => computeModuleStructure(graph),
+    formatText: formatModuleStructureText,
   } satisfies Operation<ModuleStructureInput, ReturnType<typeof computeModuleStructure>>,
   forces: {
     name: "forces",
@@ -204,6 +228,7 @@ export const operations = {
     inputSchema: forcesInputSchema,
     run: (graph: CodebaseGraph, input: ForcesInput) =>
       computeForces(graph, input.cohesionThreshold, input.tensionThreshold, input.escapeThreshold),
+    formatText: formatForcesText,
   } satisfies Operation<ForcesInput, ReturnType<typeof computeForces>>,
   deadExports: {
     name: "deadExports",
@@ -213,6 +238,7 @@ export const operations = {
     inputShape: deadExportsInputShape,
     inputSchema: deadExportsInputSchema,
     run: (graph: CodebaseGraph, input: DeadExportsInput) => computeDeadExports(graph, input.module, input.limit),
+    formatText: formatDeadExportsText,
   } satisfies Operation<DeadExportsInput, ReturnType<typeof computeDeadExports>>,
   opportunities: {
     name: "opportunities",
@@ -222,6 +248,7 @@ export const operations = {
     inputShape: opportunitiesInputShape,
     inputSchema: opportunitiesInputSchema,
     run: (graph: CodebaseGraph, input: OpportunitiesInput) => computeOpportunities(graph, input.limit),
+    formatText: formatOpportunitiesText,
   } satisfies Operation<OpportunitiesInput, ReturnType<typeof computeOpportunities>>,
   groups: {
     name: "groups",
@@ -231,6 +258,7 @@ export const operations = {
     inputShape: emptyInputShape,
     inputSchema: emptyInputSchema,
     run: (graph: CodebaseGraph, _input: EmptyInput) => computeGroups(graph),
+    formatText: formatGroupsText,
   } satisfies Operation<EmptyInput, ReturnType<typeof computeGroups>>,
   symbolContext: {
     name: "symbolContext",
@@ -240,6 +268,7 @@ export const operations = {
     inputShape: symbolContextInputShape,
     inputSchema: symbolContextInputSchema,
     run: (graph: CodebaseGraph, input: SymbolContextInput) => computeSymbolContext(graph, input.name),
+    formatText: formatSymbolContextText,
   } satisfies Operation<SymbolContextInput, ReturnType<typeof computeSymbolContext>>,
   search: {
     name: "search",
@@ -249,6 +278,7 @@ export const operations = {
     inputShape: searchInputShape,
     inputSchema: searchInputSchema,
     run: (graph: CodebaseGraph, input: SearchInput) => computeSearch(graph, input.query, input.limit),
+    formatText: formatSearchText,
   } satisfies Operation<SearchInput, ReturnType<typeof computeSearch>>,
   changes: {
     name: "changes",
@@ -259,6 +289,7 @@ export const operations = {
     inputSchema: changesInputSchema,
     run: (graph: CodebaseGraph, input: ChangesInput, context: OperationContext) =>
       computeChanges(graph, input.scope, context.rootDir),
+    formatText: formatChangesText,
   } satisfies Operation<ChangesInput, ReturnType<typeof computeChanges>>,
   impact: {
     name: "impact",
@@ -268,6 +299,7 @@ export const operations = {
     inputShape: impactInputShape,
     inputSchema: impactInputSchema,
     run: (graph: CodebaseGraph, input: ImpactInput) => impactAnalysis(graph, input.symbol),
+    formatText: formatImpactText,
   } satisfies Operation<ImpactInput, ReturnType<typeof impactAnalysis>>,
   rename: {
     name: "rename",
@@ -278,6 +310,7 @@ export const operations = {
     inputSchema: renameInputSchema,
     run: (graph: CodebaseGraph, input: RenameInput) =>
       renameSymbol(graph, input.oldName, input.newName, input.dryRun ?? true),
+    formatText: formatRenameText,
   } satisfies Operation<RenameInput, ReturnType<typeof renameSymbol>>,
   processes: {
     name: "processes",
@@ -287,6 +320,7 @@ export const operations = {
     inputShape: processesInputShape,
     inputSchema: processesInputSchema,
     run: (graph: CodebaseGraph, input: ProcessesInput) => computeProcesses(graph, input.entryPoint, input.limit),
+    formatText: formatProcessesText,
   } satisfies Operation<ProcessesInput, ReturnType<typeof computeProcesses>>,
   clusters: {
     name: "clusters",
@@ -296,6 +330,7 @@ export const operations = {
     inputShape: clustersInputShape,
     inputSchema: clustersInputSchema,
     run: (graph: CodebaseGraph, input: ClustersInput) => computeClusters(graph, input.minFiles),
+    formatText: formatClustersText,
   } satisfies Operation<ClustersInput, ReturnType<typeof computeClusters>>,
 } as const;
 
@@ -338,8 +373,8 @@ export function getOperationByMcpTool(toolName: string): RegisteredOperation | u
   return operationList.find((operation) => operation.mcpTool === toolName);
 }
 
-export function parseOperationInput<TInput extends object>(
-  operation: Operation<TInput, unknown>,
+export function parseOperationInput<TInput extends object, TResult>(
+  operation: Operation<TInput, TResult>,
   input: unknown,
 ): OperationRunResult<TInput> {
   const parsed = operation.inputSchema.safeParse(input);

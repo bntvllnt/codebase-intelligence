@@ -54,8 +54,8 @@ function errorPayload(
   return nextSteps ? { ...payload, nextSteps } : payload;
 }
 
-function mcpInputSchema<TInput extends object>(
-  operation: Operation<TInput, unknown>,
+function mcpInputSchema<TInput extends object, TResult>(
+  operation: Operation<TInput, TResult>,
 ): z.ZodType<Record<string, unknown>> {
   const shape: z.ZodRawShape = {};
   for (const [key, schema] of Object.entries(operation.inputShape)) {
