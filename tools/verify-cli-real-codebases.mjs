@@ -380,6 +380,14 @@ for (const inputTarget of targets) {
     });
   }
 
+  record(`${target.name}: duplicates`, () => {
+    const result = json(["duplicates", target.path, "--mode", "weak", "--min-tokens", "30"]);
+    if (result.mode !== "weak" || typeof result.threshold !== "number" || !Array.isArray(result.families)) {
+      throw new Error("bad duplicates payload");
+    }
+    return `${result.totalFamilies} families`;
+  });
+
   record(`${target.name}: check`, () => {
     const output = run(["check", target.path, "--format", "json"], [0, 1]);
     const result = JSON.parse(output.stdout);

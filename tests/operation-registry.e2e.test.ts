@@ -72,6 +72,37 @@ function withoutCache(payload: Record<string, unknown>): Record<string, unknown>
   return normalized;
 }
 
+function recordArray(value: unknown, label: string): Record<string, unknown>[] {
+  expect(Array.isArray(value)).toBe(true);
+  if (!Array.isArray(value)) throw new Error(`Expected ${label} array`);
+  return value.filter(isRecord);
+}
+
+function familyMembers(family: Record<string, unknown>): string[] {
+  return recordArray(family.members, "members")
+    .map((member) => {
+      if (typeof member.file !== "string" || typeof member.symbol !== "string") {
+        throw new Error("Expected duplicate member file and symbol strings");
+      }
+      return `${member.file}::${member.symbol}`;
+    })
+    .sort();
+}
+
+function findFamily(payload: Record<string, unknown>, expectedMembers: string[]): Record<string, unknown> {
+  const sortedExpected = [...expectedMembers].sort();
+  const match = recordArray(payload.families, "families").find((family) => {
+    const members = familyMembers(family);
+    return sortedExpected.every((member) => members.includes(member));
+  });
+  if (!match) throw new Error(`Expected duplicate family containing ${sortedExpected.join(", ")}`);
+  return match;
+}
+
+function familyIds(payload: Record<string, unknown>): unknown[] {
+  return recordArray(payload.families, "families").map((family) => family.id);
+}
+
 async function expectMcpMatchesRegistry<TInput extends object, TResult>(
   operation: Operation<TInput, TResult>,
   input: TInput,
@@ -239,6 +270,14 @@ describe("operation registry chained parity", () => {
       {},
       cachedRun,
     );
+    expectCliMatchesRegistry(
+      operations.duplication,
+      { mode: "mild", minTokens: 8, skipLocal: false },
+      ["duplicates", getFixtureSrcPath(), "--mode", "mild", "--min-tokens", "8"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
     expectCliMatchesRegistry(operations.groups, {}, ["groups", getFixtureSrcPath()], codebaseGraph, {}, cachedRun);
     expectCliMatchesRegistry(
       operations.symbolContext,
@@ -349,6 +388,14 @@ describe("operation registry chained parity", () => {
       operations.opportunities,
       { limit: 5 },
       ["opportunities", getFixtureSrcPath(), "--limit", "5"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.duplication,
+      { mode: "mild", minTokens: 8, skipLocal: false },
+      ["duplicates", getFixtureSrcPath(), "--mode", "mild", "--min-tokens", "8"],
       codebaseGraph,
       {},
       cachedRun,
@@ -503,6 +550,66 @@ describe("operation registry chained parity", () => {
     expect(withoutNextSteps(mcpSymbol)).toEqual(withoutCache(cliSymbol));
   });
 
+  it("CH-P1-04: duplicate families support strict/mild/weak modes, trace, and local skipping", async () => {
+    runCliJson(["overview", getFixtureSrcPath()]);
+    const cachedRun = { force: false };
+    const exactMembers = [
+      "duplication/exact-a.ts::normalizeEmail",
+      "duplication/exact-b.ts::formatAccountEmail",
+    ];
+    const renamedMember = "duplication/renamed.ts::sanitizeContactEmail";
+    const nearMissMember = "duplication/near-miss.ts::prepareInviteEmail";
+    const localMembers = [
+      "duplication/local-only.ts::localSortOne",
+      "duplication/local-only.ts::localSortTwo",
+    ];
+
+    const strictPayload = runCliJson(["duplicates", getFixtureSrcPath(), "--mode", "strict", "--min-tokens", "8"], cachedRun);
+    expect(strictPayload).toMatchObject({ mode: "strict", threshold: 1, minTokens: 8, skipLocal: false });
+    const strictFamily = findFamily(strictPayload, exactMembers);
+    expect(strictFamily.id).toMatch(/^dup-strict-[a-f0-9]{10}$/);
+    expect(familyMembers(strictFamily)).toEqual(exactMembers);
+    const strictAgain = runCliJson(["duplicates", getFixtureSrcPath(), "--mode", "strict", "--min-tokens", "8"], cachedRun);
+    expect(familyIds(strictAgain)).toEqual(familyIds(strictPayload));
+
+    const mildPayload = runCliJson(["duplicates", getFixtureSrcPath(), "--mode", "mild", "--min-tokens", "8"], cachedRun);
+    expect(mildPayload).toMatchObject({ mode: "mild", threshold: 1, minTokens: 8 });
+    const mildFamily = findFamily(mildPayload, [...exactMembers, renamedMember]);
+    expect(familyMembers(mildFamily)).toContain(renamedMember);
+    expect(String(mildFamily.id)).toMatch(/^dup-mild-[a-f0-9]{10}$/);
+
+    const weakPayload = runCliJson(["duplicates", getFixtureSrcPath(), "--mode", "weak", "--min-tokens", "8"], cachedRun);
+    expect(weakPayload).toMatchObject({ mode: "weak", threshold: 0.72, minTokens: 8 });
+    const weakFamily = findFamily(weakPayload, [...exactMembers, renamedMember, nearMissMember]);
+    expect(familyMembers(weakFamily)).not.toContain("duplication/noise.ts::tinyNoise");
+
+    const skipLocalPayload = runCliJson(
+      ["duplicates", getFixtureSrcPath(), "--mode", "mild", "--min-tokens", "8", "--skip-local"],
+      cachedRun,
+    );
+    const skippedMembers = recordArray(skipLocalPayload.families, "families").flatMap(familyMembers);
+    expect(skippedMembers).not.toContain(localMembers[0]);
+    expect(skippedMembers).not.toContain(localMembers[1]);
+
+    const traceId = String(mildFamily.id);
+    const tracePayload = runCliJson(
+      ["duplicates", getFixtureSrcPath(), "--mode", "mild", "--min-tokens", "8", "--trace", traceId],
+      cachedRun,
+    );
+    expect(tracePayload.trace).toMatchObject({ id: traceId, found: true, mode: "mild", threshold: 1 });
+    const trace = tracePayload.trace;
+    expect(isRecord(trace)).toBe(true);
+    if (!isRecord(trace)) throw new Error("Expected trace object");
+    expect(recordArray(trace.members, "trace.members")).toHaveLength(familyMembers(mildFamily).length);
+    expect(recordArray(trace.pairwise, "trace.pairwise").length).toBeGreaterThan(0);
+
+    const mcp = await createFixtureMcp();
+    const mcpWeak = await mcp.callTool("find_duplicates", { mode: "weak", minTokens: 8 });
+    expect(withoutNextSteps(mcpWeak)).toEqual(withoutCache(weakPayload));
+    const mcpTrace = await mcp.callTool("find_duplicates", { mode: "mild", minTokens: 8, trace: traceId });
+    expect(withoutNextSteps(mcpTrace)).toEqual(withoutCache(tracePayload));
+  });
+
   it("CH-P1-01: registry-adapted MCP tools match descriptor runs for every operation", async () => {
     const { codebaseGraph } = getFixturePipeline();
     const mcp = await createFixtureMcp();
@@ -548,6 +655,13 @@ describe("operation registry chained parity", () => {
       operations.opportunities,
       { limit: 5 },
       { limit: 5 },
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.duplication,
+      { mode: "mild", minTokens: 8, skipLocal: false },
+      { mode: "mild", minTokens: 8, skipLocal: false },
       codebaseGraph,
       mcp,
     );

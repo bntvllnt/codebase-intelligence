@@ -5,6 +5,7 @@ import type {
   DeadExportsResult,
   DependentsError,
   DependentsResult,
+  DuplicationResult,
   FileContextError,
   FileContextResult,
   ForcesResult,
@@ -407,6 +408,51 @@ export function formatOpportunitiesText(result: OpportunitiesResult): string {
       `  Evidence:   ${opportunity.evidence.join("; ")}`,
       `  Next:       ${opportunity.suggestedCommands[0] ?? "Review target manually"}`,
     );
+  }
+
+  return text(lines);
+}
+
+/**
+ * Format a duplication operation result for human CLI output.
+ */
+export function formatDuplicationText(result: DuplicationResult): string {
+  const lines = [
+    `Duplicate Families: ${result.mode}`,
+    "─".repeat(28 + result.mode.length),
+    `Threshold: ${result.threshold}`,
+    `Min tokens: ${result.minTokens}`,
+    `Candidates: ${result.totalCandidates}`,
+    `Families: ${result.totalFamilies}`,
+  ];
+
+  if (result.skipLocal) lines.push("Local-only families: skipped");
+
+  if (result.families.length === 0) {
+    lines.push("", result.trace ? `Trace ${result.trace.id}: ${result.trace.reason ?? "not found"}` : "No duplicate families found.");
+    return text(lines);
+  }
+
+  for (const family of result.families) {
+    lines.push(
+      "",
+      `${family.id} (${family.memberCount} members, ${family.tokenCount} tokens, similarity ${family.similarity.minimum}-${family.similarity.average})`,
+      `  ${family.evidence}`,
+      ...family.members.map((member) => `  - ${member.file}::${member.symbol} (${member.loc} LOC)`),
+    );
+  }
+
+  if (result.trace?.found) {
+    lines.push("", `Trace: ${result.trace.id}`);
+    for (const member of result.trace.members) {
+      lines.push(`  ${member.file}::${member.symbol}`);
+      lines.push(`    ${member.tokens.join(" ")}`);
+      if (member.truncated) lines.push("    ...");
+    }
+    if (result.trace.pairwise.length > 0) {
+      lines.push("  Pairwise:");
+      lines.push(...result.trace.pairwise.map((pair) => `    ${pair.left} ↔ ${pair.right}: ${pair.similarity}`));
+    }
   }
 
   return text(lines);

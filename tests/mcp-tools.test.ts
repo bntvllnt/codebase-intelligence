@@ -4,6 +4,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getFixturePipeline } from "./helpers/pipeline.js";
 import { registerTools } from "../src/mcp/index.js";
+import { operationList } from "../src/operations/index.js";
 import { setGraph, setIndexedHead } from "../src/server/graph-store.js";
 import type { CodebaseGraph } from "../src/types/index.js";
 
@@ -482,8 +483,9 @@ describe("MCP Resources", () => {
     expect(setup).toHaveProperty("project", "codebase-intelligence");
     expect(setup).toHaveProperty("indexedHead", "abc123-test");
     expect(setup).toHaveProperty("availableTools");
-    expect((setup.availableTools as string[]).length).toBe(17);
+    expect((setup.availableTools as string[]).length).toBe(operationList.length + 1);
     expect(setup.availableTools as string[]).toContain("find_opportunities");
+    expect(setup.availableTools as string[]).toContain("find_duplicates");
     expect(setup.availableTools as string[]).toContain("check");
   });
 });

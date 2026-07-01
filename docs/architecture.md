@@ -7,7 +7,7 @@ CLI (commander)
   |
   v
 Parser (TS Compiler API)
-  | extracts: files, exports, symbols, type facts, imports, LOC, complexity, churn, test mapping
+  | extracts: files, exports, symbols, type facts, duplicate tokens, imports, LOC, complexity, churn, test mapping
   v
 Graph Builder (graphology)
   | creates: nodes (file + function), edges (imports with symbols/weights)
@@ -25,7 +25,7 @@ Core (shared computation)
   |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers, text formatters
   v
 MCP (stdio)                    CLI (terminal/CI)
-  | 17 tools, 2 prompts,        | 18 commands with text + JSON
+  | 18 tools, 2 prompts,        | 19 commands with text + JSON
   | 3 resources for LLMs        | output for humans and CI
 ```
 
@@ -36,6 +36,7 @@ src/
   types/index.ts       <- ALL interfaces (single source of truth)
   parser/index.ts      <- Parse orchestration + imports/exports/call sites + git churn/test detection
   parser/type-facts.ts <- Type signatures, parameters, consumed/produced shape facts
+  parser/duplication.ts <- Function-body clone token extraction
   parser/symbols.ts    <- Symbol inventory + symbol complexity
   graph/index.ts       <- graphology graph + symbol/type graph + circular dep detection
   analyzer/index.ts    <- All metric computation
@@ -43,9 +44,10 @@ src/
   core/index.ts        <- Shared result computation (MCP + CLI)
   operations/index.ts  <- Analysis operation descriptors + typed input schemas
   operations/formatters.ts <- Result-object text formatters for CLI commands
+  duplication/index.ts <- Duplicate family detection + trace evidence
   config/index.ts      <- Config discovery + zod validation
   rules/index.ts       <- Rules engine + registry (check command + MCP check tool)
-  mcp/index.ts         <- 17 MCP tools for LLM integration
+  mcp/index.ts         <- 18 MCP tools for LLM integration
   mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
@@ -67,7 +69,7 @@ loadCodebaseGraph(rootDir)
   -> otherwise emits progress events through parse/build/analyze/cache
 
 parseCodebase(rootDir)
-  -> ParsedFile[] (with churn, complexity, test mapping, symbol type facts)
+  -> ParsedFile[] (with churn, complexity, test mapping, symbol type facts, duplicate token facts)
 
 buildGraph(parsedFiles)
   -> BuiltGraph { graph: Graph, nodes: GraphNode[], edges: GraphEdge[] }
@@ -80,7 +82,7 @@ analyzeGraph(builtGraph, parsedFiles)
      }
 
 startMcpServer(codebaseGraph)
-  -> stdio MCP server with 17 tools, 2 prompts, 3 resources
+  -> stdio MCP server with 18 tools, 2 prompts, 3 resources
 
 runOperation(operation, codebaseGraph, input, context)
   -> { ok: true, data } | { ok: false, error, data? }
@@ -91,6 +93,7 @@ runOperation(operation, codebaseGraph, input, context)
 - **Dual interface**: MCP stdio for LLM agents, CLI subcommands for humans/CI. Both consume `src/core/`.
 - **Operation registry foundation**: Analysis operations now have typed descriptors in `src/operations/` with operation names, CLI command names, MCP tool names, input schemas, discriminated run results, and result-object text formatters. MCP tool registration and CLI command execution consume those descriptors; CLI JSON remains raw result data plus cache facts.
 - **Type/Shape facts**: Full-program parsing stores compact parameter/return/type-parameter facts on parsed symbols. `file`, `symbol`, and `search` JSON expose those facts additively; search indexes consumed/produced shape tokens so agents can ask which symbols touch a shape without a new command.
+- **Duplication families**: Parser stores deterministic function-body token streams on symbols. `duplicates` / `find_duplicates` groups symbols into strict, renamed, and near-miss clone families, with optional trace evidence for AI agents before refactors.
 - **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.

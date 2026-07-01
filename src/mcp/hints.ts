@@ -42,6 +42,11 @@ const OPERATION_HINTS: Record<OperationName, string[]> = {
     "Use get_dependents for stabilize-hotspot or add-tests opportunities",
     "Use analyze_forces for extract-seam, move-file, and split-module opportunities",
   ],
+  duplication: [
+    "Use trace with a family id to inspect token evidence",
+    "Use file_context on duplicated members before refactoring",
+    "Use --skip-local when you only care about cross-file duplication",
+  ],
   groups: [
     "Use get_module_structure for detailed per-module breakdown",
     "Use find_hotspots with metric='coupling' to find cross-group coupling",

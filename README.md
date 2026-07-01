@@ -27,6 +27,7 @@ Common workflows:
 ```bash
 npx codebase-intelligence hotspots ./src --metric complexity --limit 10
 npx codebase-intelligence opportunities ./src --limit 10
+npx codebase-intelligence duplicates ./src --mode mild --min-tokens 30
 npx codebase-intelligence impact ./src parseCodebase
 npx codebase-intelligence dead-exports ./src --limit 20
 npx codebase-intelligence changes ./src --json
@@ -56,7 +57,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 
 ## Features
 
-- **18 CLI commands** for architecture analysis, dependency impact, improvement opportunities, dead code detection, search, CI rules, and agent setup
+- **19 CLI commands** for architecture analysis, dependency impact, duplicate families, improvement opportunities, dead code detection, search, CI rules, and agent setup
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.codebase-intelligence/` for fast repeat queries
 - **Cache migration facts** in JSON (`cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`)
@@ -66,7 +67,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **Process tracing** — detect entry points and execution flows through the call graph
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
-- **MCP parity (secondary)** — same analysis and rules gate available as 17 MCP tools, 2 prompts, and 3 resources
+- **MCP parity (secondary)** — same analysis and rules gate available as 18 MCP tools, 2 prompts, and 3 resources
 
 ## Installation
 
@@ -103,6 +104,7 @@ codebase-intelligence <command> <path> [options]
 | `forces` | Cohesion/tension/escape-velocity analysis |
 | `dead-exports` | Unused export detection |
 | `opportunities` | Ranked code-quality and refactoring opportunities |
+| `duplicates` | Duplicate function families (`strict`, `mild`, `weak`) |
 | `groups` | Top-level directory groups + aggregate metrics |
 | `symbol` | Callers/callees and symbol metrics |
 | `impact` | Symbol-level blast radius |
@@ -121,6 +123,10 @@ codebase-intelligence <command> <path> [options]
 | `--limit <n>` | Limit results on supported commands |
 | `--metric <m>` | Select ranking metric for `hotspots` |
 | `--scope <s>` | Select git diff scope for `changes`: `staged`, `unstaged`, `all` |
+| `--mode <m>` | Select clone mode for `duplicates`: `strict`, `mild`, `weak` |
+| `--min-tokens <n>` | Minimum duplicate token size for `duplicates` |
+| `--skip-local` | Ignore duplicate families confined to one file |
+| `--trace <id>` | Return token evidence for one duplicate family |
 
 The scanner always excludes common generated and agent-workspace directories such as `.codebase-intelligence/`, legacy `.code-visualizer/`, `.next/`, `dist/`, `coverage/`, `.worktrees/`, and `.claude/worktrees/`.
 

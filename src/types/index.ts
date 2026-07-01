@@ -38,6 +38,14 @@ export interface SymbolTypeFacts {
   confidence: "resolved" | "syntax";
 }
 
+export type DuplicationMode = "strict" | "mild" | "weak";
+
+export interface SymbolDuplicationFacts {
+  tokenCount: number;
+  tokens: Record<DuplicationMode, string[]>;
+  hashes: Record<DuplicationMode, string>;
+}
+
 export interface ParsedExport {
   name: string;
   type: "function" | "class" | "variable" | "type" | "interface" | "enum";
@@ -45,6 +53,7 @@ export interface ParsedExport {
   isDefault: boolean;
   complexity: number;
   typeFacts?: SymbolTypeFacts;
+  duplication?: SymbolDuplicationFacts;
 }
 
 export interface ParsedSymbol extends ParsedExport {
@@ -104,6 +113,7 @@ export interface SymbolNode {
   complexity: number;
   isExported?: boolean;
   typeFacts?: SymbolTypeFacts;
+  duplication?: SymbolDuplicationFacts;
 }
 
 export interface SymbolMetrics {

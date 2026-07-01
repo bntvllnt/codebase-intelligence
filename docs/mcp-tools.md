@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-17 tools available via MCP stdio.
+18 tools available via MCP stdio.
 
 Operation tools return JSON text payloads. Invalid operation inputs return `isError: true` with `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.
 
@@ -89,7 +89,17 @@ Rank code quality and refactoring opportunities for AI agents.
 **Use when:** "What should I improve?" "Find refactoring opportunities." "Which files need tests?"
 **Not for:** Raw metric lists only (use find_hotspots or analyze_forces).
 
-## 9. get_groups
+## 9. find_duplicates
+
+Detect duplicate function families.
+
+**Input:** `{ mode?: "strict" | "mild" | "weak", minTokens?: number, skipLocal?: boolean, trace?: string }`
+**Returns:** mode, minTokens, threshold, totalCandidates, totalFamilies, families[] (id, members[], tokenCount, similarity), optional trace token evidence
+
+**Use when:** Finding copy-paste logic, renamed clones, near-miss drift, or refactor candidates.
+**Not for:** Unused code (use find_dead_exports) or module-level cohesion (use analyze_forces).
+
+## 10. get_groups
 
 Top-level directory groups with aggregate metrics.
 
@@ -99,7 +109,7 @@ Top-level directory groups with aggregate metrics.
 **Use when:** "What are the main areas of this codebase?" High-level grouping overview.
 **Not for:** Detailed module metrics (use get_module_structure).
 
-## 10. symbol_context
+## 11. symbol_context
 
 Callers, callees, and importance metrics for a function, class, or method.
 
@@ -109,7 +119,7 @@ Callers, callees, and importance metrics for a function, class, or method.
 **Use when:** "Who calls X?" "Trace this function." "What depends on this symbol?"
 **Not for:** Text search (use search) or file-level dependencies (use get_dependents).
 
-## 11. search
+## 12. search
 
 Search files and symbols by keyword.
 
@@ -119,7 +129,7 @@ Search files and symbols by keyword.
 **Use when:** "Find files related to auth." "Where is getUserById defined?"
 **Not for:** Structured call graph queries (use symbol_context).
 
-## 12. detect_changes
+## 13. detect_changes
 
 Detect changed files from git diff with risk metrics.
 
@@ -129,7 +139,7 @@ Detect changed files from git diff with risk metrics.
 **Use when:** Starting a review, triaging changes, "what changed?"
 **Not for:** Symbol-level impact (use impact_analysis).
 
-## 13. impact_analysis
+## 14. impact_analysis
 
 Symbol-level blast radius with depth-grouped risk labels.
 
@@ -139,7 +149,7 @@ Symbol-level blast radius with depth-grouped risk labels.
 **Use when:** "What breaks if I change getUserById?" Symbol-level impact assessment.
 **Not for:** File-level dependencies (use get_dependents).
 
-## 14. rename_symbol
+## 15. rename_symbol
 
 Read-only reference finder for rename planning.
 
@@ -149,7 +159,7 @@ Read-only reference finder for rename planning.
 **Use when:** Planning a rename, finding all usages of a symbol.
 **Not for:** Call graph analysis (use symbol_context).
 
-## 15. get_processes
+## 16. get_processes
 
 Trace execution flows from entry points through the call graph.
 
@@ -159,7 +169,7 @@ Trace execution flows from entry points through the call graph.
 **Use when:** "How does this app start?" "Trace request flow." "What are the entry points?"
 **Not for:** Static file dependencies (use get_dependents).
 
-## 16. get_clusters
+## 17. get_clusters
 
 Community-detected clusters of related files.
 
@@ -169,7 +179,7 @@ Community-detected clusters of related files.
 **Use when:** "What files are related?" "Find natural groupings." Discovering emergent groupings that differ from directory structure.
 **Not for:** Directory-based modules (use get_module_structure).
 
-## 17. check
+## 18. check
 
 Run the configurable rules engine and gate on findings.
 
@@ -208,6 +218,7 @@ Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-expo
 | "Which files need tests?" | `find_hotspots` (coverage) |
 | "What should I improve first?" | `find_opportunities` |
 | "Find refactoring opportunities." | `find_opportunities` |
+| "Where is logic duplicated?" | `find_duplicates` |
 | "What can I safely delete?" | `find_dead_exports` |
 | "How are modules organized?" | `get_module_structure` |
 | "What's architecturally wrong?" | `analyze_forces` |

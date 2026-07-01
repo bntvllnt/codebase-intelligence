@@ -24,6 +24,7 @@ ParsedExport {
   isDefault: boolean
   complexity: number      // Cyclomatic complexity (branch count, min 1)
   typeFacts?: SymbolTypeFacts
+  duplication?: SymbolDuplicationFacts
 }
 
 ParsedSymbol extends ParsedExport {
@@ -38,6 +39,12 @@ SymbolTypeFacts {
   consumes: string[]      // Shape/type names read by parameters
   produces: string[]      // Shape/type names returned or declared
   confidence: "resolved" | "syntax"
+}
+
+SymbolDuplicationFacts {
+  tokenCount: number
+  tokens: Record<"strict" | "mild" | "weak", string[]> // Function-body token streams
+  hashes: Record<"strict" | "mild" | "weak", string>  // Deterministic family grouping keys
 }
 
 ParsedImport {
@@ -79,6 +86,7 @@ SymbolNode {
   complexity: number
   isExported?: boolean
   typeFacts?: SymbolTypeFacts
+  duplication?: SymbolDuplicationFacts
 }
 ```
 

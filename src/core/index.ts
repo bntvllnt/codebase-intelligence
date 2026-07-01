@@ -4,6 +4,8 @@ import type { AnalysisMode, CallGraphPrecision, CodebaseGraph, SymbolTypeFacts }
 import { createSearchIndex, search, getSuggestions } from "../search/index.js";
 import type { SearchIndex } from "../search/index.js";
 import { impactAnalysis, renameSymbol } from "../impact/index.js";
+export { computeDuplication } from "../duplication/index.js";
+export type { DuplicationOptions, DuplicationResult } from "../duplication/index.js";
 
 // ── Path helpers ────────────────────────────────────────────
 

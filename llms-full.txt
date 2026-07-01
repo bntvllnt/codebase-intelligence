@@ -31,8 +31,8 @@ Core (shared computation)
   |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers, text formatters
   v
 MCP (stdio) + CLI
-  | MCP: 17 tools, 2 prompts, 3 resources for LLM agents
-  | CLI: 18 commands with formatted + JSON output for humans/CI
+  | MCP: 18 tools, 2 prompts, 3 resources for LLM agents
+  | CLI: 19 commands with formatted + JSON output for humans/CI
 ```
 
 ## Module Map
@@ -49,7 +49,9 @@ src/
   core/index.ts        <- Shared result computation (MCP + CLI)
   operations/index.ts  <- Analysis operation descriptors + typed input schemas
   operations/formatters.ts <- Result-object text formatters for CLI commands
-  mcp/index.ts         <- 17 MCP tools for LLM integration
+  parser/duplication.ts <- Function-body clone token extraction
+  duplication/index.ts <- Duplicate family detection + trace evidence
+  mcp/index.ts         <- 18 MCP tools for LLM integration
   mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
@@ -70,7 +72,7 @@ loadCodebaseGraph(rootDir)
   -> otherwise emits progress events through parse/build/analyze/cache
 
 parseCodebase(rootDir)
-  -> ParsedFile[] (with churn, complexity, test mapping)
+  -> ParsedFile[] (with churn, complexity, test mapping, symbol type facts, duplicate token facts)
 
 buildGraph(parsedFiles)
   -> BuiltGraph { graph: Graph, nodes: GraphNode[], edges: GraphEdge[] }
@@ -259,7 +261,7 @@ The most dangerous files have: high churn + high coupling + low coverage.
 
 # MCP Tools Reference
 
-17 tools available via MCP stdio.
+18 tools available via MCP stdio.
 
 ## 1. codebase_overview
 High-level summary. Input: `{ depth?: number }`. Returns: totalFiles, totalFunctions, modules, topDependedFiles, metrics, and analysis mode/call graph precision.
@@ -285,31 +287,34 @@ Unused exports. Input: `{ module?: string, limit?: number }`. Returns: files wit
 ## 8. find_opportunities
 Rank code quality and refactoring opportunities. Input: `{ limit?: number }`. Returns: ranked opportunities with priority, confidence, evidence, and suggested commands.
 
-## 9. get_groups
+## 9. find_duplicates
+Duplicate function families. Input: `{ mode?: "strict" | "mild" | "weak", minTokens?: number, skipLocal?: boolean, trace?: string }`. Returns: family IDs, members, token counts, similarity thresholds, and optional trace evidence.
+
+## 10. get_groups
 Top-level directory groups. Input: `{}`. Returns: groups with rank, files, loc, importance, coupling.
 
-## 10. symbol_context
+## 11. symbol_context
 Function/class/method context. Input: `{ name: string }`. Returns: callers, callees, metrics, additive typeFacts when known.
 
-## 11. search
+## 12. search
 Keyword/search shape facts (BM25). Input: `{ query: string, limit?: number }`. Returns: ranked files + symbols with additive typeFacts when known.
 
-## 12. detect_changes
+## 13. detect_changes
 Git diff analysis. Input: `{ scope?: "staged" | "unstaged" | "all" }`. Returns: changed files, affected files, risk metrics.
 
-## 13. impact_analysis
+## 14. impact_analysis
 Symbol-level blast radius. Input: `{ symbol: string }`. Returns: depth-grouped impact levels.
 
-## 14. rename_symbol
+## 15. rename_symbol
 Reference finder for rename planning. Input: `{ oldName: string, newName: string, dryRun?: boolean }`. Returns: references with confidence.
 
-## 15. get_processes
+## 16. get_processes
 Entry point execution flows. Input: `{ entryPoint?: string, limit?: number }`. Returns: processes with steps and depth.
 
-## 16. get_clusters
+## 17. get_clusters
 Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clusters with cohesion.
 
-## 17. check
+## 18. check
 Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, config path, and summary counts.
 
 ## Tool Selection Guide
@@ -324,6 +329,7 @@ Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, confi
 | Which files need tests? | find_hotspots (coverage) |
 | What should I improve first? | find_opportunities |
 | Find refactoring opportunities | find_opportunities |
+| Where is logic duplicated? | find_duplicates |
 | What can I safely delete? | find_dead_exports |
 | How are modules organized? | get_module_structure |
 | What's architecturally wrong? | analyze_forces |
@@ -339,7 +345,7 @@ Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, confi
 
 # CLI Reference
 
-18 commands — 16 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
+19 commands — 17 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
 
 ## Commands
 
@@ -402,6 +408,12 @@ Find unused exports across the codebase.
 codebase-intelligence opportunities <path> [--limit <n>] [--json] [--force]
 ```
 Rank code quality and refactoring opportunities with evidence, confidence, and suggested commands.
+
+### duplicates
+```bash
+codebase-intelligence duplicates <path> [--mode <mode>] [--min-tokens <n>] [--skip-local] [--trace <id>] [--json] [--force]
+```
+Detect strict, renamed, and near-miss duplicate function families.
 
 ### groups
 ```bash
