@@ -184,6 +184,10 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   registerOperationTool(server, graph, operations.boundaries);
   registerOperationTool(server, graph, operations.highways);
   registerOperationTool(server, graph, operations.clusters);
+  registerOperationTool(server, graph, operations.ownership);
+  registerOperationTool(server, graph, operations.architectureRecommendations);
+  registerOperationTool(server, graph, operations.lspSnapshot);
+  registerOperationTool(server, graph, operations.workspaces);
   registerDerivedMapTool(
     server,
     graph,

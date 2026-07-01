@@ -375,6 +375,38 @@ describe("operation registry chained parity", () => {
       {},
       cachedRun,
     );
+    expectCliMatchesRegistry(
+      operations.ownership,
+      { groupBy: "directory" },
+      ["owners", getFixtureSrcPath(), "--group-by", "directory"],
+      codebaseGraph,
+      { rootDir: getFixtureSrcPath() },
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.architectureRecommendations,
+      {},
+      ["architecture", getFixtureSrcPath()],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.lspSnapshot,
+      {},
+      ["lsp", getFixtureSrcPath(), "--diagnostics"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliMatchesRegistry(
+      operations.workspaces,
+      { base: "HEAD", changedOnly: false },
+      ["workspaces", getFixtureSrcPath(), "--base", "HEAD"],
+      codebaseGraph,
+      { rootDir: getFixtureSrcPath() },
+      cachedRun,
+    );
   });
 
   it("CH-P1-01: registry-adapted CLI text commands render through descriptor formatters for every operation", () => {
@@ -535,6 +567,38 @@ describe("operation registry chained parity", () => {
       ["clusters", getFixtureSrcPath(), "--min-files", "2"],
       codebaseGraph,
       {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.ownership,
+      { groupBy: "directory" },
+      ["owners", getFixtureSrcPath(), "--group-by", "directory"],
+      codebaseGraph,
+      { rootDir: getFixtureSrcPath() },
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.architectureRecommendations,
+      {},
+      ["architecture", getFixtureSrcPath()],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.lspSnapshot,
+      {},
+      ["lsp", getFixtureSrcPath(), "--diagnostics"],
+      codebaseGraph,
+      {},
+      cachedRun,
+    );
+    expectCliTextMatchesFormatter(
+      operations.workspaces,
+      { base: "HEAD", changedOnly: false },
+      ["workspaces", getFixtureSrcPath(), "--base", "HEAD"],
+      codebaseGraph,
+      { rootDir: getFixtureSrcPath() },
       cachedRun,
     );
   });
@@ -831,6 +895,36 @@ describe("operation registry chained parity", () => {
       { minFiles: 2 },
       codebaseGraph,
       mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.ownership,
+      { groupBy: "directory" },
+      { groupBy: "directory" },
+      codebaseGraph,
+      mcp,
+      { rootDir: getFixtureSrcPath() },
+    );
+    await expectMcpMatchesRegistry(
+      operations.architectureRecommendations,
+      {},
+      {},
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.lspSnapshot,
+      {},
+      {},
+      codebaseGraph,
+      mcp,
+    );
+    await expectMcpMatchesRegistry(
+      operations.workspaces,
+      { base: "HEAD", changedOnly: false },
+      { base: "HEAD", changedOnly: false },
+      codebaseGraph,
+      mcp,
+      { rootDir: getFixtureSrcPath() },
     );
   });
 });

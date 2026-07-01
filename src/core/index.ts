@@ -163,6 +163,7 @@ export interface FileContextResult {
     isBridge: boolean;
     churn: number;
     cyclomaticComplexity: number;
+    cognitiveComplexity: number;
     blastRadius: number;
     deadExports: string[];
     totalExports: number;
@@ -222,6 +223,7 @@ export function computeFileContext(
       isBridge: metrics.isBridge,
       churn: metrics.churn,
       cyclomaticComplexity: metrics.cyclomaticComplexity,
+      cognitiveComplexity: metrics.cognitiveComplexity ?? metrics.cyclomaticComplexity,
       blastRadius: metrics.blastRadius,
       deadExports: metrics.deadExports,
       totalExports: metrics.totalExports,
@@ -256,6 +258,7 @@ export const HOTSPOT_METRICS = [
   "escape_velocity",
   "churn",
   "complexity",
+  "cognitive_complexity",
   "blast_radius",
   "coverage",
   "risk",
@@ -332,6 +335,10 @@ export function computeHotspots(
           score = metrics.cyclomaticComplexity;
           reason = `avg cyclomatic complexity: ${metrics.cyclomaticComplexity.toFixed(1)}`;
           break;
+        case "cognitive_complexity":
+          score = metrics.cognitiveComplexity ?? metrics.cyclomaticComplexity;
+          reason = `avg cognitive complexity: ${score.toFixed(1)}`;
+          break;
         case "blast_radius":
           score = metrics.blastRadius;
           reason = `${metrics.blastRadius} transitive dependents affected if changed`;
@@ -342,7 +349,7 @@ export function computeHotspots(
           break;
         case "risk":
           score = computeRiskScore({ loc, coverage: metrics.hasTests ? 1 : 0, metrics });
-          reason = `complexity ${metrics.cyclomaticComplexity.toFixed(1)} x churn ${metrics.churn} x coupling ${metrics.coupling.toFixed(2)} x size ${loc}`;
+          reason = `complexity ${metrics.cyclomaticComplexity.toFixed(1)} / cognitive ${(metrics.cognitiveComplexity ?? metrics.cyclomaticComplexity).toFixed(1)} x churn ${metrics.churn} x coupling ${metrics.coupling.toFixed(2)} x size ${loc}`;
           break;
         default:
           score = 0;

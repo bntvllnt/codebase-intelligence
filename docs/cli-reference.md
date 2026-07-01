@@ -1,6 +1,6 @@
 # CLI Reference
 
-24 commands for terminal and CI use. The 22 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
+35 commands for terminal and CI use. Graph-backed analysis commands have MCP parity and auto-cache the index to `.codebase-intelligence/`; workflow commands cover `check`, `ci`, `doctor`, local hooks/history, config migration, and agent adoption.
 
 ## Commands
 
@@ -22,7 +22,7 @@ Rank files by metric.
 codebase-intelligence hotspots <path> [--metric <metric>] [--limit <n>] [--json] [--force]
 ```
 
-**Metrics:** `coupling` (default), `pagerank`, `fan_in`, `fan_out`, `betweenness`, `tension`, `churn`, `complexity`, `blast_radius`, `coverage`, `risk`, `escape_velocity`.
+**Metrics:** `coupling` (default), `pagerank`, `fan_in`, `fan_out`, `betweenness`, `tension`, `churn`, `complexity`, `cognitive_complexity`, `blast_radius`, `coverage`, `risk`, `escape_velocity`.
 
 ### file
 
@@ -238,23 +238,132 @@ codebase-intelligence clusters <path> [--min-files <n>] [--json] [--force]
 
 **Output:** clusters with files, file count, cohesion.
 
+### owners
+
+Group ownership and bus-factor risk.
+
+```bash
+codebase-intelligence owners <path> [--group-by owner|package|directory] [--effort <n>] [--json] [--force]
+```
+
+**Output:** files, groups, hotspots, owner/package/directory keys, bus-factor, churn, risk score, and evidence.
+
+### architecture
+
+Rank extraction, seam, tension, and locality recommendations.
+
+```bash
+codebase-intelligence architecture <path> [--json] [--force]
+```
+
+**Output:** recommendations with stable IDs, kind, title, effort, score, affected files, evidence, and contextPack commands.
+
+### workspaces
+
+Detect package scopes, changed workspaces, and cross-package cycles.
+
+```bash
+codebase-intelligence workspaces <path> [--base <ref>] [--changed] [--json] [--force]
+```
+
+**Output:** workspace name/path/file count, changed flag, per-workspace cycle evidence, cross-package cycle evidence, and summary.
+
+### lsp
+
+Start a minimal advisory LSP server or print a diagnostics snapshot.
+
+```bash
+codebase-intelligence lsp <path> [--diagnostics] [--json] [--force]
+```
+
+**Output:** diagnostics and hover facts when `--diagnostics` or `--json` is used. Without those flags, the command starts a stdio LSP server with advisory diagnostics and hovers.
+
+### watch
+
+Keep analysis warm while editing.
+
+```bash
+codebase-intelligence watch <path> [--once] [--debounce <ms>] [--json] [--force]
+```
+
+**Output:** readiness snapshot in `--once`/`--json` mode. Without `--once`, emits debounced change events.
+
 ### check
 
 Rules-engine gate for CI.
 
 ```bash
-codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on <severity>] [--gate <mode>] [--base <ref>] [--quiet] [--summary] [--json] [--force]
+codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on <severity>] [--gate <mode>] [--base <ref>] [--changed-since <ref>] [--diff-file <path>] [--production] [--quiet] [--summary] [--json] [--force]
 ```
 
-**Formats:** `text` (default), `json`, `sarif`.
+**Formats:** `text` (default), `json`, `sarif`, `markdown`, `annotations`, `pr-comment-github`, `pr-comment-gitlab`, `badge`, `codeclimate`, `compact`.
 
 **Fail-on:** `error` (default), `warn`, `never`.
 
 **Gate modes:** `all` (default), `new-only`.
 
-**Output:** pass/warn/fail verdict, findings, suppression ledger, and summary counts. Findings include stable `fingerprint`; cleanup findings may also include `kind`, `confidence`, and `evidence`. Summary counts include `suppressed` and `staleSuppressions`; `--summary` prints those counts when present. Exit code `0` on pass, `1` when the configured gate fails, `2` for invalid config or arguments.
+**Output:** pass/warn/fail verdict, findings, suppression ledger, and summary counts. Findings include stable `fingerprint` and advisory `actions[]`; cleanup/security findings may also include `kind`, `confidence`, and `evidence`. Summary counts include `suppressed` and `staleSuppressions`; `--summary` prints those counts when present. Exit code `0` on pass, `1` when the configured gate fails, `2` for invalid config or arguments.
 
-**Rules:** `no-comments` (off by default), `no-boundary-violations` (error when top-level `boundaries` config exists), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), plus opt-in cleanup gates: `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities in `codebase-intelligence.json`.
+**Rules:** `no-comments` (off by default), `no-boundary-violations` (error when top-level `boundaries` config exists), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), plus opt-in cleanup/security gates: `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`, `no-secrets`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities in `codebase-intelligence.json`.
+
+### ci
+
+One PR-friendly quality gate around `check`, `changes`, health, baselines, formats, changed workspaces, and local history.
+
+```bash
+codebase-intelligence ci <path> [--base <ref>] [--new-only] [--all] [--fail-on error|warn|never] [--min-score <n>] [--max-new <n>] [--baseline <path>] [--format <fmt>] [--output <path>] [--comment markdown] [--summary] [--production] [--changed-since <ref>] [--diff-file <path>] [--changed-workspaces] [--history] [--json] [--force]
+```
+
+**Exit codes:** `0` pass, `1` gate failed, `2` invalid config/args, `3` analyzer error.
+
+**Formats:** same as `check`. `--comment markdown` emits a PR-comment-safe markdown envelope. `--changed-workspaces` includes changed workspace and cross-package cycle facts in JSON output. `--history` writes finding fingerprints and counts to `.codebase-intelligence/history.json`.
+
+### doctor
+
+Read-only setup auditor.
+
+```bash
+codebase-intelligence doctor [path] [--profile local|ci|agent|mcp] [--agent codex|claude|cursor|generic] [--json]
+```
+
+**Output:** status, checks, evidence, exact fix commands, and docs links. Doctor checks runtime, package manager, config schema, graph build, cache path, CLI help, MCP registry, CI workflow, and agent instructions.
+
+### explain
+
+Explain one rule.
+
+```bash
+codebase-intelligence explain <rule> [--json]
+```
+
+### migrate-config
+
+Dry-run config migration to `codebase-intelligence.json`.
+
+```bash
+codebase-intelligence migrate-config <path> [--source <name>] [--write] [--json]
+```
+
+Default is dry-run and does not mutate source.
+
+### hooks
+
+Plan or install local hooks that run the same CI gate.
+
+```bash
+codebase-intelligence hooks install [path] [--apply] [--command <cmd>] [--json]
+codebase-intelligence hooks uninstall [path] [--apply] [--json]
+```
+
+Default is dry-run. Use `--apply` to write `.git/hooks/pre-commit`.
+
+### history
+
+Read local finding history.
+
+```bash
+codebase-intelligence history [path] [--json]
+```
 
 ### init
 

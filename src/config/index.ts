@@ -22,6 +22,9 @@ export interface ConfigOverrides {
   failOn?: "error" | "warn" | "never";
   gate?: "all" | "new-only";
   base?: string;
+  diffFile?: string;
+  changedSince?: string;
+  production?: boolean;
 }
 
 const CONFIG_FILENAMES = [
@@ -96,7 +99,7 @@ const configSchema = z
       .optional(),
     output: z
       .object({
-        format: z.enum(["text", "json", "sarif"]).optional(),
+        format: z.enum(["text", "json", "sarif", "markdown", "annotations", "pr-comment-github", "pr-comment-gitlab", "badge", "codeclimate", "compact"]).optional(),
         quiet: z.boolean().optional(),
         summary: z.boolean().optional(),
       })
@@ -108,8 +111,11 @@ const configSchema = z
         gate: z.enum(["all", "new-only"]).optional(),
         failOn: z.enum(["error", "warn", "never"]).optional(),
         maxWarnings: z.number().optional(),
+        maxNew: z.number().optional(),
         tolerance: z.number().optional(),
         base: z.string().optional(),
+        minScore: z.number().optional(),
+        production: z.boolean().optional(),
       })
       .strict()
       .optional(),
@@ -159,6 +165,7 @@ function applyOverrides(
   if (overrides.failOn !== undefined) ci.failOn = overrides.failOn;
   if (overrides.gate !== undefined) ci.gate = overrides.gate;
   if (overrides.base !== undefined) ci.base = overrides.base;
+  if (overrides.production !== undefined) ci.production = overrides.production;
 
   return { ...config, output, ci };
 }

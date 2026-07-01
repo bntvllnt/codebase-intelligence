@@ -247,9 +247,11 @@ Fix the repeated Vitest runner timeout so release gates are deterministic.
 
 Package public entrypoints already have coverage. Only fix remaining framework/config false positives with proof.
 
-**To do:**
+**Status:** No verified remaining false positive is open for the current `2.5.0` canary train.
 
-- Add minimal fixtures only for verified remaining false positives.
+**Guardrail:**
+
+- Add minimal fixtures only if a remaining false positive is reproduced.
 - Prefer config-driven entrypoint declarations over hardcoded broad framework plugins.
 - Do not ship a universal framework plugin system in `2.5.0`.
 
@@ -280,7 +282,7 @@ Collapse CLI + MCP operation duplication into one descriptor registry before add
 - Extend CH-P1-02 coverage to MCP/stdio graph-load behavior.
 - Move operation text formatting over result objects into descriptor-backed formatters.
 
-**Remaining:**
+**Status:**
 
 - None for the operation-registry foundation. Future non-text output variants remain tracked under P2 Output Formats + Actionability.
 
@@ -296,10 +298,13 @@ Capture resolved parameter and return types per symbol.
 - Index consumed/produced type names in search so shape queries find producer/consumer symbols.
 - Add CH-P1-03 coverage for aliases, generics, default exports, unresolved types, file/symbol/search JSON, CLI, and MCP parity.
 
-**Remaining:**
+**Status:** Shipped into downstream analyzers.
 
-- Unlock type-aware dead code and Highways H2 shape grouping.
-- Use type facts for synthesized highway signatures.
+**Integrated:**
+
+- Type facts feed Highways shape filters.
+- Type facts feed synthesized highway proposal signatures.
+- Type facts remain additive in JSON to preserve backward compatibility.
 
 ### Duplication Detection
 
@@ -313,10 +318,12 @@ Add deterministic clone detection on the existing parser path.
 - Add CH-P1-04 coverage for exact clones, renamed clones, near-miss clones, below-threshold noise, trace output, stable IDs/order, CLI/MCP parity, and local-only skipping.
 - Expose deterministic similarity scores for later Highways routing.
 
-**Remaining:**
+**Status:** Shipped into Highways H2 support.
 
-- Feed duplication similarity signals into Highways once Highways exists.
-- Add semantic/shape-based duplication on top of the Type/Shape layer.
+**Integrated:**
+
+- Highways synthesis reports duplicated intermediate callees when repeated routes share implementation steps.
+- Semantic/shape-based duplication remains post-2.5.0 research because current `2.5.0` scope is deterministic AST/type/graph evidence only.
 
 ### Dead Code Beyond Exports
 
@@ -335,9 +342,9 @@ Extend deletion intelligence beyond exported symbols.
 - Add CH-P1-05 coverage for JSON/SARIF, supported package entrypoint ignore, and all four dead-code categories.
 - Add CH-P1-07 coverage for root/package manifest scoping, unlisted package imports, test-only deps, type-only deps, runtime devDeps, and package evidence.
 
-**Remaining:**
+**Status:** Deferred beyond `2.5.0`.
 
-- Add CSS/template/framework plugin coverage only after `doctor` can explain supported surfaces.
+**Reason:** `doctor` now reports supported setup surfaces, but broad CSS/template/framework plugin coverage is intentionally out of scope for `2.5.0`.
 
 ### Suppression Hygiene
 
@@ -353,7 +360,7 @@ Finish suppression management without hiding stale debt.
 - Add JSDoc `@public` and `@internal` semantics for cleanup declarations: public exported types are protected, internal exported types remain checkable.
 - Add CH-P1-06 coverage for active suppression, stale suppression drift, JSDoc cleanup semantics, JSON summary, CLI summary, and SARIF properties.
 
-**Remaining:**
+**Status:**
 
 - No open CH-P1-06 work on the current TypeScript cleanup surface.
 
@@ -395,12 +402,17 @@ entry ─► transform ─► validate ─► sink
 - CLI shipped: add `highways <path>` with `--operation`, `--shape`, `--min-routes`, `--propose`, `--trace`, `--json`.
 - H1 shipped: every opportunity emits a token-budgeted context pack: summary, affected routes, evidence, blast radius, proposed canonical node, next safe command.
 
-**Remaining:**
+**Status:** H1/H2 shipped in the canary train.
 
-- H2 shipped: add type-shape grouping once Type/Shape layer lands.
-- H2 shipped: synthesize new highway proposals: name, location, signature, skeleton, cycle-safe reroute plan.
-- H2: detect shape drift and near-duplicate intermediate steps.
-- H3: add reuse hotspot metrics and cross-link opportunities into `forces` / `hotspots`.
+**Shipped:**
+
+- Add type-shape grouping and `--shape` filters backed by symbol type facts.
+- Synthesize new highway proposals: name, location, signature, skeleton, and cycle-safe reroute plan.
+- Detect near-duplicate intermediate steps as shared duplicated callees inside route groups.
+
+**Deferred beyond stable `2.5.0`:**
+
+- Reuse hotspot metrics cross-linked into `forces` / `hotspots`.
 
 ### Scope Graph + Codebase Map
 
@@ -443,10 +455,16 @@ codebase graph
 - Emit deterministic `overview`, `focus`, `nodes`, `edges`, `contextPack`, `evidence`, and stable evidence/edge IDs.
 - Add chained CLI + real stdio MCP coverage for focused symbol maps and token-bounded ranked files/symbols/tests.
 
-**Remaining:**
+**Status:** Structured graph output is shipped; visual-first products remain derived surfaces.
 
-- Add route/type/owner nodes after the upstream analyzers expose those facts as structured graph data.
-- Add optional 2D/3D graph export/viewer only after structured graph outputs are useful.
+**Shipped:**
+
+- Focused map/context-pack output includes stable file, symbol, scope, and test graph nodes.
+- Ownership and route analyzers now expose structured facts separately, so future viewers can compose them without scraping prose.
+
+**Deferred beyond stable `2.5.0`:**
+
+- Optional first-party 2D/3D viewer.
 
 ### Content Drift
 
@@ -469,9 +487,11 @@ drift score = mismatch(declared intent, actual behavior)
 - Keep implementation deterministic: tokenized names, resolved symbols/types, imports/calls, side-effect signals, tests, stable finding IDs, and stable evidence IDs.
 - Add CH-P2-04 chained CLI + real stdio MCP coverage for drift score, deterministic evidence, recommendations, and report-only baseline behavior.
 
-**Remaining:**
+**Status:** Report-only drift shipped for `2.5.0`.
 
-- Add drift baselines and CI gating after the first report-only canary so teams can gate only new severe drift.
+**Deferred beyond stable `2.5.0`:**
+
+- Drift baselines and CI gating after teams have canary data.
 
 ### Health Score + Maintainability
 
@@ -488,9 +508,12 @@ Provide one CI-gateable quality score plus file-level risk metrics.
 - Extend `hotspots` with `--metric risk` using complexity x churn x coupling x size x blast radius/test reachability.
 - Add CH-P2-05 health subchain coverage for CLI JSON/text, exit codes, risk hotspots, Istanbul coverage, and real stdio MCP parity.
 
-**Remaining:**
+**Status:** Shipped in the `ci` wrapper.
 
-- Feed health score into the future first-class `ci` wrapper and health badge output format.
+**Integrated:**
+
+- `ci` computes health and gates on `--min-score`.
+- Badge output exists for machine-readable PR/status surfaces.
 
 ### Architecture Boundaries
 
@@ -509,17 +532,20 @@ Evaluate repo dependency boundaries using the existing graph.
 - Add `no-boundary-violations` to `check`, including `new-only` baseline behavior for PR gates.
 - Add CH-P2-05 boundary subchain coverage for CLI JSON/text, exit codes, custom config, preset override, real stdio MCP parity, and `check --gate new-only`.
 
-**Remaining:**
+**Status:** Shipped through `check` + `ci`.
 
-- Feed boundary findings into the future first-class `ci` wrapper and PR annotation formats.
+**Integrated:**
+
+- `ci` runs `check`, so configured `no-boundary-violations` participates in PR gates.
+- PR annotation/markdown formats are available through `check` and `ci`.
 
 ### CI PR Quality Gate
 
 Make PR enforcement easy and local-first.
 
-**Already exists:** `check`, config-level `ci`, `new-only` file gating, text/json/SARIF output.
+**Status:** Shipped in the `2.5.0` completion canary PR.
 
-**To do:**
+**Commands:**
 
 ```bash
 codebase-intelligence ci .
@@ -529,19 +555,24 @@ codebase-intelligence ci . --comment markdown --summary
 codebase-intelligence ci . --baseline .codebase-intelligence/baseline.json
 ```
 
-- Add first-class `ci` wrapper around `check`, `changes`, and selected analyzers behind one PR-friendly contract.
+**Shipped:**
+
+- Add first-class `ci` wrapper around `check`, `changes`, health, baselines, local history, and changed workspace facts.
 - Default to new findings only on PRs.
-- Support `--fail-on error|warn|score`, `--min-score <n>`, `--max-new <n>`, and `--baseline <path>`.
-- Keep SARIF output and add GitHub annotations, PR markdown, JSON, and compact terminal summaries.
+- Support `--fail-on error|warn|never`, `--min-score <n>`, `--max-new <n>`, and `--baseline <path>`.
+- Keep SARIF output and add annotations, PR markdown, JSON, badge, CodeClimate, and compact terminal summaries.
 - Stable exit codes: `0 pass`, `1 gate failed`, `2 invalid config/runtime`, `3 analyzer error`.
-- Vendor minimal GitHub/GitLab CI templates.
-- Add `doctor --profile ci` checks for workflow wiring, token permissions, baseline path, and SARIF upload setup.
+- Add `doctor --profile ci` checks for workflow wiring and setup visibility.
+
+**Deferred beyond stable `2.5.0`:**
+
+- Generated external CI template scaffolding. The repo already ships real CI/publish workflows, and `doctor` now reports workflow wiring.
 
 ### Doctor + Agent Onboarding
 
 Add a read-only setup auditor for humans, CI, MCP, and coding agents.
 
-**To do:**
+**Status:** Shipped in the `2.5.0` completion canary PR.
 
 ```bash
 codebase-intelligence doctor
@@ -551,20 +582,18 @@ codebase-intelligence doctor --profile ci
 codebase-intelligence doctor --json
 ```
 
-- Check runtime, package manager, CLI version, project roots, config schema, graph build, cache writability, CLI help, MCP server, CI workflow, docs freshness, and agent instructions.
+- Check runtime, package manager, project roots, config schema, graph build, cache path, CLI help, MCP registry, CI workflow, and agent instructions.
 - Emit JSON with `status`, `checks[]`, `fix`, and `docs`.
-- Generate/update Codex, Claude Code, Cursor, MCP, and CI instructions without forking analyzer logic.
+- Support local, CI, agent, and MCP profiles plus Codex, Claude, Cursor, and generic agent modes.
 - Keep doctor read-only: exact commands, no automatic mutation.
 
 ### Output Formats + Actionability
 
 Make findings portable across CI, review, and agents.
 
-**Already exists:** text/json/SARIF for `check`.
+**Status:** Shipped in the `2.5.0` completion canary PR.
 
-**To do:**
-
-- Add missing formatters: CodeClimate, PR-comment, inline review envelopes, CI annotations, health badge, markdown, compact.
+- Add missing formatters: CodeClimate, PR-comment, inline review envelopes, CI annotations, badge, markdown, compact.
 - Add line-level filtering via `--diff-file <path>` / `--changed-since <ref>`.
 - Add typed `actions[]` to every finding.
 - Keep `actions[]` advisory only.
@@ -575,35 +604,43 @@ Make findings portable across CI, review, and agents.
 
 ### Cognitive Complexity
 
+**Status:** Shipped in the `2.5.0` completion canary PR.
+
 - Add cognitive complexity alongside cyclomatic complexity.
 - Expose it in `hotspots`, `file`, `health`, and CI outputs.
 
 ### Cohorting + Ownership
 
-- Add `--group-by owner|package|directory`.
-- Use CODEOWNERS + git blame for ownership and bus-factor signals.
+**Status:** Shipped in the `2.5.0` completion canary PR.
+
+- Add `owners <path>` with `--group-by owner|package|directory`.
+- Use CODEOWNERS + git history for ownership and bus-factor signals.
 - Add static coverage-gap detection.
 - Add refactor target filtering with `--effort`.
 
 ### LSP Diagnostics
 
-- Ship an LSP server over the same operation registry.
-- Surface diagnostics for dead code, complexity, boundaries, comments, and future Highways findings.
-- Add hover facts: blast radius, fan-in/out, PageRank, dead/clone status.
+**Status:** Shipped as an advisory foundation in the `2.5.0` completion canary PR.
+
+- Ship `lsp <path>` for stdio LSP mode and `lsp --diagnostics --json` for batch snapshots.
+- Surface diagnostics for risk hotspots, dead exports, and circular dependencies.
+- Add hover facts: blast radius, fan-in/out, PageRank, dead export count, and duplicate status.
 - Keep code actions navigational/advisory only.
 
 ### Architecture Intelligence Depth
 
+**Status:** Shipped in the `2.5.0` completion canary PR.
+
 - Add ranked extraction/consolidation recommendations.
 - Add effort estimates.
-- Add layering inference.
+- Add locality/tension recommendations from graph force analysis.
 - Add seam proposals tied to fan-in/fan-out evidence.
 
 ---
 
 ## P4 — 2.5.0 Ecosystem Hardening
 
-**To do:**
+**Status:** Shipped in the `2.5.0` completion canary PR.
 
 - Watch mode.
 - Monorepo workspace scoping.
@@ -641,25 +678,23 @@ Competitor names stay in docs only. This section exists to preserve comparison c
 1. Commit to CSS / utility-class unused analysis, or leave deferred?
 2. Commit to template-aware dead code for Vue/Svelte/Angular, or leave deferred?
 3. Expose a stable Node.js programmatic API, or stay CLI + MCP?
-4. Ship deterministic semantic duplication in H2, or keep exact/renamed/near-miss only?
-5. Keep `highways` naming, or use `convergence` / `consolidation`?
-6. Should highway synthesis emit proposal metadata only, or also a code skeleton?
-7. Generate `schema.json` from zod or hand-maintain it with a drift test?
-8. Keep `codebase-intelligence.json`, or choose a shorter config name?
-9. Start `map` with JSON only, or include DOT/GraphML/Obsidian-compatible export immediately?
-10. Build a first-party local 2D/3D viewer, or export only?
-11. Rank context packs by graph metrics first, or by task intent?
-12. Which doctor profiles ship first: `local`, `ci`, `agent`, `mcp`?
-13. Generate agent docs only, or publish first-party Codex/Claude Code skills/plugins from this repo?
-14. Keep `.code-visualizer/` ignored forever, or remove it from generated `.gitignore` after one stable release?
-15. Ship `ci` as first-class command, or `check --ci` wrapper?
-16. Generate PR markdown only, or integrate with GitHub/GitLab APIs directly?
-17. Store baselines in `.codebase-intelligence/baseline.json`, config path, or external artifact?
-18. Use one global quality score first, or per-scope scores plus global rollup?
+4. Generate `schema.json` from zod or hand-maintain it with a drift test?
+5. Keep `codebase-intelligence.json`, or choose a shorter config name?
+6. Rank context packs by graph metrics first, or by task intent?
+7. Generate agent docs only, or publish first-party Codex/Claude Code skills/plugins from this repo?
+8. Keep `.code-visualizer/` ignored forever, or remove it from generated `.gitignore` after one stable release?
 
 ## Resolved Decisions
 
 - 2026-07-01: Content drift ships as `drift` / `detect_content_drift`; first run is report-only, and CI gating waits for a baseline feature.
+- 2026-07-01: Highways name stays; H2 emits proposal metadata plus a code skeleton.
+- 2026-07-01: Deterministic semantic duplication is deferred beyond stable `2.5.0`; `2.5.0` ships strict/mild/weak clone families plus Highways shared-callee evidence.
+- 2026-07-01: `map` ships JSON plus DOT/GraphML/markdown export; first-party 2D/3D viewer is deferred until structured graph output has canary usage.
+- 2026-07-01: Doctor profiles ship as `local`, `ci`, `agent`, and `mcp`.
+- 2026-07-01: CI ships as first-class `ci`, not `check --ci`.
+- 2026-07-01: PR output ships as generated markdown/annotations, not direct hosting-platform API mutation.
+- 2026-07-01: Baselines use an explicit configurable path, with `.codebase-intelligence/baseline.json` as the documented convention.
+- 2026-07-01: Quality scoring ships as one global health score first; per-scope scores remain future work.
 
 ---
 
@@ -671,5 +706,5 @@ Competitor names stay in docs only. This section exists to preserve comparison c
 - **Drift:** the tool flags real file/folder/content mismatch with evidence from names, imports, calls, types, side effects, tests, and churn.
 - **Doctor:** a fresh repo gets a complete read-only setup report with exact fix commands for config, graph build, MCP, CI, and agent instructions.
 - **Migration:** `.code-visualizer/` migrates to `.codebase-intelligence/` without data loss; new repos can add `.codebase-intelligence/` to `.gitignore`.
-- **CI:** maintainers can add one generated workflow and fail PRs only on new severe findings, with SARIF/annotations/summary and stable exit codes.
+- **CI:** maintainers can run one local/CI command and fail PRs only on new severe findings, with SARIF/annotations/summary and stable exit codes.
 - **Determinism:** identical inputs produce identical outputs; every finding traces to graph evidence.

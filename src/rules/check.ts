@@ -8,6 +8,7 @@ import type {
   CodebaseGraph,
   CodebaseIntelligenceConfig,
   Finding,
+  FindingAction,
   Verdict,
 } from "../types/index.js";
 import { loadConfig, type ConfigOverrides } from "../config/index.js";
@@ -66,9 +67,116 @@ function changedFilesSince(rootDir: string, baseRef: string): Set<string> | null
   }
 }
 
+interface ChangedRange {
+  start: number;
+  end: number;
+}
+
+type ChangedRanges = Map<string, ChangedRange[]>;
+
+function emptyRanges(): ChangedRanges {
+  return new Map<string, ChangedRange[]>();
+}
+
+function addRange(ranges: ChangedRanges, file: string, start: number, count: number): void {
+  if (count <= 0) return;
+  const normalized = toPosix(file);
+  const list = ranges.get(normalized) ?? [];
+  const end = start + count - 1;
+  list.push({ start, end });
+  ranges.set(normalized, list);
+}
+
+function parseUnifiedDiff(diff: string): ChangedRanges {
+  const ranges = emptyRanges();
+  let currentFile: string | null = null;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+++ b/")) {
+      currentFile = line.slice("+++ b/".length).trim();
+      continue;
+    }
+    if (line.startsWith("+++ ")) {
+      const candidate = line.slice("+++ ".length).trim();
+      currentFile = candidate === "/dev/null" ? null : candidate.replace(/^b\//, "");
+      continue;
+    }
+    if (!currentFile || !line.startsWith("@@")) continue;
+    const match = /\+(\d+)(?:,(\d+))?/.exec(line);
+    if (!match) continue;
+    const parsedCount = Number.parseInt(match[2], 10);
+    const count = Number.isNaN(parsedCount) ? 1 : parsedCount;
+    addRange(ranges, currentFile, Number.parseInt(match[1], 10), count);
+  }
+  return ranges;
+}
+
+function changedRangesSince(rootDir: string, baseRef: string): ChangedRanges | null {
+  try {
+    const out = execFileSync("git", ["diff", "--unified=0", "--relative", `${baseRef}...HEAD`], {
+      cwd: rootDir,
+      encoding: "utf-8",
+      timeout: 10000,
+      maxBuffer: 10 * 1024 * 1024,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return parseUnifiedDiff(out);
+  } catch {
+    return null;
+  }
+}
+
+function changedRangesFromDiffFile(rootDir: string, diffFile: string): ChangedRanges | null {
+  try {
+    const resolved = path.resolve(rootDir, diffFile);
+    return parseUnifiedDiff(fs.readFileSync(resolved, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
 /** Normalize a finding path to forward slashes for comparison with git output. */
 function toPosix(p: string): string {
   return p.split(path.sep).join("/");
+}
+
+function isTestOrDevPath(file: string): boolean {
+  const normalized = toPosix(file);
+  return normalized.includes("__tests__/")
+    || normalized.includes("/tests/")
+    || normalized.startsWith("tests/")
+    || /\.(?:test|spec|stories)\.[cm]?[tj]sx?$/.test(normalized)
+    || normalized.endsWith(".d.ts");
+}
+
+function findingInRanges(finding: Finding, ranges: ChangedRanges): boolean {
+  const list = ranges.get(toPosix(finding.file));
+  if (!list) return false;
+  const start = finding.line;
+  const end = finding.endLine ?? finding.line;
+  return list.some((range) => start <= range.end && end >= range.start);
+}
+
+function suppressionsInRanges(suppression: CheckSuppression, ranges: ChangedRanges): boolean {
+  const list = ranges.get(toPosix(suppression.file));
+  if (!list) return false;
+  const line = suppression.targetLine ?? suppression.line;
+  return list.some((range) => line >= range.start && line <= range.end);
+}
+
+function defaultActionFor(finding: Finding): FindingAction {
+  return {
+    kind: "inspect-file",
+    auto_fixable: false,
+    command: `codebase-intelligence file . ${finding.file}`,
+    reason: `${finding.ruleId} at ${finding.file}:${String(finding.line)}`,
+  };
+}
+
+function withActions(findings: Finding[]): Finding[] {
+  return findings.map((finding) => {
+    if (finding.actions && finding.actions.length > 0) return finding;
+    return { ...finding, actions: [defaultActionFor(finding)] };
+  });
 }
 
 /**
@@ -131,6 +239,28 @@ export function runCheck(
     }
   }
 
+  const diffRanges = overrides?.diffFile
+    ? changedRangesFromDiffFile(resolvedRoot, overrides.diffFile)
+    : overrides?.changedSince
+      ? changedRangesSince(resolvedRoot, overrides.changedSince)
+      : null;
+  if (overrides?.diffFile && diffRanges === null) {
+    process.stderr.write(`Warning: could not read diff file '${overrides.diffFile}'; running full check.\n`);
+  }
+  if (overrides?.changedSince && diffRanges === null) {
+    process.stderr.write(`Warning: could not diff against '${overrides.changedSince}'; running full check.\n`);
+  }
+  if (diffRanges) {
+    findings = findings.filter((f) => findingInRanges(f, diffRanges));
+    suppressions = suppressions.filter((suppression) => suppressionsInRanges(suppression, diffRanges));
+  }
+
+  if (config.ci?.production === true) {
+    findings = findings.filter((f) => !isTestOrDevPath(f.file));
+    suppressions = suppressions.filter((suppression) => !isTestOrDevPath(suppression.file));
+  }
+
+  findings = withActions(findings);
   const summary = summarize(findings, suppressions);
   const verdict = computeVerdict(summary, config);
   return { findings, suppressions, summary, verdict, configPath };

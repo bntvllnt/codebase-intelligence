@@ -45,6 +45,10 @@ const expectedOperations: Array<{
   { name: "boundaries", cliCommand: "boundaries", mcpTool: "check_boundaries", inputKeys: ["preset", "list"], sampleInput: { preset: "layered", list: true } },
   { name: "highways", cliCommand: "highways", mcpTool: "analyze_highways", inputKeys: ["operation", "shape", "minRoutes", "propose", "trace"], sampleInput: { operation: "create", minRoutes: 2 } },
   { name: "clusters", cliCommand: "clusters", mcpTool: "get_clusters", inputKeys: ["minFiles"], sampleInput: { minFiles: 2 } },
+  { name: "ownership", cliCommand: "owners", mcpTool: "get_ownership", inputKeys: ["groupBy", "effort"], sampleInput: { groupBy: "owner", effort: 1 } },
+  { name: "architectureRecommendations", cliCommand: "architecture", mcpTool: "get_architecture_recommendations", inputKeys: [], sampleInput: {} },
+  { name: "lspSnapshot", cliCommand: "lsp", mcpTool: "get_lsp_snapshot", inputKeys: [], sampleInput: {} },
+  { name: "workspaces", cliCommand: "workspaces", mcpTool: "get_workspaces", inputKeys: ["base", "changedOnly"], sampleInput: { base: "HEAD", changedOnly: false } },
 ];
 
 describe("operation registry", () => {

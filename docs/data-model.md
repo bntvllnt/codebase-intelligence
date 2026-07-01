@@ -23,6 +23,7 @@ ParsedExport {
   loc: number             // Lines of code for this export
   isDefault: boolean
   complexity: number      // Cyclomatic complexity (branch count, min 1)
+  cognitiveComplexity?: number // Nesting-aware cognitive complexity
   typeFacts?: SymbolTypeFacts
   duplication?: SymbolDuplicationFacts
 }
@@ -84,6 +85,7 @@ SymbolNode {
   loc: number
   isDefault: boolean
   complexity: number
+  cognitiveComplexity?: number
   isExported?: boolean
   typeFacts?: SymbolTypeFacts
   duplication?: SymbolDuplicationFacts
@@ -110,6 +112,7 @@ FileMetrics {
 
   // Quality (from AST + graph analysis)
   cyclomaticComplexity: number  // Avg complexity of exports
+  cognitiveComplexity?: number  // Avg nesting-aware complexity of symbols
   blastRadius: number           // Transitive dependent count
   deadExports: string[]         // Unused export names
   totalExports: number          // Named export count used as dead-export denominator
@@ -490,6 +493,14 @@ Finding {
   fingerprint: string
 }
 
+FindingAction {
+  kind: "remove-comment" | "inspect-boundary" | "inspect-file" | "inspect-symbol" | "run-check" | "review-finding" | "create-baseline"
+  auto_fixable: boolean
+  range?: { start: number; end: number }
+  command?: string
+  reason?: string
+}
+
 CheckSuppression {
   directive: "ci-ignore-file" | "ci-ignore-next-line" | "@expected-unused"
   status: "active" | "stale"
@@ -516,5 +527,85 @@ CheckResult {
   summary: CheckSummary
   verdict: "pass" | "warn" | "fail"
   configPath: string | null
+}
+```
+
+## CI Result
+
+`ci --json` wraps the rules gate with PR-friendly metadata.
+
+```typescript
+CiResult {
+  verdict: "pass" | "fail"
+  exitCode: 0 | 1
+  base: string
+  newOnly: boolean
+  summary: string
+  gates: Array<{ name: string; verdict: "pass" | "warn" | "fail"; summary: string }>
+  check: CheckResult
+  health: HealthResult
+  changes: ChangesResult
+  workspaces?: WorkspacesResult
+  baseline: { path?: string; ignoredFindings: number }
+}
+```
+
+## Doctor Result
+
+```typescript
+DoctorResult {
+  status: "pass" | "warn" | "fail"
+  profile: "local" | "ci" | "agent" | "mcp"
+  agent: "codex" | "claude" | "cursor" | "generic"
+  root: string
+  checks: Array<{
+    id: string
+    level: "pass" | "warn" | "fail"
+    title: string
+    evidence: string[]
+    fix?: string
+    docs?: string
+  }>
+  summary: string
+}
+```
+
+## Ownership / Architecture / Editor / Workspace Outputs
+
+```typescript
+OwnershipResult {
+  groupBy: "owner" | "package" | "directory"
+  summary: string
+  files: Array<{ file: string; owner: string; package: string; directory: string; churn: number; riskScore: number; busFactor: number; hasTests: boolean; coverageGap: boolean; evidence: string[] }>
+  groups: Array<{ key: string; files: number; owners: string[]; busFactor: number; riskScore: number; churn: number; coverageGaps: number; evidence: string[] }>
+  hotspots: Array<{ key: string; files: number; owners: string[]; busFactor: number; riskScore: number; churn: number; coverageGaps: number; evidence: string[] }>
+}
+
+ArchitectureRecommendationsResult {
+  recommendations: Array<{
+    id: string
+    kind: "extract-module" | "reduce-tension" | "add-seam" | "improve-locality"
+    title: string
+    effort: "small" | "medium" | "large"
+    score: number
+    affectedFiles: string[]
+    evidence: string[]
+    contextPack: { files: string[]; symbols: string[]; commands: string[] }
+  }>
+  summary: string
+}
+
+LspSnapshot {
+  diagnostics: Array<{ file: string; range: object; severity: "warning" | "information"; code: string; message: string }>
+  hovers: Array<{ file: string; symbol?: string; markdown: string }>
+  summary: string
+}
+
+WorkspacesResult {
+  base: string
+  changedOnly: boolean
+  workspaces: Array<{ name: string; path: string; files: number; changed: boolean; cycles: string[][]; evidence: string[] }>
+  crossPackageCycles: string[][]
+  summary: string
 }
 ```

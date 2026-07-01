@@ -7,7 +7,7 @@ CLI (commander)
   |
   v
 Parser (TS Compiler API)
-  | extracts: files, exports, symbols, type facts, duplicate tokens, imports, LOC, complexity, churn, test mapping
+  | extracts: files, exports, symbols, type facts, duplicate tokens, imports, LOC, cyclomatic/cognitive complexity, churn, test mapping
   v
 Graph Builder (graphology)
   | creates: nodes (file + function), edges (imports with symbols/weights)
@@ -15,7 +15,7 @@ Graph Builder (graphology)
   v
 Analyzer
   | computes: PageRank, betweenness, coupling, tension, cohesion
-  | computes: churn, complexity, blast radius, dead exports, test coverage
+  | computes: churn, cyclomatic/cognitive complexity, blast radius, dead exports, test coverage
   | produces: ForceAnalysis (tension files, bridges, extraction candidates)
   v
 Core (shared computation)
@@ -25,7 +25,7 @@ Core (shared computation)
   |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers, text formatters
   v
 MCP (stdio)                    CLI (terminal/CI)
-  | 25 tools, 2 prompts,        | 24 commands with text + JSON
+  | 29 tools, 2 prompts,        | 35 commands with text + JSON
   | 3 resources for LLMs        | output for humans and CI
 ```
 
@@ -52,7 +52,18 @@ src/
   health/              <- Health score, maintainability, CRAP, coverage lookup, and risk scoring
   boundaries/          <- Architecture zones, allow/forbid edge rules, and violation evidence
   highways/index.ts    <- Repeated route convergence + bypass/cowpath/synthesis evidence
-  mcp/index.ts         <- 25 MCP tools for LLM integration
+  ci/index.ts          <- First-class PR gate wrapper around check, changes, health, formats, baselines, history
+  doctor/index.ts      <- Read-only setup auditor with fix commands and docs links
+  ownership/index.ts   <- CODEOWNERS/git ownership, bus-factor, package/directory grouping
+  recommendations/     <- Extraction, seam, tension, and locality recommendations with context packs
+  lsp/index.ts         <- Advisory diagnostics/hover snapshot plus minimal stdio LSP server
+  workspaces/index.ts  <- Package/workspace scope and changed-workspace detection
+  watch/index.ts       <- Local watch readiness and debounced change events
+  migration/index.ts   <- Config migration dry-run/write support
+  hooks/index.ts       <- Local hook planning/install for the same CI gate
+  history/index.ts     <- Local finding history under .codebase-intelligence/
+  explain/index.ts     <- Rule explanation surface
+  mcp/index.ts         <- 29 MCP tools for LLM integration
   mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
@@ -87,7 +98,7 @@ analyzeGraph(builtGraph, parsedFiles)
      }
 
 startMcpServer(codebaseGraph)
-  -> stdio MCP server with 25 tools, 2 prompts, 3 resources
+  -> stdio MCP server with 29 tools, 2 prompts, 3 resources
 
 runOperation(operation, codebaseGraph, input, context)
   -> { ok: true, data } | { ok: false, error, data? }
@@ -106,6 +117,8 @@ runOperation(operation, codebaseGraph, input, context)
 - **Content drift**: `drift` / `detect_content_drift` compares path/name/export intent with import/call/type/side-effect/test behavior. Findings are deterministic, evidence-backed, report-only, and baseline-gated before any future CI enforcement.
 - **Health score**: `health` / `get_health_score` computes one gateable score plus per-file maintainability, CRAP, coverage, and risk evidence. `hotspots --metric risk` uses the same file-risk formula.
 - **Architecture boundaries**: `boundaries` / `check_boundaries` evaluates graph import edges against preset or custom zones and directed allow/forbid rules. The `no-boundary-violations` check rule reuses the same analyzer so CLI, MCP, and CI emit one stable finding shape.
+- **CI + agent ergonomics**: `ci` wraps `check`, `changes`, and health into one PR-friendly contract with SARIF, annotations, PR markdown, compact summaries, baseline filtering, production filtering, and local finding history. `doctor` is read-only and emits exact fix commands for local, CI, MCP, and agent setup.
+- **Depth + ecosystem surfaces**: `hotspots`/`file`/`health` expose cognitive complexity alongside cyclomatic complexity. `owners`, `architecture`, `lsp`, `workspaces`, `watch`, `migrate-config`, `hooks`, `history`, and `explain` are read-only/advisory surfaces for 2.5.0 ergonomics and hardening.
 - **Shared graph-load pipeline**: CLI commands and MCP stdio startup both use `src/graph-loader/` for path checks, legacy cache migration, cache reuse, parse/build/analyze, optional persistence, and stderr progress events.
 - **graphology**: In-memory graph with O(1) neighbor lookup. PageRank and betweenness computed via graphology-metrics.
 - **Batch git churn**: Single `git log --all --name-only` call, parsed for all files. Avoids O(n) subprocess spawning.

@@ -30,6 +30,7 @@ export interface HealthFileResult {
   coverageSource: CoverageSource;
   metrics: {
     complexity: number;
+    cognitiveComplexity: number;
     churn: number;
     coupling: number;
     blastRadius: number;
@@ -48,6 +49,7 @@ export interface HealthResult {
   components: {
     maintainability: number;
     complexity: number;
+    cognitiveComplexity: number;
     churn: number;
     coupling: number;
     coverage: number;
@@ -75,6 +77,7 @@ function nodeMap(graph: CodebaseGraph): Map<string, GraphNode> {
 function fileEvidence(metrics: FileMetrics, coverage: number, loc: number): string[] {
   const evidence = [
     `complexity=${metrics.cyclomaticComplexity.toFixed(1)}`,
+    `cognitiveComplexity=${(metrics.cognitiveComplexity ?? metrics.cyclomaticComplexity).toFixed(1)}`,
     `churn=${metrics.churn}`,
     `coupling=${metrics.coupling.toFixed(2)}`,
     `loc=${loc}`,
@@ -142,6 +145,7 @@ export function computeHealth(
       coverageSource: fileCoverage.source,
       metrics: {
         complexity: metrics.cyclomaticComplexity,
+        cognitiveComplexity: metrics.cognitiveComplexity ?? metrics.cyclomaticComplexity,
         churn: metrics.churn,
         coupling: metrics.coupling,
         blastRadius: metrics.blastRadius,
@@ -157,6 +161,7 @@ export function computeHealth(
   const components = {
     maintainability: averageHealth(sortedFiles.map((file) => file.maintainabilityIndex)),
     complexity: componentHealth(sortedFiles.map((file) => file.metrics.complexity), 20),
+    cognitiveComplexity: componentHealth(sortedFiles.map((file) => file.metrics.cognitiveComplexity), 25),
     churn: componentHealth(sortedFiles.map((file) => file.metrics.churn), 20),
     coupling: componentHealth(sortedFiles.map((file) => file.metrics.coupling), 20),
     coverage: averageHealth(sortedFiles.map((file) => file.coverage)),

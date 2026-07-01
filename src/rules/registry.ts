@@ -4,6 +4,7 @@ import { noBoundaryViolations } from "./no-boundary-violations.js";
 import { noCircularDeps } from "./no-circular-deps.js";
 import { noDeadFiles, noUnusedDeps, noUnusedMembers, noUnusedTypes } from "./dead-code.js";
 import { noDeadExports } from "./no-dead-exports.js";
+import { noSecrets } from "./no-secrets.js";
 
 /** Every rule the engine knows about. Add a rule = add a file + an entry here. */
 export const ALL_RULES: Rule[] = [
@@ -15,4 +16,5 @@ export const ALL_RULES: Rule[] = [
   noUnusedTypes,
   noUnusedMembers,
   noUnusedDeps,
+  noSecrets,
 ];

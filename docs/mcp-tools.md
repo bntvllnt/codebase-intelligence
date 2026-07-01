@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-25 tools available via MCP stdio.
+29 tools available via MCP stdio.
 
 Operation tools return JSON text payloads. Invalid operation inputs return `isError: true` with `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.
 
@@ -19,7 +19,7 @@ High-level summary of the entire codebase.
 Detailed context for a single file.
 
 **Input:** `{ filePath: string }` (relative path)
-**Returns:** path, loc, exports (with additive `typeFacts` when known), imports (with symbols, isTypeOnly, weight), dependents (with symbols, isTypeOnly, weight), metrics (all FileMetrics including churn, complexity, blastRadius, deadExports, totalExports, package-entrypoint metadata, hasTests, testFile)
+**Returns:** path, loc, exports (with additive `typeFacts` when known), imports (with symbols, isTypeOnly, weight), dependents (with symbols, isTypeOnly, weight), metrics (all FileMetrics including churn, cyclomatic/cognitive complexity, blastRadius, deadExports, totalExports, package-entrypoint metadata, hasTests, testFile)
 
 **Path normalization:** Backslashes are normalized to forward slashes. The exact graph path is tried first; if not found, common prefixes (`src/`, `lib/`, `app/`) are stripped once from the leading position and retried. If the file is not found, the error includes up to 3 suggested similar paths.
 
@@ -41,7 +41,7 @@ File-level blast radius analysis — what breaks if this file changes.
 Rank files by any metric.
 
 **Input:** `{ metric: string, limit?: number }` (default limit: 10)
-**Metrics:** coupling, pagerank, fan_in, fan_out, betweenness, tension, escape_velocity, churn, complexity, blast_radius, coverage, risk
+**Metrics:** coupling, pagerank, fan_in, fan_out, betweenness, tension, escape_velocity, churn, complexity, cognitive_complexity, blast_radius, coverage, risk
 **Returns:** ranked files with score + reason, summary
 
 **Use when:** "What are the riskiest files?" "Which files need tests?" "Most complex files?"
@@ -249,14 +249,54 @@ Community-detected clusters of related files.
 **Use when:** "What files are related?" "Find natural groupings." Discovering emergent groupings that differ from directory structure.
 **Not for:** Directory-based modules (use get_module_structure).
 
-## 25. check
+## 25. get_ownership
+
+Owner/package/directory grouping with bus-factor and risk signals.
+
+**Input:** `{ groupBy?: "owner" | "package" | "directory", effort?: number }`
+**Returns:** groupBy, summary, files[], groups[], hotspots[] with owner/package/directory keys, busFactor, churn, riskScore, and evidence.
+
+**Use when:** Finding owner concentration, risky orphaned paths, package handoff risk, or CODEOWNERS gaps.
+**Not for:** Editing ownership files automatically; output is advisory.
+
+## 26. get_architecture_recommendations
+
+Rank architecture cleanup opportunities.
+
+**Input:** `{}`
+**Returns:** recommendations[] with id, kind (`extract-module`, `reduce-tension`, `add-seam`, `improve-locality`), title, effort, score, affectedFiles, evidence, and contextPack.
+
+**Use when:** Planning extraction/consolidation work from graph evidence.
+**Not for:** Applying refactors automatically.
+
+## 27. get_lsp_snapshot
+
+Editor diagnostics and hover facts derived from batch analysis.
+
+**Input:** `{}`
+**Returns:** diagnostics[], hovers[], summary.
+
+**Use when:** Comparing editor/LSP facts with CLI output or building advisory editor integrations.
+**Not for:** Source mutation; code actions remain advisory.
+
+## 28. get_workspaces
+
+Package workspace scope and changed-workspace facts.
+
+**Input:** `{ base?: string, changedOnly?: boolean }`
+**Returns:** base, changedOnly, workspaces[] with name, path, files, changed, cycles, evidence, crossPackageCycles, and summary.
+
+**Use when:** Scoping monorepo CI to changed workspaces or checking cross-package cycle evidence.
+**Not for:** Package-manager install/update actions.
+
+## 29. check
 
 Run the configurable rules engine and gate on findings.
 
 **Input:** `{}` (uses the loaded graph + discovered config)
 **Returns:** `{ verdict: "pass"|"warn"|"fail", summary: { error, warn, suppressed, staleSuppressions, rules }, configPath, suppressions[], findings[] }`. Each finding has ruleId, severity, file, line, column, message, fingerprint, optional `kind`, optional `confidence`, optional `evidence[]`, and optional advisory `actions[]` (the tool is read-only — actions are hints, never applied). Each suppression records directive, status, file, line, targetLine, matched rule IDs, and suppressed count.
 
-Rules: `no-comments` (off by default), `no-boundary-violations` (error when `boundaries` config exists), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), and opt-in cleanup gates `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
+Rules: `no-comments` (off by default), `no-boundary-violations` (error when `boundaries` config exists), `no-circular-deps` (error), `no-dead-exports` (warn), `no-stale-suppressions` (warn), and opt-in cleanup/security gates `no-dead-files`, `no-unused-types`, `no-unused-members`, `no-unused-deps`, `no-secrets`. Dependency findings are scoped to the nearest `package.json` / workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. `ci-ignore-file`, `ci-ignore-next-line`, and JSDoc `@expected-unused` suppressions are reported as active/stale; JSDoc `@public` protects exported cleanup declarations while `@internal` remains checkable. Configure severities and options in `codebase-intelligence.json` (validated by `schema.json`).
 
 **Use when:** Linting a codebase or enforcing a CI gate. "What rule violations exist?"
 **Not for:** Architecture metrics (use analyze_forces).
@@ -305,5 +345,9 @@ Rules: `no-comments` (off by default), `no-boundary-violations` (error when `bou
 | "Which file names lie about behavior?" | `detect_content_drift` |
 | "Which routes bypass canonical dataflow?" | `analyze_highways` |
 | "What files naturally belong together?" | `get_clusters` |
+| "Who owns this risky scope?" | `get_ownership` |
+| "What architecture cleanup should happen next?" | `get_architecture_recommendations` |
+| "What editor diagnostics match batch analysis?" | `get_lsp_snapshot` |
+| "Which workspaces changed in this PR?" | `get_workspaces` |
 | "What are the main areas?" | `get_groups` |
 | "What rule violations exist? Lint this." | `check` |

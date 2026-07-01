@@ -112,6 +112,26 @@ const OPERATION_HINTS: Record<OperationName, string[]> = {
     "Use get_module_structure to compare clusters against directory structure",
     "Use analyze_forces to check if cluster boundaries reveal tension",
   ],
+  ownership: [
+    "Use groupBy='owner' to find owner concentration",
+    "Use groupBy='package' before changed-workspace CI gating",
+    "Use file_context on owner hotspots before refactoring",
+  ],
+  architectureRecommendations: [
+    "Use map on affected scopes to collect a context pack",
+    "Use dependents on affected files to validate blast radius",
+    "Treat recommendations as advisory; codebase-intelligence does not mutate source",
+  ],
+  lspSnapshot: [
+    "Compare diagnostics with hotspots and health before adding editor gates",
+    "Use hover facts to inspect blast radius and dead exports in an editor",
+    "Keep code actions advisory only",
+  ],
+  workspaces: [
+    "Use changedOnly=true with a base ref for PR-scoped monorepo gates",
+    "Use check --production inside changed workspaces for release risk",
+    "Use boundaries to catch cross-package direction violations",
+  ],
 };
 
 export function getHintsForOperation(operationName: OperationName): string[] {

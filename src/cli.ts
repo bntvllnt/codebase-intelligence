@@ -17,6 +17,14 @@ import { Command } from "commander";
 const require = createRequire(import.meta.url);
 const pkg = require("../package.json") as { version: string };
 import { startMcpServer } from "./mcp/index.js";
+import { runCi, formatCiResult, type CiFormat } from "./ci/index.js";
+import { runDoctor, formatDoctorText, type DoctorAgent, type DoctorProfile } from "./doctor/index.js";
+import { explainRule, formatRuleExplanationText } from "./explain/index.js";
+import { installHooks, formatHooksText } from "./hooks/index.js";
+import { readFindingHistory, recordFindingHistory, formatFindingHistoryText } from "./history/index.js";
+import { startLspServer } from "./lsp/index.js";
+import { migrateConfig, formatConfigMigrationText } from "./migration/index.js";
+import { computeWatchSnapshot, formatWatchSnapshotText, startWatch } from "./watch/index.js";
 import { importGraph } from "./persistence/index.js";
 import {
   cleanIndexDirectories,
@@ -237,6 +245,68 @@ interface HighwaysOptions extends CliCommandOptions {
 
 interface ClustersOptions extends CliCommandOptions {
   minFiles?: string;
+}
+
+interface OwnersOptions extends CliCommandOptions {
+  groupBy?: string;
+  effort?: string;
+}
+
+interface WorkspacesOptions extends CliCommandOptions {
+  base?: string;
+  changed?: boolean;
+}
+
+interface CiOptions extends CliCommandOptions {
+  config?: string;
+  format?: string;
+  output?: string;
+  failOn?: string;
+  minScore?: string;
+  maxNew?: string;
+  base?: string;
+  all?: boolean;
+  baseline?: string;
+  comment?: string;
+  summary?: boolean;
+  production?: boolean;
+  changedSince?: string;
+  diffFile?: string;
+  history?: boolean;
+  changedWorkspaces?: boolean;
+}
+
+interface DoctorOptions {
+  profile?: string;
+  agent?: string;
+  json?: boolean;
+}
+
+interface LspOptions extends CliCommandOptions {
+  diagnostics?: boolean;
+}
+
+interface WatchOptions extends CliCommandOptions {
+  once?: boolean;
+  debounce?: string;
+}
+
+interface MigrateConfigOptions {
+  source?: string;
+  write?: boolean;
+  json?: boolean;
+}
+
+interface HooksOptions {
+  dryRun?: boolean;
+  apply?: boolean;
+  uninstall?: boolean;
+  command?: string;
+  json?: boolean;
+}
+
+interface HistoryOptions {
+  json?: boolean;
 }
 
 interface RenameOptions extends CliCommandOptions {
@@ -854,6 +924,334 @@ program
     outputOperationText(operations.clusters, result, input);
   });
 
+// ── Subcommand: owners ─────────────────────────────────────
+
+program
+  .command("owners")
+  .description("Group ownership, bus-factor, and risk by owner, package, or directory")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--group-by <mode>", "owner, package, or directory (default: owner)")
+  .option("--effort <n>", "Minimum risk/effort score to include")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: OwnersOptions) => {
+    const input = parseCliOperationInput(operations.ownership, {
+      groupBy: options.groupBy,
+      effort: optionalNumberInput(options.effort),
+    });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.ownership, graph, input, { rootDir: path.resolve(targetPath) });
+
+    if (options.json) {
+      outputJson(result);
+      return;
+    }
+
+    outputOperationText(operations.ownership, result, input);
+  });
+
+// ── Subcommand: architecture ────────────────────────────────
+
+program
+  .command("architecture")
+  .description("Rank extraction, seam, tension, and locality recommendations")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: CliCommandOptions) => {
+    const input = parseCliOperationInput(operations.architectureRecommendations, {});
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.architectureRecommendations, graph, input);
+
+    if (options.json) {
+      outputJson(result);
+      return;
+    }
+
+    outputOperationText(operations.architectureRecommendations, result, input);
+  });
+
+// ── Subcommand: workspaces ──────────────────────────────────
+
+program
+  .command("workspaces")
+  .description("Detect package workspaces, changed scopes, and cross-package cycles")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--base <ref>", "Base git ref for changed workspace detection (default: origin/main)")
+  .option("--changed", "Return only changed workspaces")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: WorkspacesOptions) => {
+    const input = parseCliOperationInput(operations.workspaces, {
+      base: options.base,
+      changedOnly: options.changed,
+    });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.workspaces, graph, input, { rootDir: path.resolve(targetPath) });
+
+    if (options.json) {
+      outputJson(result);
+      return;
+    }
+
+    outputOperationText(operations.workspaces, result, input);
+  });
+
+// ── Subcommand: lsp ─────────────────────────────────────────
+
+program
+  .command("lsp")
+  .description("Start advisory LSP server or print a diagnostics snapshot")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--diagnostics", "Print diagnostics/hover snapshot and exit")
+  .option("--json", "Output snapshot as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: LspOptions) => {
+    const input = parseCliOperationInput(operations.lspSnapshot, {});
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.lspSnapshot, graph, input);
+
+    if (options.diagnostics || options.json) {
+      if (options.json) outputJson(result);
+      else outputOperationText(operations.lspSnapshot, result, input);
+      return;
+    }
+
+    startLspServer(graph);
+  });
+
+// ── Subcommand: watch ───────────────────────────────────────
+
+program
+  .command("watch")
+  .description("Keep analysis warm while editing; use --once for CI-safe snapshot")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--once", "Print a watch readiness snapshot and exit")
+  .option("--debounce <ms>", "Debounce interval in milliseconds (default: 250)")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: WatchOptions) => {
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const snapshot = computeWatchSnapshot(graph, { debounceMs: optionalIntegerInput(options.debounce) as number | undefined });
+    if (options.once || options.json) {
+      if (options.json) outputJson(snapshot);
+      else output(formatWatchSnapshotText(snapshot));
+      return;
+    }
+
+    output(formatWatchSnapshotText(snapshot));
+    const stop = startWatch(path.resolve(targetPath), (file) => {
+      output(JSON.stringify({ event: "change", file }));
+    }, {
+      debounceMs: snapshot.debounceMs,
+    });
+    process.on("SIGTERM", () => {
+      stop();
+      process.exit(0);
+    });
+  });
+
+// ── Subcommand: migrate-config ──────────────────────────────
+
+program
+  .command("migrate-config")
+  .description("Generate codebase-intelligence config from supported local analyzer settings")
+  .argument("<path>", "Repo root")
+  .option("--source <name>", "Source profile label (default: auto)")
+  .option("--write", "Write codebase-intelligence.json (default: dry-run)")
+  .option("--json", "Output as JSON")
+  .action((targetPath: string, options: MigrateConfigOptions) => {
+    const result = migrateConfig(targetPath, { source: options.source, write: options.write });
+    if (options.json) outputJson(result);
+    else output(formatConfigMigrationText(result));
+  });
+
+// ── Subcommand: hooks ───────────────────────────────────────
+
+program
+  .command("hooks")
+  .description("Plan or install local hooks that run the same CI gate")
+  .argument("<action>", "install or uninstall")
+  .argument("[path]", "Repo root (default: current directory)", ".")
+  .option("--dry-run", "Plan only (default)")
+  .option("--apply", "Write hook changes")
+  .option("--command <cmd>", "Hook command")
+  .option("--json", "Output as JSON")
+  .action((action: string, targetPath: string, options: HooksOptions) => {
+    if (action !== "install" && action !== "uninstall") {
+      process.stderr.write("Error: hooks action must be install or uninstall\n");
+      process.exit(2);
+    }
+    const result = installHooks(targetPath, {
+      dryRun: options.apply !== true,
+      uninstall: action === "uninstall",
+      command: options.command,
+    });
+    if (options.json) outputJson(result);
+    else output(formatHooksText(result));
+  });
+
+// ── Subcommand: history ─────────────────────────────────────
+
+program
+  .command("history")
+  .description("Read local finding history stored under .codebase-intelligence/")
+  .argument("[path]", "Repo root (default: current directory)", ".")
+  .option("--json", "Output as JSON")
+  .action((targetPath: string, options: HistoryOptions) => {
+    const result = readFindingHistory(path.resolve(targetPath));
+    if (options.json) outputJson(result);
+    else output(formatFindingHistoryText(result));
+  });
+
+// ── Subcommand: explain ─────────────────────────────────────
+
+program
+  .command("explain")
+  .description("Explain a codebase-intelligence rule and how to act on it")
+  .argument("<rule>", "Rule id")
+  .option("--json", "Output as JSON")
+  .action((ruleId: string, options: CliCommandOptions) => {
+    const result = explainRule(ruleId);
+    if (options.json) outputJson(result);
+    else output(formatRuleExplanationText(result));
+    if (!result.found) process.exitCode = 2;
+  });
+
+// ── Subcommand: doctor ──────────────────────────────────────
+
+const doctorProfileValues: Partial<Record<string, DoctorProfile>> = {
+  local: "local",
+  ci: "ci",
+  agent: "agent",
+  mcp: "mcp",
+};
+
+const doctorAgentValues: Partial<Record<string, DoctorAgent>> = {
+  codex: "codex",
+  claude: "claude",
+  cursor: "cursor",
+  generic: "generic",
+};
+
+function parseDoctorOption<TValue extends string>(
+  value: string | undefined,
+  values: Partial<Record<string, TValue>>,
+): TValue | undefined {
+  return value === undefined ? undefined : values[value];
+}
+
+function parseDoctorProfile(value: string | undefined): DoctorProfile | undefined {
+  return parseDoctorOption(value, doctorProfileValues);
+}
+
+function parseDoctorAgent(value: string | undefined): DoctorAgent | undefined {
+  return parseDoctorOption(value, doctorAgentValues);
+}
+
+program
+  .command("doctor")
+  .description("Read-only setup auditor for local, CI, MCP, and coding-agent workflows")
+  .argument("[path]", "Repo root (default: current directory)", ".")
+  .option("--profile <profile>", "local, ci, agent, or mcp")
+  .option("--agent <agent>", "codex, claude, cursor, or generic")
+  .option("--json", "Output as JSON")
+  .action((targetPath: string, options: DoctorOptions) => {
+    const profile = parseDoctorProfile(options.profile);
+    const agent = parseDoctorAgent(options.agent);
+    if (options.profile && !profile) {
+      process.stderr.write("Error: --profile must be one of: local, ci, agent, mcp\n");
+      process.exit(2);
+    }
+    if (options.agent && !agent) {
+      process.stderr.write("Error: --agent must be one of: codex, claude, cursor, generic\n");
+      process.exit(2);
+    }
+    const result = runDoctor(targetPath, { profile, agent });
+    if (options.json) outputJson(result);
+    else output(formatDoctorText(result));
+    if (result.status === "fail") process.exitCode = 1;
+  });
+
+// ── Subcommand: ci ──────────────────────────────────────────
+
+function resolveCiFormat(options: CiOptions): CiFormat | null {
+  const value = options.json ? "json" : options.comment === "markdown" ? "pr-comment-github" : options.format ?? "compact";
+  const allowed: readonly CiFormat[] = ["text", "json", "sarif", "markdown", "annotations", "pr-comment-github", "pr-comment-gitlab", "badge", "codeclimate", "compact"];
+  return allowed.includes(value as CiFormat) ? value as CiFormat : null;
+}
+
+program
+  .command("ci")
+  .description("Run one PR-friendly quality gate around check, changes, health, and architecture signals")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--config <path>", "Config file path (overrides discovery)")
+  .option("--base <ref>", "Base git ref for new-only gating (default: origin/main)")
+  .option("--new-only", "Gate only new findings (default)")
+  .option("--all", "Gate all findings")
+  .option("--fail-on <severity>", "Severity that fails the gate: error, warn, never")
+  .option("--min-score <n>", "Minimum health score before exit 1")
+  .option("--max-new <n>", "Maximum new findings allowed")
+  .option("--baseline <path>", "Existing findings baseline JSON")
+  .option("--format <fmt>", "text, json, sarif, markdown, annotations, pr-comment-github, pr-comment-gitlab, badge, codeclimate, compact")
+  .option("--output <path>", "Write formatted output to file")
+  .option("--comment <mode>", "PR comment mode: markdown")
+  .option("--summary", "Print compact summary")
+  .option("--production", "Exclude test/dev files from production risk")
+  .option("--changed-since <ref>", "Line-level filter from git diff against ref")
+  .option("--diff-file <path>", "Line-level filter from a unified diff file")
+  .option("--history", "Record local finding history under .codebase-intelligence/")
+  .option("--changed-workspaces", "Include changed workspace summary in JSON output")
+  .option("--json", "Shortcut for --format json")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: CiOptions) => {
+    const format = resolveCiFormat(options);
+    if (!format) {
+      process.stderr.write("Error: unsupported --format\n");
+      process.exit(2);
+    }
+    const failOn = parseFailOn(options.failOn);
+    if (failOn === false) {
+      process.stderr.write("Error: --fail-on must be one of: error, warn, never\n");
+      process.exit(2);
+    }
+
+    try {
+      const rootDir = path.resolve(targetPath);
+      const { graph } = loadGraph(targetPath, forceOption(options));
+      const result = runCi(graph, rootDir, {
+        configPath: options.config,
+        base: options.base,
+        newOnly: options.all === true ? false : true,
+        failOn,
+        minScore: optionalNumberInput(options.minScore) as number | undefined,
+        maxNew: optionalIntegerInput(options.maxNew) as number | undefined,
+        baseline: options.baseline,
+        format,
+        output: options.output,
+        summary: options.summary,
+        production: options.production,
+        changedSince: options.changedSince,
+        diffFile: options.diffFile,
+        changedWorkspaces: options.changedWorkspaces,
+      });
+
+      if (options.history) recordFindingHistory(rootDir, result.check);
+      const rendered = formatCiResult(result, format, options.summary);
+      if (options.output) fs.writeFileSync(path.resolve(rootDir, options.output), `${rendered}\n`);
+      else output(rendered);
+      process.exitCode = result.exitCode;
+    } catch (err) {
+      if (err instanceof ConfigError) {
+        process.stderr.write(`Config error: ${err.message}\n`);
+        process.exit(2);
+      }
+      const message = err instanceof Error ? err.message : String(err);
+      process.stderr.write(`Analyzer error: ${message}\n`);
+      process.exit(3);
+    }
+  });
+
 // ── Subcommand: init ───────────────────────────────────────
 
 program
@@ -948,6 +1346,9 @@ interface CheckOptions extends CliCommandOptions {
   failOn?: string;
   gate?: string;
   base?: string;
+  changedSince?: string;
+  diffFile?: string;
+  production?: boolean;
   quiet?: boolean;
   summary?: boolean;
 }
@@ -955,10 +1356,8 @@ interface CheckOptions extends CliCommandOptions {
 function resolveCheckFormat(options: CheckOptions): OutputFormat | null {
   if (options.json) return "json";
   if (!options.format) return "text";
-  if (options.format === "json" || options.format === "sarif" || options.format === "text") {
-    return options.format;
-  }
-  return null;
+  const formats: readonly OutputFormat[] = ["text", "json", "sarif", "markdown", "annotations", "pr-comment-github", "pr-comment-gitlab", "badge", "codeclimate", "compact"];
+  return formats.includes(options.format as OutputFormat) ? options.format as OutputFormat : null;
 }
 
 function parseFailOn(value: string | undefined): "error" | "warn" | "never" | undefined | false {
@@ -978,10 +1377,13 @@ program
   .description("Run the rules engine and gate on findings")
   .argument("<path>", "Path to TypeScript codebase")
   .option("--config <path>", "Config file path (overrides discovery)")
-  .option("--format <fmt>", "Output: text, json, or sarif (default: text)")
+  .option("--format <fmt>", "Output: text, json, sarif, markdown, annotations, pr-comment-github, pr-comment-gitlab, badge, codeclimate, or compact")
   .option("--fail-on <severity>", "Severity that fails the gate: error, warn, never")
   .option("--gate <mode>", "Gate mode: all or new-only")
   .option("--base <ref>", "Base git ref for new-only gating")
+  .option("--changed-since <ref>", "Line-level filter from git diff against ref")
+  .option("--diff-file <path>", "Line-level filter from a unified diff file")
+  .option("--production", "Exclude test/dev files from production risk")
   .option("--quiet", "Suppress output when the result passes")
   .option("--summary", "Print summary counts only")
   .option("--json", "Shortcut for --format json")
@@ -989,7 +1391,7 @@ program
   .action((targetPath: string, options: CheckOptions) => {
     const format = resolveCheckFormat(options);
     if (!format) {
-      process.stderr.write("Error: --format must be one of: text, json, sarif\n");
+      process.stderr.write("Error: --format must be one of: text, json, sarif, markdown, annotations, pr-comment-github, pr-comment-gitlab, badge, codeclimate, compact\n");
       process.exit(2);
     }
 
@@ -1013,6 +1415,9 @@ program
         failOn,
         gate,
         base: options.base,
+        changedSince: options.changedSince,
+        diffFile: options.diffFile,
+        production: options.production,
         quiet: options.quiet,
         summary: options.summary,
       });
