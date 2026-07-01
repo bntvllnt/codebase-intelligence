@@ -19,6 +19,8 @@ jobs:
         node-version: [18, 22]
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -37,6 +39,72 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: Codebase Intelligence CI
+        if: matrix.node-version == 22
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE_REF="origin/${{ github.base_ref }}"
+          else
+            BASE_REF="${{ github.event.before }}"
+            if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "0000000000000000000000000000000000000000" ]; then
+              BASE_REF="HEAD~1"
+            fi
+          fi
+
+          set +e
+
+          node dist/cli.js ci . \
+            --base "$BASE_REF" \
+            --new-only \
+            --changed-workspaces \
+            --format annotations \
+            --summary \
+            --force
+          CBI_STATUS=$?
+
+          node dist/cli.js ci . \
+            --base "$BASE_REF" \
+            --new-only \
+            --changed-workspaces \
+            --format sarif \
+            --output codebase-intelligence.sarif \
+            --summary \
+            --force
+          CBI_SARIF_STATUS=$?
+
+          node dist/cli.js ci . \
+            --base "$BASE_REF" \
+            --new-only \
+            --changed-workspaces \
+            --comment markdown \
+            --output codebase-intelligence-pr-comment.md \
+            --summary \
+            --force
+          CBI_COMMENT_STATUS=$?
+
+          if [ -f codebase-intelligence-pr-comment.md ]; then
+            cat codebase-intelligence-pr-comment.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$CBI_STATUS" -ne 0 ]; then
+            exit "$CBI_STATUS"
+          fi
+          if [ "$CBI_SARIF_STATUS" -ne 0 ]; then
+            exit "$CBI_SARIF_STATUS"
+          fi
+          exit "$CBI_COMMENT_STATUS"
+
+      - name: Upload Codebase Intelligence reports
+        if: matrix.node-version == 22 && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codebase-intelligence-reports
+          path: |
+            codebase-intelligence.sarif
+            codebase-intelligence-pr-comment.md
+          retention-days: 14
+          if-no-files-found: warn
 
       - name: Test
         run: pnpm test
