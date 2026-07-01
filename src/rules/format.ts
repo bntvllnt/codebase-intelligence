@@ -98,12 +98,116 @@ export function formatSarif(result: CheckResult): string {
   return JSON.stringify(sarif, null, 2);
 }
 
+function escapeAnnotation(value: string): string {
+  return value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A").replaceAll(":", "%3A").replaceAll(",", "%2C");
+}
+
+function severityLabel(severity: CheckResult["findings"][number]["severity"]): "error" | "warning" {
+  return severity === "error" ? "error" : "warning";
+}
+
+export function formatMarkdown(result: CheckResult): string {
+  const lines = [
+    "## Codebase Intelligence",
+    "",
+    `**Verdict:** ${result.verdict.toUpperCase()}`,
+    `**Summary:** ${formatSummaryLine(result)}`,
+    "",
+  ];
+
+  if (result.findings.length === 0) {
+    lines.push("No findings.");
+    return lines.join("\n");
+  }
+
+  lines.push("| Severity | Rule | Location | Finding |");
+  lines.push("|---|---|---|---|");
+  for (const finding of result.findings.slice(0, 50)) {
+    const message = finding.message.replaceAll("|", "\\|");
+    lines.push(`| ${finding.severity} | \`${finding.ruleId}\` | \`${finding.file}:${String(finding.line)}\` | ${message} |`);
+  }
+  if (result.findings.length > 50) lines.push(`| info | truncated | - | ${String(result.findings.length - 50)} more finding(s) omitted from markdown output. |`);
+  return lines.join("\n");
+}
+
+export function formatAnnotations(result: CheckResult): string {
+  return result.findings
+    .map((finding) => {
+      const level = severityLabel(finding.severity);
+      const message = escapeAnnotation(`${finding.message} (${finding.ruleId})`);
+      return `::${level} file=${escapeAnnotation(finding.file)},line=${String(finding.line)},col=${String(finding.column)}::${message}`;
+    })
+    .join("\n");
+}
+
+export function formatPrComment(result: CheckResult, platform: "github" | "gitlab"): string {
+  const body = formatMarkdown(result);
+  const footer = platform === "github"
+    ? "<!-- codebase-intelligence:pr-comment-github -->"
+    : "<!-- codebase-intelligence:pr-comment-gitlab -->";
+  return `${body}\n\n${footer}`;
+}
+
+export function formatBadge(result: CheckResult): string {
+  const color = result.verdict === "pass" ? "brightgreen" : result.verdict === "warn" ? "yellow" : "red";
+  return JSON.stringify(
+    {
+      schemaVersion: 1,
+      label: "codebase",
+      message: result.verdict,
+      color,
+    },
+    null,
+    2,
+  );
+}
+
+export function formatCodeClimate(result: CheckResult): string {
+  const issues = result.findings.map((finding) => ({
+    type: "issue",
+    check_name: finding.ruleId,
+    description: finding.message,
+    categories: ["Complexity"],
+    fingerprint: finding.fingerprint,
+    severity: finding.severity === "error" ? "major" : "minor",
+    location: {
+      path: finding.file,
+      lines: { begin: finding.line, end: finding.endLine ?? finding.line },
+    },
+    remediation_points: finding.severity === "error" ? 50000 : 10000,
+  }));
+  return JSON.stringify(issues, null, 2);
+}
+
+export function formatCompact(result: CheckResult): string {
+  const lines = [formatSummaryLine(result)];
+  for (const finding of result.findings.slice(0, 10)) {
+    lines.push(`${finding.severity.toUpperCase()} ${finding.file}:${String(finding.line)} ${finding.ruleId} — ${finding.message}`);
+  }
+  if (result.findings.length > 10) lines.push(`… ${String(result.findings.length - 10)} more finding(s)`);
+  return lines.join("\n");
+}
+
 export function formatResult(result: CheckResult, format: OutputFormat): string {
   switch (format) {
     case "json":
       return formatJson(result);
     case "sarif":
       return formatSarif(result);
+    case "markdown":
+      return formatMarkdown(result);
+    case "annotations":
+      return formatAnnotations(result);
+    case "pr-comment-github":
+      return formatPrComment(result, "github");
+    case "pr-comment-gitlab":
+      return formatPrComment(result, "gitlab");
+    case "badge":
+      return formatBadge(result);
+    case "codeclimate":
+      return formatCodeClimate(result);
+    case "compact":
+      return formatCompact(result);
     default:
       return formatText(result);
   }

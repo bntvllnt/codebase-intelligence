@@ -152,6 +152,10 @@
           "$ref": "#/$defs/severity",
           "description": "Forbid imports that cross a forbidden architecture boundary (see top-level 'boundaries')."
         },
+        "no-secrets": {
+          "$ref": "#/$defs/severity",
+          "description": "Opt-in scan for likely hardcoded secrets. Secret text is redacted from evidence."
+        },
         "no-divergent-paths": {
           "description": "Highways gate: forbid more than N divergent code paths for one logical data operation (low data-path reuse).",
           "oneOf": [
@@ -285,7 +289,7 @@
       "additionalProperties": false,
       "properties": {
         "format": {
-          "enum": ["text", "json", "sarif", "markdown", "annotations", "pr-comment-github", "pr-comment-gitlab", "badge"],
+          "enum": ["text", "json", "sarif", "markdown", "annotations", "pr-comment-github", "pr-comment-gitlab", "badge", "codeclimate", "compact"],
           "default": "text"
         },
         "quiet": { "type": "boolean", "default": false },
@@ -316,6 +320,22 @@
           "minimum": -1,
           "default": -1,
           "description": "Fail if warnings exceed this count. -1 disables the warning gate."
+        },
+        "maxNew": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Fail first-class ci when new findings exceed this count."
+        },
+        "minScore": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Minimum health score for first-class ci when score gating is enabled."
+        },
+        "production": {
+          "type": "boolean",
+          "default": false,
+          "description": "Exclude test/dev files from production-risk findings."
         },
         "tolerance": {
           "type": "number",

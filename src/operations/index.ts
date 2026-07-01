@@ -25,10 +25,15 @@ import { loadConfig } from "../config/index.js";
 import { DUPLICATION_MODES } from "../duplication/index.js";
 import { computeHighways } from "../highways/index.js";
 import { computeHealth } from "../health/index.js";
+import { computeLspSnapshot } from "../lsp/index.js";
 import { CODEBASE_MAP_FORMATS, computeCodebaseMap } from "../map/index.js";
 import { computeContentDrift } from "../drift/index.js";
+import { computeOwnership } from "../ownership/index.js";
+import { computeArchitectureRecommendations } from "../recommendations/index.js";
+import { computeWorkspaces } from "../workspaces/index.js";
 import type { BoundaryPreset, BoundariesConfig, CodebaseGraph } from "../types/index.js";
 import {
+  formatArchitectureRecommendationsText,
   formatBoundariesText,
   formatCodebaseMapText,
   formatChangesText,
@@ -43,14 +48,17 @@ import {
   formatHealthText,
   formatHighwaysText,
   formatHotspotsText,
+  formatLspSnapshotText,
   formatImpactText,
   formatModuleStructureText,
   formatOpportunitiesText,
+  formatOwnershipText,
   formatOverviewText,
   formatProcessesText,
   formatRenameText,
   formatSearchText,
   formatSymbolContextText,
+  formatWorkspacesText,
 } from "./formatters.js";
 
 export const operationNames = [
@@ -76,6 +84,10 @@ export const operationNames = [
   "boundaries",
   "highways",
   "clusters",
+  "ownership",
+  "architectureRecommendations",
+  "lspSnapshot",
+  "workspaces",
 ] as const;
 
 export type OperationName = typeof operationNames[number];
@@ -211,6 +223,16 @@ const clustersInputShape = {
   minFiles: z.number().int().positive().optional().describe("Filter clusters with at least N files (default: 0)"),
 } satisfies z.ZodRawShape;
 const clustersInputSchema = z.object(clustersInputShape).strict();
+const ownershipInputShape = {
+  groupBy: z.enum(["owner", "package", "directory"]).optional().describe("Group by owner, package, or directory"),
+  effort: z.number().optional().describe("Minimum risk/effort score to include"),
+} satisfies z.ZodRawShape;
+const ownershipInputSchema = z.object(ownershipInputShape).strict();
+const workspacesInputShape = {
+  base: z.string().min(1).optional().describe("Base git ref for changed workspace detection"),
+  changedOnly: z.boolean().optional().describe("Return only workspaces changed since base"),
+} satisfies z.ZodRawShape;
+const workspacesInputSchema = z.object(workspacesInputShape).strict();
 
 type OverviewInput = z.infer<typeof overviewInputSchema>;
 type FileContextInput = z.infer<typeof fileContextInputSchema>;
@@ -234,6 +256,8 @@ type HealthInput = z.infer<typeof healthInputSchema>;
 type BoundariesInput = z.infer<typeof boundariesInputSchema>;
 type HighwaysInput = z.infer<typeof highwaysInputSchema>;
 type ClustersInput = z.infer<typeof clustersInputSchema>;
+type OwnershipInput = z.infer<typeof ownershipInputSchema>;
+type WorkspacesInput = z.infer<typeof workspacesInputSchema>;
 
 function loadBoundariesConfig(context: OperationContext): BoundariesConfig | undefined {
   if (!context.rootDir && !context.configPath) return undefined;
@@ -465,6 +489,46 @@ export const operations = {
     run: (graph: CodebaseGraph, input: ClustersInput) => computeClusters(graph, input.minFiles),
     formatText: formatClustersText,
   } satisfies Operation<ClustersInput, ReturnType<typeof computeClusters>>,
+  ownership: {
+    name: "ownership",
+    cliCommand: "owners",
+    mcpTool: "get_ownership",
+    description: "Group files by CODEOWNERS/git ownership, package, or directory with bus-factor and risk signals. Use when: finding owner concentration, orphaned critical paths, or handoff risk.",
+    inputShape: ownershipInputShape,
+    inputSchema: ownershipInputSchema,
+    run: (graph: CodebaseGraph, input: OwnershipInput, context) => computeOwnership(graph, context.rootDir ?? process.cwd(), input),
+    formatText: formatOwnershipText,
+  } satisfies Operation<OwnershipInput, ReturnType<typeof computeOwnership>>,
+  architectureRecommendations: {
+    name: "architectureRecommendations",
+    cliCommand: "architecture",
+    mcpTool: "get_architecture_recommendations",
+    description: "Rank extraction, seam, tension, and locality recommendations with effort, evidence, affected files, and context commands. Use when: planning architecture cleanup from graph evidence.",
+    inputShape: emptyInputShape,
+    inputSchema: emptyInputSchema,
+    run: (graph: CodebaseGraph, _input: EmptyInput) => computeArchitectureRecommendations(graph),
+    formatText: formatArchitectureRecommendationsText,
+  } satisfies Operation<EmptyInput, ReturnType<typeof computeArchitectureRecommendations>>,
+  lspSnapshot: {
+    name: "lspSnapshot",
+    cliCommand: "lsp",
+    mcpTool: "get_lsp_snapshot",
+    description: "Return advisory editor diagnostics and hover facts derived from the same graph as batch analysis. Use when: comparing editor diagnostics with CLI output.",
+    inputShape: emptyInputShape,
+    inputSchema: emptyInputSchema,
+    run: (graph: CodebaseGraph, _input: EmptyInput) => computeLspSnapshot(graph),
+    formatText: formatLspSnapshotText,
+  } satisfies Operation<EmptyInput, ReturnType<typeof computeLspSnapshot>>,
+  workspaces: {
+    name: "workspaces",
+    cliCommand: "workspaces",
+    mcpTool: "get_workspaces",
+    description: "Detect package/workspace scopes, changed workspaces, and cross-package circular dependency evidence. Use when: scoping CI to changed packages in a monorepo.",
+    inputShape: workspacesInputShape,
+    inputSchema: workspacesInputSchema,
+    run: (graph: CodebaseGraph, input: WorkspacesInput, context) => computeWorkspaces(graph, context.rootDir ?? process.cwd(), input),
+    formatText: formatWorkspacesText,
+  } satisfies Operation<WorkspacesInput, ReturnType<typeof computeWorkspaces>>,
 } as const;
 
 export type RegisteredOperation = typeof operations[OperationName];

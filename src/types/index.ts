@@ -52,6 +52,7 @@ export interface ParsedExport {
   loc: number;
   isDefault: boolean;
   complexity: number;
+  cognitiveComplexity?: number;
   typeFacts?: SymbolTypeFacts;
   duplication?: SymbolDuplicationFacts;
 }
@@ -111,6 +112,7 @@ export interface SymbolNode {
   loc: number;
   isDefault: boolean;
   complexity: number;
+  cognitiveComplexity?: number;
   isExported?: boolean;
   typeFacts?: SymbolTypeFacts;
   duplication?: SymbolDuplicationFacts;
@@ -136,6 +138,7 @@ export interface FileMetrics {
   isBridge: boolean;
   churn: number;
   cyclomaticComplexity: number;
+  cognitiveComplexity?: number;
   blastRadius: number;
   deadExports: string[];
   totalExports: number;
@@ -370,7 +373,17 @@ export interface BoundariesResult {
   verdict: "pass" | "fail";
 }
 
-export type OutputFormat = "text" | "json" | "sarif";
+export type OutputFormat =
+  | "text"
+  | "json"
+  | "sarif"
+  | "markdown"
+  | "annotations"
+  | "pr-comment-github"
+  | "pr-comment-gitlab"
+  | "badge"
+  | "codeclimate"
+  | "compact";
 
 export interface CacheFacts {
   cacheDir: string;
@@ -399,12 +412,22 @@ export interface CodebaseIntelligenceConfig {
     gate?: "all" | "new-only";
     failOn?: FindingSeverity | "never";
     maxWarnings?: number;
+    maxNew?: number;
     tolerance?: number;
     base?: string;
+    minScore?: number;
+    production?: boolean;
   };
 }
 
-export type ActionKind = "remove-comment" | "inspect-boundary";
+export type ActionKind =
+  | "remove-comment"
+  | "inspect-boundary"
+  | "inspect-file"
+  | "inspect-symbol"
+  | "run-check"
+  | "review-finding"
+  | "create-baseline";
 export type FindingConfidence = "high" | "medium" | "low";
 
 export interface FindingAction {
@@ -412,6 +435,8 @@ export interface FindingAction {
   /** snake_case is intentional — this is an agent-facing wire field. */
   auto_fixable: boolean;
   range?: { start: number; end: number };
+  command?: string;
+  reason?: string;
 }
 
 export interface Finding {

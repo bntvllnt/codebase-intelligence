@@ -84,6 +84,9 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
     const avgComplexity = parsed && parsed.exports.length > 0
       ? parsed.exports.reduce((sum, e) => sum + e.complexity, 0) / parsed.exports.length
       : 1;
+    const avgCognitiveComplexity = parsed && parsed.exports.length > 0
+      ? parsed.exports.reduce((sum, e) => sum + (e.cognitiveComplexity ?? e.complexity), 0) / parsed.exports.length
+      : 0;
 
     // Dead exports: exports not consumed by any edge
     const consumed = consumedSymbols.get(node.id) ?? new Set<string>();
@@ -105,6 +108,7 @@ export function analyzeGraph(built: BuiltGraph, parsedFiles?: ParsedFile[]): Cod
       isBridge: btwn > 0.1,
       churn: parsed?.churn ?? 0,
       cyclomaticComplexity: Math.round(avgComplexity * 100) / 100,
+      cognitiveComplexity: Math.round(avgCognitiveComplexity * 100) / 100,
       blastRadius: 0, // computed after all nodes are processed
       deadExports,
       totalExports,

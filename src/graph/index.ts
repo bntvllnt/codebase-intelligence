@@ -139,6 +139,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           loc: symbol.loc,
           isDefault: symbol.isDefault,
           complexity: symbol.complexity,
+          cognitiveComplexity: symbol.cognitiveComplexity,
           isExported: symbol.isExported,
           typeFacts: symbol.typeFacts,
           duplication: symbol.duplication,
@@ -174,6 +175,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           loc: 0,
           isDefault: false,
           complexity: 0,
+          cognitiveComplexity: 0,
           isExported: false,
         });
         symbolNodeIds.add(sourceId);
@@ -189,6 +191,7 @@ export function buildGraph(files: ParsedFile[]): BuiltGraph {
           loc: 0,
           isDefault: false,
           complexity: 0,
+          cognitiveComplexity: 0,
           isExported: false,
         });
         symbolNodeIds.add(targetId);

@@ -19,6 +19,10 @@ import type {
   SymbolContextError,
   SymbolContextResult,
 } from "../core/index.js";
+import { formatLspSnapshotText, type LspSnapshot } from "../lsp/index.js";
+import { formatOwnershipText, type OwnershipResult } from "../ownership/index.js";
+import { formatArchitectureRecommendationsText, type ArchitectureRecommendationsResult } from "../recommendations/index.js";
+import { formatWorkspacesText, type WorkspacesResult } from "../workspaces/index.js";
 import type { HighwaysResult } from "../highways/index.js";
 import type { HealthOptions, HealthResult } from "../health/index.js";
 import type { ImpactResult, RenameResult } from "../impact/index.js";
@@ -872,3 +876,17 @@ export function formatClustersText(result: ClustersResult): string {
 
   return text(lines);
 }
+
+export {
+  formatArchitectureRecommendationsText,
+  formatLspSnapshotText,
+  formatOwnershipText,
+  formatWorkspacesText,
+};
+
+export type {
+  ArchitectureRecommendationsResult,
+  LspSnapshot,
+  OwnershipResult,
+  WorkspacesResult,
+};

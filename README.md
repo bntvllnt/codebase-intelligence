@@ -62,7 +62,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **Machine-readable JSON output** (`--json`) for automation and CI pipelines
 - **Auto-cached index** in `.codebase-intelligence/` for fast repeat queries
 - **Cache migration facts** in JSON (`cacheDir`, `legacyCacheDir`, `migrated`, `gitignoreUpdated`, `warnings[]`)
-- **Quality metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, complexity, blast radius, dead exports, test coverage, escape velocity, risk, maintainability, and CRAP score
+- **Quality metrics** — PageRank, betweenness, coupling, cohesion, tension, churn, cyclomatic/cognitive complexity, blast radius, dead exports, test coverage, escape velocity, risk, maintainability, and CRAP score
 - **Symbol-level analysis** — callers/callees, symbol importance, impact blast radius
 - **BM25 search** — ranked keyword search across files, symbols, and type/shape facts
 - **Process tracing** — detect entry points and execution flows through the call graph
@@ -100,7 +100,7 @@ codebase-intelligence <command> <path> [options]
 | Command | What it does |
 |---|---|
 | `overview` | High-level codebase snapshot |
-| `hotspots` | Rank files by metric (coupling, churn, complexity, blast radius, coverage, risk, etc.) |
+| `hotspots` | Rank files by metric (coupling, churn, complexity, cognitive complexity, blast radius, coverage, risk, etc.) |
 | `file` | Full context for one file |
 | `search` | BM25 keyword and shape search |
 | `changes` | Git diff analysis with risk metrics |
@@ -121,7 +121,18 @@ codebase-intelligence <command> <path> [options]
 | `boundaries` | Architecture boundary zones, allow/forbid import rules, and violation evidence |
 | `highways` | Repeated route convergence, canonical path opportunities, and synthesis proposals |
 | `clusters` | Community-detected file clusters |
+| `owners` | Ownership, bus-factor, and risk grouping |
+| `architecture` | Evidence-backed extraction/seam/locality recommendations |
+| `workspaces` | Package workspace scope and changed-workspace detection |
+| `lsp` | Advisory editor diagnostics snapshot or minimal LSP server |
+| `watch` | Local watch readiness and debounced analysis events |
 | `check` | Rules-engine gate for CI, including opt-in dead-code and dependency gates |
+| `ci` | One PR quality gate around check, changes, health, formats, baselines, and history |
+| `doctor` | Read-only setup auditor for local, CI, MCP, and agent workflows |
+| `explain` | Explain one analyzer rule and next action |
+| `migrate-config` | Dry-run config migration to `codebase-intelligence.json` |
+| `hooks` | Plan or install local hooks that run the same CI gate |
+| `history` | Read local finding history from `.codebase-intelligence/` |
 | `init` | Set up AI agents to use CI — writes per-agent instruction files (skill opt-in via `--skill`) |
 
 ### Useful flags
@@ -143,9 +154,12 @@ codebase-intelligence <command> <path> [options]
 | `--score` | Print compact `health` score text |
 | `--preset <name>` | Run `boundaries` with `bulletproof`, `layered`, `hexagonal`, or `feature-sliced` |
 | `--list` | List resolved `boundaries` zones and rules |
-| `--format <fmt>` | Export `map` as `markdown`, `json`, `dot`, or `graphml`; export `check` as `text`, `json`, or `sarif` |
+| `--format <fmt>` | Export `map` as `markdown`, `json`, `dot`, or `graphml`; export `check`/`ci` as `text`, `json`, `sarif`, `markdown`, `annotations`, `pr-comment-github`, `pr-comment-gitlab`, `badge`, `codeclimate`, or `compact` |
 | `--operation <verb>` | Focus `highways` on one operation verb |
 | `--shape <name>` | Focus `highways` on one type/DTO shape |
+| `--production` | Exclude test/dev files from production-risk `check`/`ci` output |
+| `--changed-since <ref>` | Line-level `check`/`ci` filtering from a git diff |
+| `--diff-file <path>` | Line-level `check`/`ci` filtering from a unified diff file |
 
 The scanner always excludes common generated and agent-workspace directories such as `.codebase-intelligence/`, legacy `.code-visualizer/`, `.next/`, `dist/`, `coverage/`, `.worktrees/`, and `.claude/worktrees/`.
 
@@ -243,7 +257,7 @@ For MCP tool details, see [docs/mcp-tools.md](docs/mcp-tools.md).
 | **Tension** | Is a file torn between modules? (entropy of cross-module pulls) |
 | **Escape Velocity** | Should this module be its own package? |
 | **Churn** | Git commit frequency |
-| **Complexity** | Average cyclomatic complexity of exports |
+| **Complexity** | Average cyclomatic and cognitive complexity of exports/symbols |
 | **Blast Radius** | Transitive dependents affected by a change |
 | **Dead Exports** | Unused exports (safe to remove) |
 | **Test Coverage** | Whether a test file exists for each source file |

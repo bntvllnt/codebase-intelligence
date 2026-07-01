@@ -568,6 +568,44 @@ describe("Tool 23: get_clusters", () => {
   });
 });
 
+describe("Tool 24: get_ownership", () => {
+  it("returns owner/package/directory grouping facts", async () => {
+    const r = await callTool("get_ownership", { groupBy: "directory" });
+    expect(r).toHaveProperty("groupBy", "directory");
+    expect(r).toHaveProperty("groups");
+    expect(r).toHaveProperty("hotspots");
+    expect(r).toHaveProperty("nextSteps");
+  });
+});
+
+describe("Tool 25: get_architecture_recommendations", () => {
+  it("returns advisory recommendations with context packs", async () => {
+    const r = await callTool("get_architecture_recommendations");
+    expect(r).toHaveProperty("recommendations");
+    expect(r).toHaveProperty("summary");
+    expect(r).toHaveProperty("nextSteps");
+  });
+});
+
+describe("Tool 26: get_lsp_snapshot", () => {
+  it("returns editor diagnostics and hover facts", async () => {
+    const r = await callTool("get_lsp_snapshot");
+    expect(r).toHaveProperty("diagnostics");
+    expect(r).toHaveProperty("hovers");
+    expect(r).toHaveProperty("summary");
+    expect(r).toHaveProperty("nextSteps");
+  });
+});
+
+describe("Tool 27: get_workspaces", () => {
+  it("returns package workspace scope facts", async () => {
+    const r = await callTool("get_workspaces", { base: "HEAD", changedOnly: false });
+    expect(r).toHaveProperty("workspaces");
+    expect(r).toHaveProperty("summary");
+    expect(r).toHaveProperty("nextSteps");
+  });
+});
+
 describe("MCP Prompts", () => {
   it("detect_impact prompt is registered", async () => {
     const prompts = await client.listPrompts();
@@ -632,6 +670,10 @@ describe("MCP Resources", () => {
     expect(availableTools).toContain("get_health_score");
     expect(availableTools).toContain("check_boundaries");
     expect(availableTools).toContain("analyze_highways");
+    expect(availableTools).toContain("get_ownership");
+    expect(availableTools).toContain("get_architecture_recommendations");
+    expect(availableTools).toContain("get_lsp_snapshot");
+    expect(availableTools).toContain("get_workspaces");
     expect(availableTools).toContain("check");
   });
 });

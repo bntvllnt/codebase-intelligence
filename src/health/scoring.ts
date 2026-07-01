@@ -27,6 +27,7 @@ export function computeMaintainabilityIndex(input: HealthScoreInput): number {
   const { coverage, loc, metrics } = input;
   const penalty =
     normalize(metrics.cyclomaticComplexity, 20) * 35
+    + normalize(metrics.cognitiveComplexity ?? metrics.cyclomaticComplexity, 25) * 10
     + normalize(loc, 500) * 20
     + normalize(metrics.churn, 20) * 15
     + normalize(metrics.coupling, 20) * 15
@@ -47,6 +48,7 @@ export function computeRiskScore(input: HealthScoreInput): number {
   const risk =
     (100 - maintainability) * 0.45
     + normalize(metrics.cyclomaticComplexity, 20) * 20
+    + normalize(metrics.cognitiveComplexity ?? metrics.cyclomaticComplexity, 25) * 12
     + normalize(metrics.churn, 20) * 12
     + normalize(metrics.coupling, 20) * 10
     + normalize(loc, 500) * 8

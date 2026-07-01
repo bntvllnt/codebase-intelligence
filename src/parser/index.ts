@@ -15,6 +15,7 @@ import {
   nodeLocation,
 } from "./type-facts.js";
 import {
+  computeCognitiveComplexity,
   computeComplexity,
   extractSymbols,
   extractSymbolsSyntax,
@@ -357,6 +358,7 @@ function extractExports(sourceFile: ts.SourceFile, checker: ts.TypeChecker): Par
       loc: isLocal ? loc : 1,
       isDefault: exportName === "default",
       complexity: isLocal ? computeComplexity(decl) : 0,
+      cognitiveComplexity: isLocal ? computeCognitiveComplexity(decl) : 0,
       typeFacts: declarationTypeFactsFromChecker(exportName, decl, checker),
     });
   }
@@ -383,6 +385,7 @@ function extractExportsSyntax(sourceFile: ts.SourceFile): ParsedExport[] {
       loc,
       isDefault,
       complexity: computeComplexity(node),
+      cognitiveComplexity: computeCognitiveComplexity(node),
       typeFacts: canHaveDeclarationTypeFacts(node) ? declarationTypeFactsFromSyntax(name, node) : undefined,
     });
   }

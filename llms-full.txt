@@ -13,7 +13,7 @@ CLI (commander)
   |
   v
 Parser (TS Compiler API)
-  | extracts: files, exports, imports, LOC, complexity, churn, test mapping
+  | extracts: files, exports, imports, LOC, cyclomatic/cognitive complexity, churn, test mapping
   v
 Graph Builder (graphology)
   | creates: nodes (file + function), edges (imports with symbols/weights)
@@ -21,7 +21,7 @@ Graph Builder (graphology)
   v
 Analyzer
   | computes: PageRank, betweenness, coupling, tension, cohesion
-  | computes: churn, complexity, blast radius, dead exports, test coverage
+  | computes: churn, cyclomatic/cognitive complexity, blast radius, dead exports, test coverage
   | produces: ForceAnalysis (tension files, bridges, extraction candidates)
   v
 Core (shared computation)
@@ -31,8 +31,8 @@ Core (shared computation)
   |     typed descriptors, input schemas, CLI/MCP adapters, result wrappers, text formatters
   v
 MCP (stdio) + CLI
-  | MCP: 25 tools, 2 prompts, 3 resources for LLM agents
-  | CLI: 24 commands with formatted + JSON output for humans/CI
+  | MCP: 29 tools, 2 prompts, 3 resources for LLM agents
+  | CLI: 35 public commands with formatted + JSON output for humans/CI
 ```
 
 ## Module Map
@@ -42,7 +42,7 @@ src/
   types/index.ts       <- ALL interfaces (single source of truth)
   parser/index.ts      <- Parse orchestration + imports/exports/call sites + git churn/test detection
   parser/type-facts.ts <- Type signatures, parameters, consumed/produced shape facts
-  parser/symbols.ts    <- Symbol inventory + symbol complexity
+  parser/symbols.ts    <- Symbol inventory + symbol cyclomatic/cognitive complexity
   graph/index.ts       <- graphology graph + symbol/type graph + circular dep detection
   analyzer/index.ts    <- All metric computation
   graph-loader/index.ts <- Shared parse/build/analyze/cache pipeline + progress events
@@ -56,7 +56,18 @@ src/
   boundaries/          <- Architecture zones, allow/forbid edge rules, and violation evidence
   highways/index.ts    <- Repeated route convergence + bypass/cowpath/synthesis evidence
   health/              <- Health score, maintainability, CRAP, coverage lookup, and risk scoring
-  mcp/index.ts         <- 25 MCP tools for LLM integration
+  ci/                  <- PR-friendly quality gate over check, changes, health, baselines, history, and workspace scope
+  doctor/              <- Read-only setup auditor for local, CI, MCP, and coding-agent workflows
+  ownership/           <- CODEOWNERS/git/package/directory ownership and bus-factor signals
+  recommendations/     <- Architecture recommendations with effort, evidence, and context commands
+  lsp/                 <- Advisory diagnostics/hover facts and minimal stdio LSP server
+  workspaces/          <- Workspace detection, changed-scope summaries, and cross-package cycle evidence
+  watch/               <- Watch readiness snapshots and debounce-aware change reporting
+  migration/           <- Dry-run-first config migration into codebase-intelligence.json
+  hooks/               <- Dry-run-first local hook install/uninstall for the same CI gate
+  history/             <- Local finding-history fingerprints under .codebase-intelligence/
+  explain/             <- Rule explanations and action hints
+  mcp/index.ts         <- 29 MCP tools for LLM integration
   mcp/hints.ts         <- Operation-keyed next-step hints for MCP tool responses
   impact/index.ts      <- Symbol-level impact analysis + rename planning
   search/index.ts      <- BM25 search engine
@@ -77,7 +88,7 @@ loadCodebaseGraph(rootDir)
   -> otherwise emits progress events through parse/build/analyze/cache
 
 parseCodebase(rootDir)
-  -> ParsedFile[] (with churn, complexity, test mapping, symbol type facts, duplicate token facts)
+  -> ParsedFile[] (with churn, cyclomatic/cognitive complexity, test mapping, symbol type facts, duplicate token facts)
 
 buildGraph(parsedFiles)
   -> BuiltGraph { graph: Graph, nodes: GraphNode[], edges: GraphEdge[] }
@@ -132,6 +143,7 @@ ParsedExport {
   loc: number             // Lines of code for this export
   isDefault: boolean
   complexity: number      // Cyclomatic complexity (branch count, min 1)
+  cognitiveComplexity?: number // Nesting-aware cognitive complexity
   typeFacts?: SymbolTypeFacts
 }
 
@@ -194,6 +206,7 @@ FileMetrics {
   hasTests: boolean       // Test file exists
   testFile: string        // Path to test file
   cyclomaticComplexity: number  // Avg complexity of exports
+  cognitiveComplexity?: number  // Avg nesting-aware complexity of symbols
   blastRadius: number           // Transitive dependent count
   deadExports: string[]         // Unused export names
   totalExports: number          // Named export count used as dead-export denominator
@@ -265,6 +278,43 @@ CodebaseContextPack {
 }
 ```
 
+## 2.5.0 Workflow Result Envelopes
+
+```typescript
+FindingAction {
+  kind: "remove-comment" | "inspect-boundary" | "inspect-file" | "inspect-symbol" | "run-check" | "review-finding" | "create-baseline"
+  auto_fixable: boolean
+  range?: { start: number; end: number }
+  command?: string
+  reason?: string
+}
+
+CiResult {
+  verdict: "pass" | "fail"
+  exitCode: 0 | 1
+  base: string
+  newOnly: boolean
+  gates: Array<{ name: string; verdict: "pass" | "warn" | "fail"; summary: string }>
+  check: CheckResult
+  health: HealthResult
+  changes: ChangesResult
+  workspaces?: WorkspacesResult
+  baseline: { path?: string; ignoredFindings: number }
+}
+
+DoctorResult {
+  status: "pass" | "warn" | "fail"
+  profile: "local" | "ci" | "agent" | "mcp"
+  agent: "codex" | "claude" | "cursor" | "generic"
+  checks: Array<{ id: string; level: "pass" | "warn" | "fail"; title: string; evidence: string[]; fix?: string; docs?: string }>
+}
+
+OwnershipResult { groupBy: "owner" | "package" | "directory"; files: Array<{ file: string; owner: string; hasTests: boolean; coverageGap: boolean }>; groups: Array<{ key: string; coverageGaps: number; riskScore: number }>; hotspots: Array<object> }
+ArchitectureRecommendationsResult { recommendations: Array<{ id: string; effort: "small" | "medium" | "large"; affectedFiles: string[]; evidence: string[]; contextPack: object }> }
+LspSnapshot { diagnostics: Array<object>; hovers: Array<object>; summary: string }
+WorkspacesResult { base: string; changedOnly: boolean; workspaces: Array<{ name: string; path: string; files: number; changed: boolean; cycles: string[][]; evidence: string[] }>; crossPackageCycles: string[][]; summary: string }
+```
+
 ---
 
 # Metrics Reference
@@ -282,6 +332,7 @@ CodebaseContextPack {
 | isBridge | bool | betweenness > 0.1 |
 | churn | 0-N | Git commits touching this file |
 | cyclomaticComplexity | 1-N | Avg complexity of exports |
+| cognitiveComplexity | 0-N | Avg nesting-aware complexity of symbols |
 | blastRadius | 0-N | Transitive dependents affected by change |
 | deadExports | list | Export names not consumed by any import |
 | totalExports | count | Named exports used as dead-export denominator |
@@ -314,7 +365,7 @@ The most dangerous files have: high churn + high coupling + low coverage.
 
 # MCP Tools Reference
 
-25 tools available via MCP stdio.
+29 tools available via MCP stdio.
 
 ## 1. codebase_overview
 High-level summary. Input: `{ depth?: number }`. Returns: totalFiles, totalFunctions, modules, topDependedFiles, metrics, and analysis mode/call graph precision.
@@ -326,7 +377,7 @@ Detailed file context. Input: `{ filePath: string }`. Returns: exports, imports,
 File-level blast radius. Input: `{ filePath: string, depth?: number }`. Returns: direct + transitive dependents, riskLevel.
 
 ## 4. find_hotspots
-Rank files by metric. Input: `{ metric: string, limit?: number }`. Metrics: coupling, pagerank, fan_in, fan_out, betweenness, tension, escape_velocity, churn, complexity, blast_radius, coverage, risk.
+Rank files by metric. Input: `{ metric: string, limit?: number }`. Metrics: coupling, pagerank, fan_in, fan_out, betweenness, tension, escape_velocity, churn, complexity, cognitive_complexity, blast_radius, coverage, risk.
 
 ## 5. get_module_structure
 Module architecture. Input: `{ depth?: number }`. Returns: modules with metrics, cross-module deps, circular deps.
@@ -388,7 +439,19 @@ Repeated route convergence. Input: `{ operation?: string, shape?: string, minRou
 ## 24. get_clusters
 Community-detected file clusters. Input: `{ minFiles?: number }`. Returns: clusters with cohesion.
 
-## 25. check
+## 25. get_ownership
+Ownership and bus-factor grouping. Input: `{ groupBy?: "owner" | "package" | "directory", effort?: number }`. Returns: groups with files, owners, churn, risk, busFactor, and evidence.
+
+## 26. get_architecture_recommendations
+Rank extraction, seam, tension, and locality recommendations. Input: `{}`. Returns: stable recommendation IDs, effort, score, affected files, evidence, and contextPack commands.
+
+## 27. get_lsp_snapshot
+Advisory editor facts from the same graph as batch analysis. Input: `{}`. Returns: diagnostics and hover facts for dead exports, circular deps, complexity, and risk.
+
+## 28. get_workspaces
+Workspace/package scopes. Input: `{ base?: string, changedOnly?: boolean }`. Returns: workspaces with name, path, files, changed, cycles, evidence, crossPackageCycles, and summary.
+
+## 29. check
 Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppression ledger, config path, and summary counts. Findings always include ruleId, severity, file, line, column, message, and fingerprint; cleanup findings may also include kind, confidence, and evidence. Suppressions include directive, active/stale status, file, line, targetLine, ruleIds, and suppressed count.
 
 ## Tool Selection Guide
@@ -419,13 +482,17 @@ Rules-engine gate. Input: `{}`. Returns: pass/warn/fail verdict, findings, suppr
 | Which file names lie about behavior? | detect_content_drift |
 | Which routes bypass canonical dataflow? | analyze_highways |
 | What files naturally belong together? | get_clusters |
+| Who owns this risky scope? | get_ownership |
+| What architecture cleanup should happen next? | get_architecture_recommendations |
+| What editor diagnostics match batch analysis? | get_lsp_snapshot |
+| Which workspaces changed in this PR? | get_workspaces |
 | What rule violations exist? | check |
 
 ---
 
 # CLI Reference
 
-24 commands — 22 analysis commands (full parity with MCP tools), `check` for CI rules, and `init` for agent adoption.
+35 public commands — 29 MCP-backed analysis tools plus `ci`, `doctor`, `watch`, `migrate-config`, `hooks`, `history`, `explain`, `check`, and `init`.
 
 ## Commands
 
@@ -439,7 +506,7 @@ High-level codebase snapshot: files, functions, modules, dependencies.
 ```bash
 codebase-intelligence hotspots <path> [--metric <metric>] [--limit <n>] [--json] [--force]
 ```
-Rank files by metric. Default: coupling. Available: coupling, pagerank, fan_in, fan_out, betweenness, tension, churn, complexity, blast_radius, coverage, risk, escape_velocity.
+Rank files by metric. Default: coupling. Available: coupling, pagerank, fan_in, fan_out, betweenness, tension, churn, complexity, cognitive_complexity, blast_radius, coverage, risk, escape_velocity.
 
 ### file
 ```bash
@@ -561,6 +628,73 @@ codebase-intelligence clusters <path> [--min-files <n>] [--json] [--force]
 ```
 Community-detected file clusters (Louvain algorithm).
 
+### owners
+```bash
+codebase-intelligence owners <path> [--group-by owner|package|directory] [--effort <n>] [--json] [--force]
+```
+Ownership, package, or directory grouping with bus-factor and risk evidence.
+
+### architecture
+```bash
+codebase-intelligence architecture <path> [--json] [--force]
+```
+Rank graph-backed extraction, seam, tension, and locality recommendations.
+
+### workspaces
+```bash
+codebase-intelligence workspaces <path> [--base <ref>] [--changed] [--json] [--force]
+```
+Detect package/workspace scopes, changed workspaces, and cross-package cycle evidence.
+
+### lsp
+```bash
+codebase-intelligence lsp <path> [--diagnostics] [--json] [--force]
+```
+Start the advisory LSP server, or print diagnostics/hover facts with `--diagnostics`.
+
+### watch
+```bash
+codebase-intelligence watch <path> [--once] [--debounce <ms>] [--json] [--force]
+```
+Keep analysis warm while editing; use `--once` for CI-safe readiness snapshots.
+
+### ci
+```bash
+codebase-intelligence ci <path> [--base <ref>] [--new-only] [--all] [--fail-on error|warn|never] [--min-score <n>] [--max-new <n>] [--baseline <path>] [--format <fmt>] [--output <path>] [--comment markdown] [--summary] [--production] [--changed-since <ref>] [--diff-file <path>] [--changed-workspaces] [--history] [--json] [--force]
+```
+One PR-friendly quality gate around `check`, `changes`, health, baselines, local history, and optional changed-workspace summaries. Exit codes: 0 pass, 1 gate failed, 2 config/usage error, 3 analyzer error. Formats: text, json, sarif, markdown, annotations, pr-comment-github, pr-comment-gitlab, badge, codeclimate, compact.
+
+### doctor
+```bash
+codebase-intelligence doctor [path] [--profile local|ci|agent|mcp] [--agent codex|claude|cursor|generic] [--json]
+```
+Read-only setup auditor for runtime, package manager, config schema, graph build, cache path, CLI help, MCP registry, CI workflow, and agent instructions.
+
+### explain
+```bash
+codebase-intelligence explain <rule> [--json]
+```
+Explain a rule and safe next actions.
+
+### migrate-config
+```bash
+codebase-intelligence migrate-config <path> [--source <name>] [--write] [--json]
+```
+Dry-run-first config migration into `codebase-intelligence.json`.
+
+### hooks
+```bash
+codebase-intelligence hooks install [path] [--apply] [--command <cmd>] [--json]
+codebase-intelligence hooks uninstall [path] [--apply] [--json]
+```
+Plan or install local hooks that run the same CI gate. Default is dry-run.
+
+### history
+```bash
+codebase-intelligence history [path] [--json]
+```
+Read local finding-history fingerprints and counts from `.codebase-intelligence/history.json`.
+
 ### init
 ```bash
 codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitignore] [--yes] [--json]
@@ -577,10 +711,10 @@ content between the `codebase-intelligence:start`/`:end` markers is ever touched
 
 ### check
 ```bash
-codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on <severity>] [--gate <mode>] [--base <ref>] [--quiet] [--summary] [--json] [--force]
+codebase-intelligence check <path> [--config <path>] [--format <fmt>] [--fail-on <severity>] [--gate <mode>] [--base <ref>] [--changed-since <ref>] [--diff-file <path>] [--production] [--quiet] [--summary] [--json] [--force]
 ```
-Rules-engine gate for CI. Formats: text, json, sarif. Fail-on: error, warn, never.
-Gate modes: all, new-only. Returns pass/warn/fail verdict, findings, suppression ledger, and summary counts. Built-in rules include no-comments, no-boundary-violations, no-circular-deps, no-dead-exports, no-stale-suppressions, and opt-in no-dead-files, no-unused-types, no-unused-members, no-unused-deps. Dependency findings are scoped to the nearest package/workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. Reports active/stale `ci-ignore-*` and `@expected-unused` suppressions; `@public` protects exported cleanup declarations while `@internal` remains checkable.
+Rules-engine gate for CI. Formats: text, json, sarif, markdown, annotations, pr-comment-github, pr-comment-gitlab, badge, codeclimate, compact. Fail-on: error, warn, never.
+Gate modes: all, new-only. Returns pass/warn/fail verdict, findings with advisory `actions[]`, suppression ledger, and summary counts. Built-in rules include no-comments, no-boundary-violations, no-circular-deps, no-dead-exports, no-stale-suppressions, and opt-in no-dead-files, no-unused-types, no-unused-members, no-unused-deps, no-secrets. Dependency findings are scoped to the nearest package/workspace manifest and include unused, unlisted, type-only, test-only, and runtime-from-devDependencies drift. Reports active/stale `ci-ignore-*` and `@expected-unused` suppressions; `@public` protects exported cleanup declarations while `@internal` remains checkable.
 
 ## Global Behavior
 

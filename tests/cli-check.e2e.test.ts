@@ -395,6 +395,29 @@ describe("check command (e2e)", () => {
     expect(stderr).toContain("--gate must be one of");
   });
 
+  it("--diff-file ignores zero-length new-file hunks", async () => {
+    const dir = makeProject(
+      {
+        "src/main.ts": "export const x = 1;\n// unchanged finding\nexport const y = 2;\n",
+      },
+      {
+        rules: {
+          "no-circular-deps": "off",
+          "no-dead-exports": "off",
+          "no-comments": "warn",
+        },
+      },
+    );
+    const diffFile = path.join(dir, "empty-new-range.diff");
+    fs.writeFileSync(diffFile, "diff --git a/src/main.ts b/src/main.ts\n--- a/src/main.ts\n+++ b/src/main.ts\n@@ -2,1 +2,0 @@\n");
+
+    const { status, stdout } = await run(["check", dir, "--format", "json", "--diff-file", diffFile, "--fail-on", "warn"]);
+    const parsed = JSON.parse(stdout) as { findings: unknown[]; verdict: string };
+    expect(status).toBe(0);
+    expect(parsed.verdict).toBe("pass");
+    expect(parsed.findings).toHaveLength(0);
+  });
+
   it("--quiet wins over --summary on pass: no output, exit 0 (pinned contract)", async () => {
     const dir = makeProject(CLEAN, { rules: {} });
     const { status, stdout } = await run(["check", dir, "--quiet", "--summary"]);

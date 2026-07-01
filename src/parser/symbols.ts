@@ -26,6 +26,7 @@ function parsedSymbol(
     loc,
     isDefault,
     complexity: computeComplexity(node),
+    cognitiveComplexity: computeCognitiveComplexity(node),
     isExported,
     typeFacts,
     duplication: extractDuplicationFacts(node, sourceFile),
@@ -133,6 +134,46 @@ export function computeComplexity(node: ts.Node): number {
   }
   ts.forEachChild(node, visit);
   return branches;
+}
+
+export function computeCognitiveComplexity(node: ts.Node): number {
+  let score = 0;
+
+  function isFlowBreak(n: ts.Node): boolean {
+    return ts.isIfStatement(n)
+      || ts.isConditionalExpression(n)
+      || ts.isCaseClause(n)
+      || ts.isCatchClause(n)
+      || ts.isForStatement(n)
+      || ts.isForInStatement(n)
+      || ts.isForOfStatement(n)
+      || ts.isWhileStatement(n)
+      || ts.isDoStatement(n);
+  }
+
+  function visit(n: ts.Node, nesting: number): void {
+    const nested = isFlowBreak(n);
+    if (nested) score += 1 + nesting;
+
+    if (ts.isBinaryExpression(n)) {
+      if (
+        n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+        || n.operatorToken.kind === ts.SyntaxKind.BarBarToken
+        || n.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken
+      ) {
+        score += 1;
+      }
+    }
+
+    ts.forEachChild(n, (child) => {
+      visit(child, nested ? nesting + 1 : nesting);
+    });
+  }
+
+  ts.forEachChild(node, (child) => {
+    visit(child, 0);
+  });
+  return score;
 }
 
 function hasModifier(node: ts.Node, kind: ts.SyntaxKind): boolean {
