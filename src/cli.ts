@@ -202,6 +202,14 @@ interface ProcessesOptions extends CliCommandOptions {
   limit?: string;
 }
 
+interface HighwaysOptions extends CliCommandOptions {
+  operation?: string;
+  shape?: string;
+  minRoutes?: string;
+  propose?: boolean;
+  trace?: string;
+}
+
 interface ClustersOptions extends CliCommandOptions {
   minFiles?: string;
 }
@@ -641,6 +649,38 @@ program
     }
 
     outputOperationText(operations.processes, result, input);
+  });
+
+// ── Subcommand: highways ───────────────────────────────────
+
+program
+  .command("highways")
+  .description("Find repeated routes that should converge on one canonical path")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--operation <verb>", "Operation verb to focus on, such as create or update")
+  .option("--shape <name>", "Type/DTO shape to focus on")
+  .option("--min-routes <n>", "Minimum routes reaching a sink before reporting (default: 2)")
+  .option("--propose", "Include reroute proposal metadata")
+  .option("--trace <id>", "Return route evidence for one highway opportunity id")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: HighwaysOptions) => {
+    const input = parseCliOperationInput(operations.highways, {
+      operation: options.operation,
+      shape: options.shape,
+      minRoutes: optionalIntegerInput(options.minRoutes),
+      propose: options.propose,
+      trace: options.trace,
+    });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.highways, graph, input);
+
+    if (options.json) {
+      outputJson(result);
+      return;
+    }
+
+    outputOperationText(operations.highways, result, input);
   });
 
 // ── Subcommand: clusters ───────────────────────────────────

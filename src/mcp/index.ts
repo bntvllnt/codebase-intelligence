@@ -115,6 +115,7 @@ export function registerTools(server: McpServer, graph: CodebaseGraph): void {
   registerOperationTool(server, graph, operations.impact);
   registerOperationTool(server, graph, operations.rename);
   registerOperationTool(server, graph, operations.processes);
+  registerOperationTool(server, graph, operations.highways);
   registerOperationTool(server, graph, operations.clusters);
 
   // MCP Prompts

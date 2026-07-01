@@ -82,6 +82,11 @@ const OPERATION_HINTS: Record<OperationName, string[]> = {
     "Use file_context on files in the process steps for metrics",
     "Use get_module_structure to see how process crosses module boundaries",
   ],
+  highways: [
+    "Use impact_analysis on the proposed canonical node before editing",
+    "Use symbol_context on bypass route entry points to inspect call chains",
+    "Use get_processes to compare raw execution flows against highway findings",
+  ],
   clusters: [
     "Use file_context on files within a cluster for detailed metrics",
     "Use get_module_structure to compare clusters against directory structure",

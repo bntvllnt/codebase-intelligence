@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-18 tools available via MCP stdio.
+19 tools available via MCP stdio.
 
 Operation tools return JSON text payloads. Invalid operation inputs return `isError: true` with `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.
 
@@ -169,7 +169,17 @@ Trace execution flows from entry points through the call graph.
 **Use when:** "How does this app start?" "Trace request flow." "What are the entry points?"
 **Not for:** Static file dependencies (use get_dependents).
 
-## 17. get_clusters
+## 17. analyze_highways
+
+Detect repeated entry-to-sink routes that should converge on one canonical operation path.
+
+**Input:** `{ operation?: string, shape?: string, minRoutes?: number, propose?: boolean, trace?: string }`
+**Returns:** totalRoutes, totalSinks, totalOpportunities, opportunities[] (id, kind, operation, shape, sink, canonicalNode, routes[], bypassRoutes[], duplicatedCallees?, evidence[], blastRadius, recommendation, contextPack), optional trace
+
+**Use when:** Enforcing dataflow discipline, finding ad-hoc routes, or planning canonical shared paths.
+**Not for:** Raw execution flow listing (use get_processes).
+
+## 18. get_clusters
 
 Community-detected clusters of related files.
 
@@ -179,7 +189,7 @@ Community-detected clusters of related files.
 **Use when:** "What files are related?" "Find natural groupings." Discovering emergent groupings that differ from directory structure.
 **Not for:** Directory-based modules (use get_module_structure).
 
-## 18. check
+## 19. check
 
 Run the configurable rules engine and gate on findings.
 
@@ -227,6 +237,7 @@ Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-expo
 | "What changed?" | `detect_changes` |
 | "Find all references to X" | `rename_symbol` |
 | "How does data flow through the app?" | `get_processes` |
+| "Which routes bypass canonical dataflow?" | `analyze_highways` |
 | "What files naturally belong together?" | `get_clusters` |
 | "What are the main areas?" | `get_groups` |
 | "What rule violations exist? Lint this." | `check` |

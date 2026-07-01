@@ -19,6 +19,7 @@ import type {
   SymbolContextError,
   SymbolContextResult,
 } from "../core/index.js";
+import type { HighwaysResult } from "../highways/index.js";
 import type { ImpactResult, RenameResult } from "../impact/index.js";
 
 function text(lines: readonly string[]): string {
@@ -581,6 +582,44 @@ export function formatProcessesText(result: ProcessesResult): string {
       `  Entry: ${process.entryPoint.file}::${process.entryPoint.symbol}`,
       ...process.steps.map((step) => `  ${String(step.step).padStart(3)}. ${step.file}::${step.symbol}`),
     );
+  }
+
+  return text(lines);
+}
+
+/**
+ * Format a highways operation result for human CLI output.
+ */
+export function formatHighwaysText(result: HighwaysResult): string {
+  const lines = [
+    `Highways (${result.opportunities.length} of ${result.totalOpportunities})`,
+    "─".repeat(30),
+    `Routes: ${result.totalRoutes}`,
+    `Sinks: ${result.totalSinks}`,
+    `Min routes: ${result.minRoutes}`,
+    result.operation ? `Operation: ${result.operation}` : "",
+    result.shape ? `Shape: ${result.shape}` : "",
+    "",
+    result.summary,
+  ].filter(Boolean);
+
+  if (result.trace) {
+    lines.push("", `Trace: ${result.trace.id} (${result.trace.found ? "found" : "not found"})`);
+  }
+
+  for (const opportunity of result.opportunities) {
+    lines.push(
+      "",
+      `${opportunity.id} [${opportunity.kind}] ${opportunity.operation} → ${opportunity.sink.symbol}`,
+      `  Canonical: ${opportunity.canonicalNode.file}::${opportunity.canonicalNode.symbol}`,
+      `  Bypass routes: ${opportunity.bypassRoutes.map((route) => route.entryPoint.symbol).join(", ")}`,
+      `  Blast radius: ${opportunity.blastRadius}`,
+      `  Evidence: ${opportunity.evidence.join("; ")}`,
+      `  Next: ${opportunity.contextPack.nextSafeCommand}`,
+    );
+    if (opportunity.duplicatedCallees && opportunity.duplicatedCallees.length > 0) {
+      lines.push(`  Duplicated callees: ${opportunity.duplicatedCallees.map((step) => step.symbol).join(", ")}`);
+    }
   }
 
   return text(lines);

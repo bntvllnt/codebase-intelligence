@@ -1,6 +1,6 @@
 # CLI Reference
 
-19 commands for terminal and CI use. The 17 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
+20 commands for terminal and CI use. The 18 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -168,6 +168,16 @@ codebase-intelligence processes <path> [--entry <name>] [--limit <n>] [--json] [
 
 **Output:** processes with entry point, steps, depth, modules touched.
 
+### highways
+
+Find repeated routes that should converge on one canonical operation path.
+
+```bash
+codebase-intelligence highways <path> [--operation <verb>] [--shape <name>] [--min-routes <n>] [--propose] [--trace <id>] [--json] [--force]
+```
+
+**Output:** route opportunities with `bypass` / `cowpath` kind, operation, shape, sink, canonical node, route chains, bypass routes, duplicated callees when present, evidence, blast radius, recommendation, and context pack.
+
 ### clusters
 
 Community-detected file clusters (Louvain algorithm).
@@ -226,7 +236,7 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitigno
 | `--mode <m>` | duplicates | Clone mode: strict, mild, weak |
 | `--min-tokens <n>` | duplicates | Minimum function body token count (default: 30) |
 | `--skip-local` | duplicates | Ignore families confined to one file |
-| `--trace <id>` | duplicates | Return token evidence for one family id |
+| `--trace <id>` | duplicates, highways | Return evidence for one family/opportunity id |
 | `--scope <s>` | changes | Git diff scope: staged, unstaged, all |
 | `--depth <n>` | dependents | Max traversal depth (default: 2) |
 | `--cohesion <n>` | forces | Min cohesion threshold (default: 0.6) |
@@ -234,6 +244,10 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitigno
 | `--escape <n>` | forces | Min escape velocity threshold (default: 0.5) |
 | `--module <m>` | dead-exports | Filter by module path |
 | `--entry <name>` | processes | Filter by entry point name |
+| `--operation <verb>` | highways | Focus on one operation verb |
+| `--shape <name>` | highways | Focus on one type/DTO shape |
+| `--min-routes <n>` | highways | Minimum routes reaching a sink before reporting |
+| `--propose` | highways | Include reroute proposal metadata |
 | `--min-files <n>` | clusters | Min files per cluster |
 | `--no-dry-run` | rename | Actually perform the rename (default: dry run) |
 | `--format <fmt>` | check | Output format: text, json, sarif |
