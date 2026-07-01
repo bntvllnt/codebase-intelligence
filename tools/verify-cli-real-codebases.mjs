@@ -372,13 +372,18 @@ for (const inputTarget of targets) {
     return `${result.totalAffected} affected`;
   });
 
-  for (const command of ["modules", "forces", "dead-exports", "opportunities", "groups", "processes", "highways", "clusters"]) {
+  for (const command of ["modules", "forces", "dead-exports", "opportunities", "groups", "processes", "map", "highways", "clusters"]) {
     record(`${target.name}: ${command}`, () => {
       const args = command === "highways"
         ? [command, target.path, "--operation", "get", "--min-routes", "3"]
-        : [command, target.path];
+        : command === "map"
+          ? [command, target.path, "--focus", target.symbol, "--context-budget", "600"]
+          : [command, target.path];
       const result = json(args);
       if (!result || typeof result !== "object") throw new Error("invalid JSON object");
+      if (command === "map" && (!result.contextPack || !Array.isArray(result.nodes))) {
+        throw new Error("bad map payload");
+      }
       return "json ok";
     });
   }

@@ -22,8 +22,10 @@ import {
 } from "../core/index.js";
 import { DUPLICATION_MODES } from "../duplication/index.js";
 import { computeHighways } from "../highways/index.js";
+import { CODEBASE_MAP_FORMATS, computeCodebaseMap } from "../map/index.js";
 import type { CodebaseGraph } from "../types/index.js";
 import {
+  formatCodebaseMapText,
   formatChangesText,
   formatClustersText,
   formatDeadExportsText,
@@ -61,6 +63,7 @@ export const operationNames = [
   "impact",
   "rename",
   "processes",
+  "codebaseMap",
   "highways",
   "clusters",
 ] as const;
@@ -160,6 +163,14 @@ const processesInputShape = {
   limit: z.number().int().positive().optional().describe("Max processes to return (default: all)"),
 } satisfies z.ZodRawShape;
 const processesInputSchema = z.object(processesInputShape).strict();
+const codebaseMapInputShape = {
+  focus: z.string().min(1).optional().describe("Symbol, file, or scope to focus the map on"),
+  scope: z.string().min(1).optional().describe("Directory/module scope to include"),
+  depth: z.number().int().positive().optional().describe("Graph traversal depth (default: 1)"),
+  format: z.enum(CODEBASE_MAP_FORMATS).optional().describe("Export format: json, markdown, dot, or graphml"),
+  contextBudget: z.number().int().positive().optional().describe("Approximate token budget for the context pack (default: 1200)"),
+} satisfies z.ZodRawShape;
+const codebaseMapInputSchema = z.object(codebaseMapInputShape).strict();
 const highwaysInputShape = {
   operation: z.string().min(1).optional().describe("Operation verb to focus on, such as create, update, or validate"),
   shape: z.string().min(1).optional().describe("Type/DTO shape to focus on"),
@@ -189,6 +200,7 @@ type ChangesInput = z.infer<typeof changesInputSchema>;
 type ImpactInput = z.infer<typeof impactInputSchema>;
 type RenameInput = z.infer<typeof renameInputSchema>;
 type ProcessesInput = z.infer<typeof processesInputSchema>;
+export type CodebaseMapInput = z.infer<typeof codebaseMapInputSchema>;
 type HighwaysInput = z.infer<typeof highwaysInputSchema>;
 type ClustersInput = z.infer<typeof clustersInputSchema>;
 
@@ -356,6 +368,16 @@ export const operations = {
     run: (graph: CodebaseGraph, input: ProcessesInput) => computeProcesses(graph, input.entryPoint, input.limit),
     formatText: formatProcessesText,
   } satisfies Operation<ProcessesInput, ReturnType<typeof computeProcesses>>,
+  codebaseMap: {
+    name: "codebaseMap",
+    cliCommand: "map",
+    mcpTool: "get_codebase_map",
+    description: "Build a deterministic focused graph plus a token-bounded context pack for AI agents. Use when: preparing a code context bundle, visualizing scope/symbol neighborhoods, or giving an LLM the smallest useful map. Not for: raw execution traces (use get_processes) or route convergence analysis (use analyze_highways)",
+    inputShape: codebaseMapInputShape,
+    inputSchema: codebaseMapInputSchema,
+    run: (graph: CodebaseGraph, input: CodebaseMapInput) => computeCodebaseMap(graph, input),
+    formatText: formatCodebaseMapText,
+  } satisfies Operation<CodebaseMapInput, ReturnType<typeof computeCodebaseMap>>,
   highways: {
     name: "highways",
     cliCommand: "highways",

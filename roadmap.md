@@ -434,11 +434,18 @@ codebase graph
 | Test proximity | Important route has no proof nearby |
 | Runtime surface | User-facing entrypoint route maps |
 
-**To do:**
+**Status:** CH-P2-03 shipped in the canary train.
+
+**Shipped:**
 
 - CLI: add `map <path>` with `--focus`, `--scope`, `--depth`, `--format json|dot|graphml|markdown`, `--context-budget`, `--json`.
 - MCP: add `get_codebase_map`, `get_scope_graph`, `get_context_pack`.
-- Emit `overview`, `focus`, `route`, `contextPack`, and `evidence` shapes.
+- Emit deterministic `overview`, `focus`, `nodes`, `edges`, `contextPack`, `evidence`, and stable evidence/edge IDs.
+- Add chained CLI + real stdio MCP coverage for focused symbol maps and token-bounded ranked files/symbols/tests.
+
+**Remaining:**
+
+- Add route/type/owner nodes after the upstream analyzers expose those facts as structured graph data.
 - Add optional 2D/3D graph export/viewer only after structured graph outputs are useful.
 
 ### Content Drift

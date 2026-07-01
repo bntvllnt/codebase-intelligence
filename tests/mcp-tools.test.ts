@@ -3,7 +3,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getFixturePipeline } from "./helpers/pipeline.js";
-import { registerTools } from "../src/mcp/index.js";
+import { extraMcpTools, registerTools } from "../src/mcp/index.js";
 import { operationList } from "../src/operations/index.js";
 import { setGraph, setIndexedHead } from "../src/server/graph-store.js";
 import type { CodebaseGraph } from "../src/types/index.js";
@@ -31,6 +31,10 @@ async function callTool(name: string, args: Record<string, unknown> = {}): Promi
   const result = await client.callTool({ name, arguments: args });
   const text = (result.content as Array<{ type: string; text: string }>)[0].text;
   return JSON.parse(text) as Record<string, unknown>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 describe("Tool 1: codebase_overview", () => {
@@ -411,7 +415,75 @@ describe("Tool 15: get_processes", () => {
   });
 });
 
-describe("Tool 16: analyze_highways", () => {
+describe("Tool 16: get_codebase_map", () => {
+  it("returns focused graph evidence and context pack", async () => {
+    const r = await callTool("get_codebase_map", {
+      focus: "UserService.getUserById",
+      depth: 1,
+      contextBudget: 420,
+    });
+    expect(r).toHaveProperty("overview");
+    expect(r).toHaveProperty("focus");
+    expect(r).toHaveProperty("nodes");
+    expect(r).toHaveProperty("edges");
+    expect(r).toHaveProperty("evidence");
+    expect(r).toHaveProperty("contextPack");
+    expect(r).toHaveProperty("nextSteps");
+
+    const contextPack = r.contextPack;
+    expect(isRecord(contextPack)).toBe(true);
+    if (!isRecord(contextPack)) throw new Error("Expected contextPack object");
+    expect(contextPack).toHaveProperty("tokenBudget", 420);
+    expect(contextPack).toHaveProperty("rankedFiles");
+    expect(contextPack).toHaveProperty("rankedSymbols");
+    expect(contextPack).toHaveProperty("tests");
+  });
+});
+
+describe("Tool 17: get_scope_graph", () => {
+  it("returns only file/scope/test graph topology", async () => {
+    const r = await callTool("get_scope_graph", {
+      focus: "UserService.getUserById",
+      depth: 1,
+    });
+    expect(r).toHaveProperty("nodes");
+    expect(r).toHaveProperty("edges");
+    expect(r).toHaveProperty("evidence");
+    expect(r).toHaveProperty("nextSteps");
+
+    const nodesValue = r.nodes;
+    const edgesValue = r.edges;
+    expect(Array.isArray(nodesValue)).toBe(true);
+    expect(Array.isArray(edgesValue)).toBe(true);
+    if (!Array.isArray(nodesValue) || !Array.isArray(edgesValue)) throw new Error("Expected scope graph arrays");
+    const nodes = nodesValue.filter(isRecord);
+    const edges = edgesValue.filter(isRecord);
+    expect(nodes).toHaveLength(nodesValue.length);
+    expect(edges).toHaveLength(edgesValue.length);
+    expect(nodes.length).toBeGreaterThan(0);
+    expect(nodes.every((node) => node.kind === "file" || node.kind === "test" || node.kind === "scope")).toBe(true);
+    expect(edges.every((edge) => edge.kind === "imports" || edge.kind === "tests")).toBe(true);
+  });
+});
+
+describe("Tool 18: get_context_pack", () => {
+  it("returns a token-bounded context pack", async () => {
+    const r = await callTool("get_context_pack", {
+      focus: "UserService.getUserById",
+      depth: 1,
+      contextBudget: 420,
+    });
+    expect(r).toHaveProperty("tokenBudget", 420);
+    expect(r).toHaveProperty("tokenEstimate");
+    expect(r).toHaveProperty("rankedFiles");
+    expect(r).toHaveProperty("rankedSymbols");
+    expect(r).toHaveProperty("tests");
+    expect(r).toHaveProperty("nextSteps");
+    expect(Number(r.tokenEstimate)).toBeLessThanOrEqual(420);
+  });
+});
+
+describe("Tool 19: analyze_highways", () => {
   it("returns highway opportunities envelope", async () => {
     const r = await callTool("analyze_highways", { operation: "get", minRoutes: 2 });
     expect(r).toHaveProperty("totalRoutes");
@@ -423,7 +495,7 @@ describe("Tool 16: analyze_highways", () => {
   });
 });
 
-describe("Tool 17: get_clusters", () => {
+describe("Tool 20: get_clusters", () => {
   it("returns community-detected clusters", async () => {
     const r = await callTool("get_clusters");
     expect(r).toHaveProperty("clusters");
@@ -495,10 +567,16 @@ describe("MCP Resources", () => {
     expect(setup).toHaveProperty("project", "codebase-intelligence");
     expect(setup).toHaveProperty("indexedHead", "abc123-test");
     expect(setup).toHaveProperty("availableTools");
-    expect((setup.availableTools as string[]).length).toBe(operationList.length + 1);
-    expect(setup.availableTools as string[]).toContain("find_opportunities");
-    expect(setup.availableTools as string[]).toContain("find_duplicates");
-    expect(setup.availableTools as string[]).toContain("analyze_highways");
-    expect(setup.availableTools as string[]).toContain("check");
+    const availableTools = setup.availableTools;
+    expect(Array.isArray(availableTools)).toBe(true);
+    if (!Array.isArray(availableTools)) throw new Error("Expected availableTools array");
+    expect(availableTools.length).toBe(operationList.length + extraMcpTools.length + 1);
+    expect(availableTools).toContain("find_opportunities");
+    expect(availableTools).toContain("find_duplicates");
+    expect(availableTools).toContain("get_codebase_map");
+    expect(availableTools).toContain("get_scope_graph");
+    expect(availableTools).toContain("get_context_pack");
+    expect(availableTools).toContain("analyze_highways");
+    expect(availableTools).toContain("check");
   });
 });

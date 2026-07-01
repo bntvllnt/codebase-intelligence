@@ -82,6 +82,11 @@ const OPERATION_HINTS: Record<OperationName, string[]> = {
     "Use file_context on files in the process steps for metrics",
     "Use get_module_structure to see how process crosses module boundaries",
   ],
+  codebaseMap: [
+    "Use get_context_pack with the same focus when preparing an LLM prompt",
+    "Use get_scope_graph when you only need file/scope nodes and edges",
+    "Use symbol_context or file_context on top-ranked context entries before editing",
+  ],
   highways: [
     "Use impact_analysis on the proposed canonical node before editing",
     "Use symbol_context on bypass route entry points to inspect call chains",

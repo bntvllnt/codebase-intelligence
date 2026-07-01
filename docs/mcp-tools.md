@@ -1,6 +1,6 @@
 # MCP Tools Reference
 
-19 tools available via MCP stdio.
+22 tools available via MCP stdio.
 
 Operation tools return JSON text payloads. Invalid operation inputs return `isError: true` with `{ "error": "..." }` using the same descriptor validation messages as CLI bad-argument exits.
 
@@ -169,7 +169,37 @@ Trace execution flows from entry points through the call graph.
 **Use when:** "How does this app start?" "Trace request flow." "What are the entry points?"
 **Not for:** Static file dependencies (use get_dependents).
 
-## 17. analyze_highways
+## 17. get_codebase_map
+
+Build a deterministic focused graph plus context pack.
+
+**Input:** `{ focus?: string, scope?: string, depth?: number, format?: "json" | "markdown" | "dot" | "graphml", contextBudget?: number }`
+**Returns:** overview, focus node, nodes, edges, evidence, contextPack, summary
+
+**Use when:** Preparing an LLM task context, visualizing symbol/file neighborhoods, or exporting a structured codebase map.
+**Not for:** Raw execution flow listing (use get_processes) or route convergence analysis (use analyze_highways).
+
+## 18. get_scope_graph
+
+File/scope/test view derived from `get_codebase_map`.
+
+**Input:** same as `get_codebase_map`
+**Returns:** overview, focus node, file/test/scope nodes, imports/tests edges, evidence, summary
+
+**Use when:** An agent needs topology without symbol-level detail.
+**Not for:** Full context selection (use get_context_pack).
+
+## 19. get_context_pack
+
+Token-bounded context pack derived from `get_codebase_map`.
+
+**Input:** same as `get_codebase_map`
+**Returns:** tokenBudget, tokenEstimate, rankedFiles, rankedSymbols, tests, evidenceIds, nextCommands
+
+**Use when:** Passing compact, ranked code context to an LLM.
+**Not for:** Visual graph export (use get_codebase_map).
+
+## 20. analyze_highways
 
 Detect repeated entry-to-sink routes that should converge on one canonical operation path.
 
@@ -179,7 +209,7 @@ Detect repeated entry-to-sink routes that should converge on one canonical opera
 **Use when:** Enforcing dataflow discipline, finding ad-hoc routes, or planning canonical shared paths.
 **Not for:** Raw execution flow listing (use get_processes).
 
-## 18. get_clusters
+## 21. get_clusters
 
 Community-detected clusters of related files.
 
@@ -189,7 +219,7 @@ Community-detected clusters of related files.
 **Use when:** "What files are related?" "Find natural groupings." Discovering emergent groupings that differ from directory structure.
 **Not for:** Directory-based modules (use get_module_structure).
 
-## 19. check
+## 22. check
 
 Run the configurable rules engine and gate on findings.
 
@@ -237,6 +267,9 @@ Rules: `no-comments` (off by default), `no-circular-deps` (error), `no-dead-expo
 | "What changed?" | `detect_changes` |
 | "Find all references to X" | `rename_symbol` |
 | "How does data flow through the app?" | `get_processes` |
+| "What context should I give an LLM for this task?" | `get_context_pack` |
+| "Show a focused codebase graph" | `get_codebase_map` |
+| "Show only file/scope topology" | `get_scope_graph` |
 | "Which routes bypass canonical dataflow?" | `analyze_highways` |
 | "What files naturally belong together?" | `get_clusters` |
 | "What are the main areas?" | `get_groups` |

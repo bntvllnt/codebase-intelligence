@@ -1,6 +1,6 @@
 # CLI Reference
 
-20 commands for terminal and CI use. The 18 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
+21 commands for terminal and CI use. The 19 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -168,6 +168,18 @@ codebase-intelligence processes <path> [--entry <name>] [--limit <n>] [--json] [
 
 **Output:** processes with entry point, steps, depth, modules touched.
 
+### map
+
+Focused codebase graph plus token-bounded context pack for agents.
+
+```bash
+codebase-intelligence map <path> [--focus <symbolOrFile>] [--scope <scope>] [--depth <n>] [--format <format>] [--context-budget <n>] [--json] [--force]
+```
+
+**Formats:** `markdown` (default), `json`, `dot`, `graphml`.
+
+**Output:** overview, focus node, nodes, edges, evidence, contextPack (ranked files, symbols, tests, token estimate/budget), and summary. JSON mode includes stable evidence IDs (`evidence-*`) and edge IDs (`edge-*`) for agent-safe references.
+
 ### highways
 
 Find repeated routes that should converge on one canonical operation path.
@@ -237,20 +249,22 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitigno
 | `--min-tokens <n>` | duplicates | Minimum function body token count (default: 30) |
 | `--skip-local` | duplicates | Ignore families confined to one file |
 | `--trace <id>` | duplicates, highways | Return evidence for one family/opportunity id |
-| `--scope <s>` | changes | Git diff scope: staged, unstaged, all |
-| `--depth <n>` | dependents | Max traversal depth (default: 2) |
+| `--scope <s>` | changes, map | Git diff scope for `changes`; directory/module scope for `map` |
+| `--depth <n>` | dependents, map | Max traversal depth |
 | `--cohesion <n>` | forces | Min cohesion threshold (default: 0.6) |
 | `--tension <n>` | forces | Min tension threshold (default: 0.3) |
 | `--escape <n>` | forces | Min escape velocity threshold (default: 0.5) |
 | `--module <m>` | dead-exports | Filter by module path |
 | `--entry <name>` | processes | Filter by entry point name |
+| `--focus <name>` | map | Focus on one symbol, file, or scope |
+| `--context-budget <n>` | map | Approximate token budget for context pack |
 | `--operation <verb>` | highways | Focus on one operation verb |
 | `--shape <name>` | highways | Focus on one type/DTO shape |
 | `--min-routes <n>` | highways | Minimum routes reaching a sink before reporting |
 | `--propose` | highways | Include reroute proposal metadata |
 | `--min-files <n>` | clusters | Min files per cluster |
 | `--no-dry-run` | rename | Actually perform the rename (default: dry run) |
-| `--format <fmt>` | check | Output format: text, json, sarif |
+| `--format <fmt>` | map, check | Map export: markdown, json, dot, graphml. Check output: text, json, sarif |
 | `--fail-on <severity>` | check | Severity that fails the gate: error, warn, never |
 | `--gate <mode>` | check | Gate mode: all, new-only |
 | `--base <ref>` | check | Base git ref for new-only gating |

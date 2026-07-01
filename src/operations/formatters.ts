@@ -21,6 +21,7 @@ import type {
 } from "../core/index.js";
 import type { HighwaysResult } from "../highways/index.js";
 import type { ImpactResult, RenameResult } from "../impact/index.js";
+import type { CodebaseMapOptions, CodebaseMapResult } from "../map/index.js";
 
 function text(lines: readonly string[]): string {
   return lines.join("\n");
@@ -28,6 +29,18 @@ function text(lines: readonly string[]): string {
 
 function signatureSuffix(signature: string | undefined): string {
   return signature ? ` — ${signature}` : "";
+}
+
+function quoteDot(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+}
+
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -582,6 +595,90 @@ export function formatProcessesText(result: ProcessesResult): string {
       `  Entry: ${process.entryPoint.file}::${process.entryPoint.symbol}`,
       ...process.steps.map((step) => `  ${String(step.step).padStart(3)}. ${step.file}::${step.symbol}`),
     );
+  }
+
+  return text(lines);
+}
+
+function formatCodebaseMapDot(result: CodebaseMapResult): string {
+  const lines = [
+    "digraph CodebaseMap {",
+    "  rankdir=LR;",
+    "  node [shape=box];",
+    ...result.nodes.map((node) =>
+      `  ${quoteDot(node.id)} [label=${quoteDot(`${node.kind}: ${node.label}`)}];`
+    ),
+    ...result.edges.map((edge) =>
+      `  ${quoteDot(edge.from)} -> ${quoteDot(edge.to)} [label=${quoteDot(edge.kind)}];`
+    ),
+    "}",
+  ];
+  return text(lines);
+}
+
+function formatCodebaseMapGraphml(result: CodebaseMapResult): string {
+  const lines = [
+    "<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+    "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\">",
+    "  <graph id=\"codebase-map\" edgedefault=\"directed\">",
+    ...result.nodes.map((node) =>
+      `    <node id="${escapeXml(node.id)}"><data key="kind">${escapeXml(node.kind)}</data><data key="label">${escapeXml(node.label)}</data></node>`
+    ),
+    ...result.edges.map((edge) =>
+      `    <edge id="${escapeXml(edge.id)}" source="${escapeXml(edge.from)}" target="${escapeXml(edge.to)}"><data key="kind">${escapeXml(edge.kind)}</data><data key="label">${escapeXml(edge.label)}</data></edge>`
+    ),
+    "  </graph>",
+    "</graphml>",
+  ];
+  return text(lines);
+}
+
+/**
+ * Format a codebase map operation result for human CLI or graph export output.
+ */
+export function formatCodebaseMapText(result: CodebaseMapResult, input: CodebaseMapOptions = {}): string {
+  if (input.format === "dot") return formatCodebaseMapDot(result);
+  if (input.format === "graphml") return formatCodebaseMapGraphml(result);
+
+  const lines = [
+    "Codebase Map",
+    "────────────",
+    result.summary,
+    `Focus: ${result.overview.focus ?? "overview"}`,
+    result.overview.scope ? `Scope: ${result.overview.scope}` : "",
+    `Depth: ${result.overview.depth}`,
+    `Nodes: ${result.overview.totalNodes}`,
+    `Edges: ${result.overview.totalEdges}`,
+    `Evidence: ${result.overview.totalEvidence}`,
+    `Context: ${result.contextPack.tokenEstimate}/${result.contextPack.tokenBudget} tokens`,
+  ].filter(Boolean);
+
+  if (result.contextPack.rankedFiles.length > 0) {
+    lines.push(
+      "",
+      "Files",
+      ...result.contextPack.rankedFiles.map((file) => `  ${file.rank}. ${file.path} — ${file.reason}`),
+    );
+  }
+
+  if (result.contextPack.rankedSymbols.length > 0) {
+    lines.push(
+      "",
+      "Symbols",
+      ...result.contextPack.rankedSymbols.map((symbol) => `  ${symbol.rank}. ${symbol.file}::${symbol.symbol} — ${symbol.reason}`),
+    );
+  }
+
+  if (result.contextPack.tests.length > 0) {
+    lines.push(
+      "",
+      "Tests",
+      ...result.contextPack.tests.map((test) => `  ${test.rank}. ${test.path} covers ${test.covers}`),
+    );
+  }
+
+  if (result.contextPack.nextCommands.length > 0) {
+    lines.push("", "Next", ...result.contextPack.nextCommands.map((command) => `  ${command}`));
   }
 
   return text(lines);
