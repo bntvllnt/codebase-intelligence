@@ -1,6 +1,6 @@
 # CLI Reference
 
-22 commands for terminal and CI use. The 20 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
+23 commands for terminal and CI use. The 21 analysis commands have full parity with MCP tools and auto-cache the index to `.codebase-intelligence/`; `check` runs the rules gate; `init` sets up agent adoption.
 
 ## Commands
 
@@ -22,7 +22,7 @@ Rank files by metric.
 codebase-intelligence hotspots <path> [--metric <metric>] [--limit <n>] [--json] [--force]
 ```
 
-**Metrics:** `coupling` (default), `pagerank`, `fan_in`, `fan_out`, `betweenness`, `tension`, `churn`, `complexity`, `blast_radius`, `coverage`, `escape_velocity`.
+**Metrics:** `coupling` (default), `pagerank`, `fan_in`, `fan_out`, `betweenness`, `tension`, `churn`, `complexity`, `blast_radius`, `coverage`, `risk`, `escape_velocity`.
 
 ### file
 
@@ -190,6 +190,18 @@ codebase-intelligence drift <path> [--focus <fileOrSymbol>] [--scope <scope>] [-
 
 **Output:** `mode: "report-only"`, baseline status, findings with stable `drift-*` IDs, `kind` (`name-drift`, `scope-drift`, `mixed-responsibility`, `hidden-side-effect`, `shape-drift`, `orphan-scope`, `misplaced-test`), score, severity, declared intent, actual behavior, evidence IDs/summaries, recommendations, and advisory actions. Drift does not fail CI until a baseline/gate is configured.
 
+### health
+
+Compute a CI-gateable codebase health score.
+
+```bash
+codebase-intelligence health <path> [--score] [--min-score <n>] [--json] [--force]
+```
+
+**Output:** `score`, `minScore`, `verdict`, component scores, coverage source (`static-tests` or root-local Istanbul coverage), per-file `maintainabilityIndex`, `crapScore`, `riskScore`, evidence, hotspots, and advisory actions.
+
+**Exit codes:** `0` when score is at least `minScore`; `1` when score is below `minScore`; `2` for invalid input.
+
 ### highways
 
 Find repeated routes that should converge on one canonical operation path.
@@ -268,7 +280,8 @@ codebase-intelligence init [path] [--agents <list>] [--all] [--skill] [--gitigno
 | `--entry <name>` | processes | Filter by entry point name |
 | `--focus <name>` | map, drift | Focus on one symbol, file, or scope |
 | `--context-budget <n>` | map | Approximate token budget for context pack |
-| `--min-score <n>` | drift | Minimum drift score to report |
+| `--min-score <n>` | drift, health | Minimum drift score to report; minimum health score before exit 1 |
+| `--score` | health | Print compact score text |
 | `--operation <verb>` | highways | Focus on one operation verb |
 | `--shape <name>` | highways | Focus on one type/DTO shape |
 | `--min-routes <n>` | highways | Minimum routes reaching a sink before reporting |

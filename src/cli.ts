@@ -216,6 +216,11 @@ interface ContentDriftOptions extends CliCommandOptions {
   minScore?: string;
 }
 
+interface HealthOptions extends CliCommandOptions {
+  minScore?: string;
+  score?: boolean;
+}
+
 interface HighwaysOptions extends CliCommandOptions {
   operation?: string;
   shape?: string;
@@ -723,6 +728,35 @@ program
     }
 
     outputOperationText(operations.contentDrift, result, input);
+  });
+
+// ── Subcommand: health ─────────────────────────────────────
+
+program
+  .command("health")
+  .description("Compute a CI-gateable health score with maintainability, CRAP, coverage, and risk hotspots")
+  .argument("<path>", "Path to TypeScript codebase")
+  .option("--score", "Print compact health score text")
+  .option("--min-score <n>", "Minimum health score before exit 1 (default: 70)")
+  .option("--json", "Output as JSON")
+  .option("--force", "Re-index even if HEAD unchanged")
+  .action((targetPath: string, options: HealthOptions) => {
+    const input = parseCliOperationInput(operations.health, {
+      minScore: optionalNumberInput(options.minScore),
+      score: options.score,
+    });
+    const { graph } = loadGraph(targetPath, forceOption(options));
+    const result = runCliOperation(operations.health, graph, input, { rootDir: path.resolve(targetPath) });
+
+    if (options.json) {
+      outputJson(result);
+    } else {
+      outputOperationText(operations.health, result, input);
+    }
+
+    if (result.verdict === "fail") {
+      process.exitCode = 1;
+    }
   });
 
 // ── Subcommand: highways ───────────────────────────────────

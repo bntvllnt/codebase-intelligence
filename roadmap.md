@@ -170,7 +170,7 @@ Purpose: prove the CLI, MCP server, library outputs, docs, CI behavior, and agen
 | CH-P2-02 highway synthesis | As US-CLI-HUMAN, I can understand the proposed canonical path before coding. | Fixture with no existing canonical node -> run `highways --propose --trace` -> assert synthesized name/location/signature/skeleton/reroute plan and cycle-safety check. |
 | CH-P2-03 codebase map context pack | As US-MCP-AGENT, I can request only the files needed for one task. | Run `map --focus <symbol> --context-budget <n> --json` -> assert nodes/edges/evidence IDs -> request MCP context pack -> assert token-bounded ranked files/symbols/tests. |
 | CH-P2-04 content drift | As US-MAINTAINER, I can find files whose names lie about behavior. | Fixture name/scope/side-effect/test mismatch -> run `drift --json` -> assert drift score, deterministic evidence, recommendation, baseline report-only first run. |
-| CH-P2-05 health/boundaries | As US-CLI-CI, I can gate new architecture debt. | Fixture boundary violation + complexity/churn hotspot -> run health/boundary commands -> assert score, rule evidence, baseline/new-only behavior, stable exit codes. |
+| CH-P2-05 health/boundaries | As US-CLI-CI, I can gate new architecture debt. | Health subchain: fixture complexity/churn hotspot -> run `health` + `hotspots --metric risk` -> assert score, maintainability, CRAP, coverage source, stable exit codes, and MCP parity. Boundary subchain: fixture boundary violation -> run boundary commands -> assert rule evidence, baseline/new-only behavior, and stable exit codes. |
 | CH-P2-06 CI wrapper | As US-MAINTAINER, I can add one PR gate. | Run `ci --base origin/main --new-only --format sarif` in temp git repo -> assert exit code, SARIF artifact, PR markdown, compact summary, and no failure on pre-existing debt. |
 | CH-P2-07 doctor onboarding | As US-CLI-AGENT, I can self-diagnose setup. | Run `doctor --json` in repo missing config/cache/agent docs -> assert checks, levels, exact fix commands, docs links, read-only behavior. |
 | CH-P2-08 output actions | As US-CLI-AGENT, every finding gives safe next steps. | For each analyzer finding kind -> assert stable ID, evidence, `actions[]`, no source mutation, and JSON schema compatibility. |
@@ -477,12 +477,20 @@ drift score = mismatch(declared intent, actual behavior)
 
 Provide one CI-gateable quality score plus file-level risk metrics.
 
-**To do:**
+**Status:** Health foundation shipped in the canary train.
 
-- Add composite `health --score --min-score <n>`.
-- Add per-file maintainability index.
-- Add CRAP score using static test reachability and optional Istanbul `coverage.json`.
-- Extend `hotspots` with complexity x churn x coupling x size.
+**Shipped:**
+
+- CLI: add `health <path>` with `--score`, `--min-score`, `--json`, and stable exit `1` when score falls below the threshold.
+- MCP: add `get_health_score`.
+- Add per-file `maintainabilityIndex`, `crapScore`, `riskScore`, evidence, hotspots, and actions.
+- Use static test reachability by default and root-local Istanbul `coverage/coverage-final.json` or `coverage/coverage.json` when present.
+- Extend `hotspots` with `--metric risk` using complexity x churn x coupling x size x blast radius/test reachability.
+- Add CH-P2-05 health subchain coverage for CLI JSON/text, exit codes, risk hotspots, Istanbul coverage, and real stdio MCP parity.
+
+**Remaining:**
+
+- Feed health score into the future first-class `ci` wrapper and health badge output format.
 
 ### Architecture Boundaries
 

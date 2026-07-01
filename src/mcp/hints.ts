@@ -92,6 +92,11 @@ const OPERATION_HINTS: Record<OperationName, string[]> = {
     "Use map with the same focus to inspect neighboring files and symbols",
     "Create a drift baseline before using drift findings as a CI gate",
   ],
+  health: [
+    "Use find_hotspots with metric='risk' to inspect the same risk formula",
+    "Use file_context on top health hotspots before refactoring",
+    "Use --min-score in CI when you want health to fail below a threshold",
+  ],
   highways: [
     "Use impact_analysis on the proposed canonical node before editing",
     "Use symbol_context on bypass route entry points to inspect call chains",

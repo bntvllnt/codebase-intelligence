@@ -37,6 +37,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function recordArray(value: unknown, label: string): Record<string, unknown>[] {
+  expect(Array.isArray(value)).toBe(true);
+  if (!Array.isArray(value)) throw new Error(`Expected ${label} array`);
+  const records = value.filter(isRecord);
+  expect(records).toHaveLength(value.length);
+  return records;
+}
+
 describe("Tool 1: codebase_overview", () => {
   it("returns totalFiles, modules, topDependedFiles, metrics, nextSteps", async () => {
     const r = await callTool("codebase_overview");
@@ -153,7 +161,7 @@ describe("Tool 3: get_dependents", () => {
 describe("Tool 4: find_hotspots", () => {
   const metrics = [
     "coupling", "pagerank", "fan_in", "fan_out", "betweenness",
-    "tension", "churn", "complexity", "blast_radius", "coverage",
+    "tension", "churn", "complexity", "blast_radius", "coverage", "risk",
   ] as const;
 
   for (const metric of metrics) {
@@ -496,7 +504,23 @@ describe("Tool 19: detect_content_drift", () => {
   });
 });
 
-describe("Tool 20: analyze_highways", () => {
+describe("Tool 20: get_health_score", () => {
+  it("returns a gateable health score with file evidence", async () => {
+    const r = await callTool("get_health_score", { minScore: 0 });
+    expect(r).toHaveProperty("score");
+    expect(r).toHaveProperty("verdict", "pass");
+    expect(r).toHaveProperty("components");
+    expect(r).toHaveProperty("files");
+    expect(r).toHaveProperty("hotspots");
+    expect(r).toHaveProperty("nextSteps");
+    const files = recordArray(r.files, "health files");
+    expect(files[0]).toHaveProperty("maintainabilityIndex");
+    expect(files[0]).toHaveProperty("crapScore");
+    expect(files[0]).toHaveProperty("riskScore");
+  });
+});
+
+describe("Tool 21: analyze_highways", () => {
   it("returns highway opportunities envelope", async () => {
     const r = await callTool("analyze_highways", { operation: "get", minRoutes: 2 });
     expect(r).toHaveProperty("totalRoutes");
@@ -508,7 +532,7 @@ describe("Tool 20: analyze_highways", () => {
   });
 });
 
-describe("Tool 21: get_clusters", () => {
+describe("Tool 22: get_clusters", () => {
   it("returns community-detected clusters", async () => {
     const r = await callTool("get_clusters");
     expect(r).toHaveProperty("clusters");
@@ -590,6 +614,7 @@ describe("MCP Resources", () => {
     expect(availableTools).toContain("get_scope_graph");
     expect(availableTools).toContain("get_context_pack");
     expect(availableTools).toContain("detect_content_drift");
+    expect(availableTools).toContain("get_health_score");
     expect(availableTools).toContain("analyze_highways");
     expect(availableTools).toContain("check");
   });

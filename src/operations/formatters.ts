@@ -20,6 +20,7 @@ import type {
   SymbolContextResult,
 } from "../core/index.js";
 import type { HighwaysResult } from "../highways/index.js";
+import type { HealthOptions, HealthResult } from "../health/index.js";
 import type { ImpactResult, RenameResult } from "../impact/index.js";
 import type { CodebaseMapOptions, CodebaseMapResult } from "../map/index.js";
 import type { ContentDriftResult } from "../drift/index.js";
@@ -713,6 +714,48 @@ export function formatContentDriftText(result: ContentDriftResult): string {
     );
   }
 
+  return text(lines);
+}
+
+/**
+ * Format a health operation result for human CLI output.
+ */
+export function formatHealthText(result: HealthResult, input: HealthOptions = {}): string {
+  if (input.score) {
+    return `Health Score: ${result.score.toFixed(2)} (${result.verdict}, min ${result.minScore})`;
+  }
+
+  const lines = [
+    `Health Score: ${result.score.toFixed(2)} (${result.verdict})`,
+    "────────────────────────",
+    `Min score: ${result.minScore}`,
+    `Coverage: ${result.coverage.source} (${result.coverage.coveredFiles}/${result.coverage.totalFiles})`,
+    result.coverage.warning ? `Coverage warning: ${result.coverage.warning}` : "",
+    "",
+    "Components",
+    `  Maintainability: ${result.components.maintainability.toFixed(2)}`,
+    `  Complexity:      ${result.components.complexity.toFixed(2)}`,
+    `  Churn:           ${result.components.churn.toFixed(2)}`,
+    `  Coupling:        ${result.components.coupling.toFixed(2)}`,
+    `  Coverage:        ${result.components.coverage.toFixed(2)}`,
+    `  Blast radius:    ${result.components.blastRadius.toFixed(2)}`,
+    "",
+    "Top Risk Files",
+  ].filter(Boolean);
+
+  for (const file of result.hotspots.slice(0, 10)) {
+    lines.push(
+      `  ${file.file}`,
+      `    risk=${file.riskScore.toFixed(2)} maintainability=${file.maintainabilityIndex.toFixed(2)} crap=${file.crapScore.toFixed(2)} coverage=${file.coverage.toFixed(0)}%`,
+      `    ${file.evidence.join(", ")}`,
+    );
+  }
+
+  if (result.actions.length > 0) {
+    lines.push("", "Next", ...result.actions.map((action) => `  ${action.command} # ${action.reason}`));
+  }
+
+  lines.push("", result.summary);
   return text(lines);
 }
 

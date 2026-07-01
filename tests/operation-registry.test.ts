@@ -41,6 +41,7 @@ const expectedOperations: Array<{
   { name: "processes", cliCommand: "processes", mcpTool: "get_processes", inputKeys: ["entryPoint", "limit"], sampleInput: { entryPoint: "main" } },
   { name: "codebaseMap", cliCommand: "map", mcpTool: "get_codebase_map", inputKeys: ["focus", "scope", "depth", "format", "contextBudget"], sampleInput: { focus: "getUserById", depth: 1, contextBudget: 420 } },
   { name: "contentDrift", cliCommand: "drift", mcpTool: "detect_content_drift", inputKeys: ["focus", "scope", "minScore"], sampleInput: { scope: "users", minScore: 35 } },
+  { name: "health", cliCommand: "health", mcpTool: "get_health_score", inputKeys: ["minScore", "score"], sampleInput: { minScore: 0, score: true } },
   { name: "highways", cliCommand: "highways", mcpTool: "analyze_highways", inputKeys: ["operation", "shape", "minRoutes", "propose", "trace"], sampleInput: { operation: "create", minRoutes: 2 } },
   { name: "clusters", cliCommand: "clusters", mcpTool: "get_clusters", inputKeys: ["minFiles"], sampleInput: { minFiles: 2 } },
 ];
@@ -115,7 +116,7 @@ describe("operation registry", () => {
       type: "object",
       properties: {
         metric: {
-          enum: expect.arrayContaining(["coupling", "blast_radius"]),
+          enum: expect.arrayContaining(["coupling", "blast_radius", "risk"]),
         },
         limit: {
           type: "integer",

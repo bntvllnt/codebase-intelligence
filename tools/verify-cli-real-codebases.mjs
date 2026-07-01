@@ -279,6 +279,7 @@ function findBannedPath(value, keyPath = []) {
   if (typeof value === "string") {
     const normalized = value.replaceAll("\\", "/");
     if (normalized.includes("package.json:")) return "";
+    if (!normalized.includes("/") && !normalized.startsWith(".")) return "";
     const segments = normalized.split("/");
     if (segments.includes(".claude") && segments.includes("worktrees")) return value;
     for (const segment of segments) {
@@ -372,12 +373,14 @@ for (const inputTarget of targets) {
     return `${result.totalAffected} affected`;
   });
 
-  for (const command of ["modules", "forces", "dead-exports", "opportunities", "groups", "processes", "map", "drift", "highways", "clusters"]) {
+  for (const command of ["modules", "forces", "dead-exports", "opportunities", "groups", "processes", "map", "drift", "health", "highways", "clusters"]) {
     record(`${target.name}: ${command}`, () => {
       const args = command === "highways"
         ? [command, target.path, "--operation", "get", "--min-routes", "3"]
         : command === "map"
           ? [command, target.path, "--focus", target.symbol, "--context-budget", "600"]
+          : command === "health"
+            ? [command, target.path, "--min-score", "0"]
           : [command, target.path];
       const result = json(args);
       if (!result || typeof result !== "object") throw new Error("invalid JSON object");
@@ -386,6 +389,9 @@ for (const inputTarget of targets) {
       }
       if (command === "drift" && (result.mode !== "report-only" || !Array.isArray(result.findings))) {
         throw new Error("bad drift payload");
+      }
+      if (command === "health" && (typeof result.score !== "number" || !Array.isArray(result.hotspots))) {
+        throw new Error("bad health payload");
       }
       return "json ok";
     });

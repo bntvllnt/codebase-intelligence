@@ -22,6 +22,7 @@ import {
 } from "../core/index.js";
 import { DUPLICATION_MODES } from "../duplication/index.js";
 import { computeHighways } from "../highways/index.js";
+import { computeHealth } from "../health/index.js";
 import { CODEBASE_MAP_FORMATS, computeCodebaseMap } from "../map/index.js";
 import { computeContentDrift } from "../drift/index.js";
 import type { CodebaseGraph } from "../types/index.js";
@@ -36,6 +37,7 @@ import {
   formatFileContextText,
   formatForcesText,
   formatGroupsText,
+  formatHealthText,
   formatHighwaysText,
   formatHotspotsText,
   formatImpactText,
@@ -67,6 +69,7 @@ export const operationNames = [
   "processes",
   "codebaseMap",
   "contentDrift",
+  "health",
   "highways",
   "clusters",
 ] as const;
@@ -180,6 +183,11 @@ const contentDriftInputShape = {
   minScore: z.number().min(0).max(100).optional().describe("Minimum drift score to report (default: 35)"),
 } satisfies z.ZodRawShape;
 const contentDriftInputSchema = z.object(contentDriftInputShape).strict();
+const healthInputShape = {
+  minScore: z.number().min(0).max(100).optional().describe("Minimum health score before the result fails (default: 70)"),
+  score: z.boolean().optional().describe("Request compact score output on the CLI"),
+} satisfies z.ZodRawShape;
+const healthInputSchema = z.object(healthInputShape).strict();
 const highwaysInputShape = {
   operation: z.string().min(1).optional().describe("Operation verb to focus on, such as create, update, or validate"),
   shape: z.string().min(1).optional().describe("Type/DTO shape to focus on"),
@@ -211,6 +219,7 @@ type RenameInput = z.infer<typeof renameInputSchema>;
 type ProcessesInput = z.infer<typeof processesInputSchema>;
 export type CodebaseMapInput = z.infer<typeof codebaseMapInputSchema>;
 type ContentDriftInput = z.infer<typeof contentDriftInputSchema>;
+type HealthInput = z.infer<typeof healthInputSchema>;
 type HighwaysInput = z.infer<typeof highwaysInputSchema>;
 type ClustersInput = z.infer<typeof clustersInputSchema>;
 
@@ -398,6 +407,16 @@ export const operations = {
     run: (graph: CodebaseGraph, input: ContentDriftInput) => computeContentDrift(graph, input),
     formatText: formatContentDriftText,
   } satisfies Operation<ContentDriftInput, ReturnType<typeof computeContentDrift>>,
+  health: {
+    name: "health",
+    cliCommand: "health",
+    mcpTool: "get_health_score",
+    description: "Compute a CI-gateable codebase health score with per-file maintainability, CRAP, coverage reachability, and risk hotspots. Use when: gating PR quality, finding files that combine complexity/churn/coupling/size, or tracking maintainability over time. Not for: route discipline (use analyze_highways) or naming drift (use detect_content_drift)",
+    inputShape: healthInputShape,
+    inputSchema: healthInputSchema,
+    run: (graph: CodebaseGraph, input: HealthInput, context) => computeHealth(graph, input, context),
+    formatText: formatHealthText,
+  } satisfies Operation<HealthInput, ReturnType<typeof computeHealth>>,
   highways: {
     name: "highways",
     cliCommand: "highways",
