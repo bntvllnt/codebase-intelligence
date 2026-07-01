@@ -194,14 +194,30 @@ HighwaysResult {
 
 HighwayOpportunity {
   id: string                         // hwy-<kind>-<stable hash>
-  kind: "bypass" | "cowpath"
+  kind: "bypass" | "cowpath" | "synthesis"
   operation: string
   shape?: string
   sink: HighwayStep
-  canonicalNode: HighwayStep
+  canonicalNode: HighwayStep         // proposed=true for synthesis findings
   routes: HighwayRoute[]             // all routes reaching the sink
   bypassRoutes: HighwayRoute[]       // routes missing canonicalNode
   duplicatedCallees?: HighwayStep[]  // cowpath overlap with canonical node callees
+  proposal?: {
+    name: string
+    file: string
+    signature: string
+    skeleton: string
+    reroutePlan: Array<{
+      entryPoint: string
+      replaceSteps: string[]
+      call: string
+    }>
+    cycleSafety: {
+      safe: boolean
+      checkedEdges: string[]
+      reason: string
+    }
+  }
   evidence: string[]
   blastRadius: number
   recommendation: string
@@ -230,6 +246,7 @@ HighwayStep {
   id: string
   file: string
   symbol: string
+  proposed?: boolean
 }
 ```
 

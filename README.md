@@ -65,7 +65,7 @@ claude mcp add -s user -t stdio codebase-intelligence -- npx -y codebase-intelli
 - **Symbol-level analysis** — callers/callees, symbol importance, impact blast radius
 - **BM25 search** — ranked keyword search across files, symbols, and type/shape facts
 - **Process tracing** — detect entry points and execution flows through the call graph
-- **Highways analysis** — find repeated routes that bypass canonical dataflow paths
+- **Highways analysis** — find repeated routes that bypass canonical dataflow paths and synthesize safe proposed highways
 - **Community detection** — Louvain clustering for natural file groupings
 - **Agent adoption** — `init` writes per-agent instruction files + installs a skill so AI agents query CI before grep/read
 - **MCP parity (secondary)** — same analysis and rules gate available as 19 MCP tools, 2 prompts, and 3 resources
@@ -111,7 +111,7 @@ codebase-intelligence <command> <path> [options]
 | `impact` | Symbol-level blast radius |
 | `rename` | Reference discovery for rename planning |
 | `processes` | Entry-point execution flow tracing |
-| `highways` | Repeated route convergence and canonical path opportunities |
+| `highways` | Repeated route convergence, canonical path opportunities, and synthesis proposals |
 | `clusters` | Community-detected file clusters |
 | `check` | Rules-engine gate for CI, including opt-in dead-code and dependency gates |
 | `init` | Set up AI agents to use CI — writes per-agent instruction files (skill opt-in via `--skill`) |

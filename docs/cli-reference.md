@@ -176,7 +176,7 @@ Find repeated routes that should converge on one canonical operation path.
 codebase-intelligence highways <path> [--operation <verb>] [--shape <name>] [--min-routes <n>] [--propose] [--trace <id>] [--json] [--force]
 ```
 
-**Output:** route opportunities with `bypass` / `cowpath` kind, operation, shape, sink, canonical node, route chains, bypass routes, duplicated callees when present, evidence, blast radius, recommendation, and context pack.
+**Output:** route opportunities with `bypass`, `cowpath`, or `synthesis` kind, operation, shape, sink, canonical/proposed node, route chains, bypass routes, duplicated callees when present, evidence, blast radius, recommendation, context pack, and optional synthesis proposal (`name`, `file`, `signature`, `skeleton`, `reroutePlan`, `cycleSafety`).
 
 ### clusters
 

@@ -23,12 +23,30 @@ interface RunResult {
 interface HighwayRouteStep {
   file: string;
   symbol: string;
+  proposed?: boolean;
 }
 
 interface HighwayRoute {
   entryPoint: HighwayRouteStep;
   steps: HighwayRouteStep[];
   includesCanonical: boolean;
+}
+
+interface HighwayProposal {
+  name: string;
+  file: string;
+  signature: string;
+  skeleton: string;
+  reroutePlan: Array<{
+    entryPoint: string;
+    replaceSteps: string[];
+    call: string;
+  }>;
+  cycleSafety: {
+    safe: boolean;
+    checkedEdges: string[];
+    reason: string;
+  };
 }
 
 interface HighwayOpportunity {
@@ -40,6 +58,7 @@ interface HighwayOpportunity {
   canonicalNode: HighwayRouteStep;
   routes: HighwayRoute[];
   duplicatedCallees?: HighwayRouteStep[];
+  proposal?: HighwayProposal;
   contextPack: {
     proposedCanonicalNode: HighwayRouteStep;
     affectedRoutes: string[];
@@ -205,6 +224,62 @@ function makeHighwaysProject(): string {
   return path.join(dir, "src");
 }
 
+function makeHighwaySynthesisProject(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cbi-highways-synthesis-"));
+  created.push(dir);
+
+  const files: Record<string, string> = {
+    "src/types.ts": "export interface UserDraft { email: string; name: string; }\nexport interface User { id: string; email: string; name: string; }\n",
+    "src/normalize.ts": "import type { UserDraft } from './types.js';\nexport function normalizeUserDraft(draft: UserDraft): UserDraft { return { ...draft, email: draft.email.trim().toLowerCase() }; }\n",
+    "src/validation.ts": "import type { UserDraft } from './types.js';\nexport function validateUserDraft(draft: UserDraft): UserDraft { if (!draft.email) throw new Error('email required'); return draft; }\n",
+    "src/repository.ts": "import type { User, UserDraft } from './types.js';\nexport function insertUser(draft: UserDraft): User { return { id: 'u_1', email: draft.email, name: draft.name }; }\n",
+    "src/rest.ts": [
+      "import type { User, UserDraft } from './types.js';",
+      "import { normalizeUserDraft } from './normalize.js';",
+      "import { validateUserDraft } from './validation.js';",
+      "import { insertUser } from './repository.js';",
+      "export function createUserFromRest(draft: UserDraft): User {",
+      "  const normalized = normalizeUserDraft(draft);",
+      "  const valid = validateUserDraft(normalized);",
+      "  return insertUser(valid);",
+      "}",
+      "",
+    ].join("\n"),
+    "src/webhook.ts": [
+      "import type { User, UserDraft } from './types.js';",
+      "import { normalizeUserDraft } from './normalize.js';",
+      "import { validateUserDraft } from './validation.js';",
+      "import { insertUser } from './repository.js';",
+      "export function createUserFromWebhook(draft: UserDraft): User {",
+      "  const normalized = normalizeUserDraft(draft);",
+      "  const valid = validateUserDraft(normalized);",
+      "  return insertUser(valid);",
+      "}",
+      "",
+    ].join("\n"),
+    "src/admin.ts": [
+      "import type { User, UserDraft } from './types.js';",
+      "import { normalizeUserDraft } from './normalize.js';",
+      "import { validateUserDraft } from './validation.js';",
+      "import { insertUser } from './repository.js';",
+      "export function createUserFromAdmin(draft: UserDraft): User {",
+      "  const normalized = normalizeUserDraft(draft);",
+      "  const valid = validateUserDraft(normalized);",
+      "  return insertUser(valid);",
+      "}",
+      "",
+    ].join("\n"),
+  };
+
+  for (const [rel, content] of Object.entries(files)) {
+    const full = path.join(dir, rel);
+    fs.mkdirSync(path.dirname(full), { recursive: true });
+    fs.writeFileSync(full, content);
+  }
+
+  return path.join(dir, "src");
+}
+
 function findOpportunity(payload: HighwaysPayload, kind: string): HighwayOpportunity {
   const opportunity = payload.opportunities.find((item) =>
     item.kind === kind
@@ -288,5 +363,86 @@ describe("CH-P2-01 highways reroute", () => {
       await transport.close();
     }
     expect(stderr()).toContain("Parsed");
+  }, 120_000);
+});
+
+describe("CH-P2-02 highway synthesis", () => {
+  it("proposes a canonical highway when no shared node exists and traces the proposal", async () => {
+    const src = makeHighwaySynthesisProject();
+
+    const cliRun = await run(["highways", src, "--operation", "create", "--shape", "UserDraft", "--min-routes", "3", "--propose", "--json", "--force"]);
+    expect(cliRun.status).toBe(0);
+    const cliPayload = parsePayload(cliRun.stdout);
+    const synthesis = cliPayload.opportunities.find((item) => item.kind === "synthesis" && item.sink.symbol === "insertUser");
+    if (!synthesis?.proposal) throw new Error("Expected synthesis proposal for insertUser");
+
+    expect(synthesis.id).toMatch(/^hwy-synthesis-[a-f0-9]{10}$/);
+    expect(synthesis.canonicalNode).toMatchObject({
+      file: "create-user-draft.highway.ts",
+      symbol: "createUserDraft",
+      proposed: true,
+    });
+    expect(synthesis.proposal).toMatchObject({
+      name: "createUserDraft",
+      file: "create-user-draft.highway.ts",
+      signature: "createUserDraft(input: UserDraft): User",
+      cycleSafety: {
+        safe: true,
+        checkedEdges: [
+          "createUserFromAdmin -> createUserDraft",
+          "createUserFromRest -> createUserDraft",
+          "createUserFromWebhook -> createUserDraft",
+          "createUserDraft -> insertUser",
+        ],
+      },
+    });
+    expect(synthesis.proposal.skeleton).toContain("export function createUserDraft(input: UserDraft): User");
+    expect(synthesis.proposal.skeleton).toContain("return insertUser(valid);");
+    expect(synthesis.proposal.reroutePlan).toEqual([
+      {
+        entryPoint: "createUserFromAdmin",
+        replaceSteps: ["normalizeUserDraft", "validateUserDraft", "insertUser"],
+        call: "createUserDraft",
+      },
+      {
+        entryPoint: "createUserFromRest",
+        replaceSteps: ["normalizeUserDraft", "validateUserDraft", "insertUser"],
+        call: "createUserDraft",
+      },
+      {
+        entryPoint: "createUserFromWebhook",
+        replaceSteps: ["normalizeUserDraft", "validateUserDraft", "insertUser"],
+        call: "createUserDraft",
+      },
+    ]);
+    expect(synthesis.contextPack.nextSafeCommand).toContain("codebase-intelligence impact");
+    expect(synthesis.contextPack.affectedRoutes).toEqual(["createUserFromAdmin", "createUserFromRest", "createUserFromWebhook"]);
+
+    const traceRun = await run(["highways", src, "--operation", "create", "--shape", "UserDraft", "--min-routes", "3", "--propose", "--trace", synthesis.id, "--json"]);
+    expect(traceRun.status).toBe(0);
+    const tracePayload = parsePayload(traceRun.stdout);
+    expect(tracePayload.trace).toMatchObject({ id: synthesis.id, found: true });
+    expect(tracePayload.trace?.opportunity?.proposal?.name).toBe("createUserDraft");
+
+    const transport = new StdioClientTransport({
+      command: "node",
+      args: [cli, src, "--force"],
+      cwd: repoRoot,
+      stderr: "pipe",
+    });
+    const client = new Client({ name: "highways-synthesis-e2e", version: "0.1.0" });
+    await client.connect(transport);
+    try {
+      const result = await client.callTool({
+        name: "analyze_highways",
+        arguments: { operation: "create", shape: "UserDraft", minRoutes: 3, propose: true },
+      });
+      const mcpPayloadRecord = textPayload(result);
+      if (!isHighwaysPayload(mcpPayloadRecord)) throw new Error("Expected MCP highways payload");
+      expect(comparable(mcpPayloadRecord)).toEqual(comparable(cliPayload));
+    } finally {
+      await client.close();
+      await transport.close();
+    }
   }, 120_000);
 });

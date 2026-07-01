@@ -35,7 +35,7 @@ codebase-intelligence symbol ./src parseCodebase
 codebase-intelligence impact ./src getUserById
 codebase-intelligence rename ./src oldName newName
 codebase-intelligence processes ./src --entry main
-codebase-intelligence highways ./src --operation create --min-routes 3 --json
+codebase-intelligence highways ./src --operation create --min-routes 3 --propose --json
 codebase-intelligence clusters ./src --min-files 3
 codebase-intelligence check ./src                      # rules gate for CI; JSON includes findings plus active/stale suppressions
 codebase-intelligence init .                         # make AI agents use CI

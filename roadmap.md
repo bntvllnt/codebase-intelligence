@@ -397,9 +397,9 @@ entry ─► transform ─► validate ─► sink
 
 **Remaining:**
 
-- H2: add type-shape grouping once Type/Shape layer lands.
+- H2 shipped: add type-shape grouping once Type/Shape layer lands.
+- H2 shipped: synthesize new highway proposals: name, location, signature, skeleton, cycle-safe reroute plan.
 - H2: detect shape drift and near-duplicate intermediate steps.
-- H2: synthesize new highway proposals: name, location, signature, skeleton, cycle-safe reroute plan.
 - H3: add reuse hotspot metrics and cross-link opportunities into `forces` / `hotspots`.
 
 ### Scope Graph + Codebase Map

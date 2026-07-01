@@ -174,7 +174,7 @@ Trace execution flows from entry points through the call graph.
 Detect repeated entry-to-sink routes that should converge on one canonical operation path.
 
 **Input:** `{ operation?: string, shape?: string, minRoutes?: number, propose?: boolean, trace?: string }`
-**Returns:** totalRoutes, totalSinks, totalOpportunities, opportunities[] (id, kind, operation, shape, sink, canonicalNode, routes[], bypassRoutes[], duplicatedCallees?, evidence[], blastRadius, recommendation, contextPack), optional trace
+**Returns:** totalRoutes, totalSinks, totalOpportunities, opportunities[] (id, kind, operation, shape, sink, canonicalNode, routes[], bypassRoutes[], duplicatedCallees?, proposal?, evidence[], blastRadius, recommendation, contextPack), optional trace. With `propose: true`, no-canonical route groups can return `kind: "synthesis"` with proposed name/file/signature/skeleton/reroutePlan/cycleSafety.
 
 **Use when:** Enforcing dataflow discipline, finding ad-hoc routes, or planning canonical shared paths.
 **Not for:** Raw execution flow listing (use get_processes).

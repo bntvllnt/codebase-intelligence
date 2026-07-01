@@ -620,6 +620,13 @@ export function formatHighwaysText(result: HighwaysResult): string {
     if (opportunity.duplicatedCallees && opportunity.duplicatedCallees.length > 0) {
       lines.push(`  Duplicated callees: ${opportunity.duplicatedCallees.map((step) => step.symbol).join(", ")}`);
     }
+    if (opportunity.proposal) {
+      lines.push(
+        `  Proposal: ${opportunity.proposal.name} in ${opportunity.proposal.file}`,
+        `  Signature: ${opportunity.proposal.signature}`,
+        `  Cycle safety: ${opportunity.proposal.cycleSafety.safe ? "safe" : "unsafe"} — ${opportunity.proposal.cycleSafety.reason}`,
+      );
+    }
   }
 
   return text(lines);
