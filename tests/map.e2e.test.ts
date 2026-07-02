@@ -1,4 +1,5 @@
 import { execFile, execSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -66,7 +67,7 @@ interface CodebaseMapPayload {
 }
 
 beforeAll(() => {
-  execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
+  if (!fs.existsSync(cli)) execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
 }, 120_000);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

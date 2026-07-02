@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
@@ -14,9 +19,6 @@ jobs:
   quality:
     name: Quality Gates
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [18, 22]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,7 +28,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: 22
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
@@ -41,7 +43,6 @@ jobs:
         run: pnpm build
 
       - name: Codebase Intelligence CI
-        if: matrix.node-version == 22
         run: |
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             BASE_REF="origin/${{ github.base_ref }}"
@@ -95,8 +96,58 @@ jobs:
           fi
           exit "$CBI_COMMENT_STATUS"
 
+      - name: Post Codebase Intelligence PR comment
+        if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- codebase-intelligence-ci-comment -->';
+            const reportPath = 'codebase-intelligence-pr-comment.md';
+
+            if (!fs.existsSync(reportPath)) {
+              core.info('No Codebase Intelligence PR comment report found.');
+              return;
+            }
+
+            const report = fs.readFileSync(reportPath, 'utf8').trim();
+            if (!report) {
+              core.info('Codebase Intelligence PR comment report is empty.');
+              return;
+            }
+
+            const body = `${marker}\n${report}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: existing.id,
+                body,
+              });
+              return;
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body,
+            });
+
       - name: Upload Codebase Intelligence reports
-        if: matrix.node-version == 22 && always()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: codebase-intelligence-reports
@@ -106,23 +157,45 @@ jobs:
           retention-days: 14
           if-no-files-found: warn
 
-      - name: Test
-        run: pnpm test
-
       # Coverage is best-effort: vitest v3 + v8 provider can hang after tests
-      # pass on CI runners. The blocking Test step above proves correctness;
+      # pass on CI runners. The blocking test matrix proves correctness;
       # this step is bounded so coverage cannot block the release gate.
       - name: Coverage
-        if: matrix.node-version == 22
         continue-on-error: true
         timeout-minutes: 4
         run: timeout 180s pnpm vitest run --coverage --pool forks --no-file-parallelism || true
 
       - name: Upload coverage
-        if: matrix.node-version == 22 && always()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage/
           retention-days: 14
           if-no-files-found: ignore
+
+  test:
+    name: Tests (${{ matrix.node-version }}, shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [18, 22]
+        shard: ["1/4", "2/4", "3/4", "4/4"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test shard
+        run: pnpm test:shard --shard=${{ matrix.shard }}
