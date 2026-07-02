@@ -193,7 +193,7 @@ function expectCliTextMatchesFormatter<TInput extends object, TResult>(
 }
 
 beforeAll(() => {
-  execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
+  if (!fs.existsSync(cli)) execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
 }, 120_000);
 
 describe("operation registry chained parity", () => {

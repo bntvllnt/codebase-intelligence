@@ -22,7 +22,7 @@ const GIT_ENV = {
 };
 
 beforeAll(() => {
-  execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
+  if (!fs.existsSync(cli)) execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
 }, 120_000);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -21,7 +21,7 @@ interface RunResult {
 const created: string[] = [];
 
 beforeAll(() => {
-  execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
+  if (!fs.existsSync(cli)) execSync("pnpm build", { cwd: repoRoot, stdio: "inherit" });
 }, 120_000);
 
 afterEach(() => {
