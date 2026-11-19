@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "package.json"
       - "pnpm-lock.yaml"
       - ".github/workflows/publish.yml"
   workflow_dispatch: {}
@@ -73,7 +74,22 @@ jobs:
         run: |
           sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
           unset NODE_AUTH_TOKEN
+          PKG=$(node -p "require('./package.json').name")
           BASE_VERSION=$(node -p "require('./package.json').version")
+          LATEST=$(npm view "${PKG}" dist-tags.latest 2>/dev/null || true)
+          # A canary must sort above the current stable (npm latest) and above any
+          # already-published copy of package.json's version.
+          if [ -n "$(npm view "${PKG}@${BASE_VERSION}" version 2>/dev/null || true)" ] || \
+             { [ -n "$LATEST" ] && [ "$BASE_VERSION" = "$LATEST" ]; }; then
+            BASE_VERSION=$(node -e "const v=require('./package.json').version.split('.').map(Number); console.log(v[0]+'.'+v[1]+'.'+(v[2]+1))")
+          fi
+          if [ -n "$LATEST" ] && [[ "$LATEST" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            BASE_VERSION=$(node -e '
+              const [b,l]=process.argv.slice(1).map(v=>v.split(".").map(Number));
+              const less=b[0]<l[0]||(b[0]===l[0]&&(b[1]<l[1]||(b[1]===l[1]&&b[2]<=l[2])));
+              console.log(less? `${l[0]}.${l[1]}.${l[2]+1}` : process.argv[1]);
+            ' "$BASE_VERSION" "$LATEST")
+          fi
           SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
           CANARY_VERSION="${BASE_VERSION}-canary.${SHORT_SHA}"
           npm version "$CANARY_VERSION" --no-git-tag-version --ignore-scripts
