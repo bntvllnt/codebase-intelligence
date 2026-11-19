@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- Upgrade `@modelcontextprotocol/sdk` to 1.32.2, which addresses request-size, session and OAuth issues in the SDK.
+- Upgrade Vitest to 4.1.11 (lockfile resolves 4.1.12) so the tree no longer depends on vulnerable `tinypool` 1.1.1.
+- Pin `vite` 7.3.7 and add `pnpm.overrides` for transitive advisories that a direct bump cannot reach: `proxy-addr` 2.0.8, `body-parser` 2.4.0, `fast-uri` 3.1.9, `ip-address` 10.7.6, `hono` 4.13.18, `path-to-regexp` 8.4.0, `source-map-js` 1.2.2, `brace-expansion` 2.1.7 and 5.0.12, `postcss` 8.5.23, `flatted` 3.4.2, and `nanoid` 3.3.18. Each pinned version is a release at least seven days old.
+- `zod` stays on the 3.x line (`^3.23.0`, locked at 3.25.76). This package only imports the Zod 3 API (`import { z } from "zod"`). GHSA-mrhx-c7xc-m3w5 is in the `$ZodArray` / `handleArrayResult` path, which is the Zod 4 parser; upgrading to 4.x would be a breaking change for a runtime dependency without a clear need.
+
 ### Added
 
 - **MCP contract coverage now exercises the remaining explicit todo stories.**
