@@ -1,0 +1,10 @@
+title = "gitleaks"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "synthetic test fixtures"
+paths = [
+  '''tests/roadmap-2-5-e2e.test.ts''',
+]

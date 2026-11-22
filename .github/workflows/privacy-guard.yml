@@ -1,0 +1,110 @@
+# Copyable Privacy Guard workflow for a public repository (or one about to
+# become public). Required status check name: "Privacy Guard".
+#
+# Copy into the consuming repo:
+#   .github/workflows/privacy-guard.yml   (this file)
+#   scripts/check-commit-emails.sh
+#   scripts/privacy-denylist.sh
+#   scripts/test-privacy-denylist.sh
+#   scripts/test-check-commit-emails.sh
+#   .privacy-denylist
+#   .privacy-allowlist
+# And optionally:
+#   .githooks/pre-push                    (see pre-push in this directory)
+#
+# Then add "Privacy Guard" as a required status check on the default branch.
+# Do not print secret or personal values in logs. This file contains no
+# personal data and no account-specific addresses.
+
+name: Privacy Guard
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: privacy-guard-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  privacy-guard:
+    name: Privacy Guard
+    runs-on: ubuntu-latest
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          set -euo pipefail
+          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -sSfL -o "$RUNNER_TEMP/$archive" "$base/$archive"
+          curl -sSfL -o "$RUNNER_TEMP/checksums.txt" "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          (cd "$RUNNER_TEMP" && grep " ${archive}\$" checksums.txt | sha256sum -c -)
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" gitleaks
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+      - name: Scan history for secrets
+        run: gitleaks detect --source . --log-opts=--all --redact --no-banner --exit-code 1
+      - name: Test denylist guard
+        run: bash scripts/test-privacy-denylist.sh
+      - name: Test commit-metadata email check
+        run: bash scripts/test-check-commit-emails.sh
+      - name: Check denylist
+        env:
+          PRIVACY_DENYLIST_EXTRA: ${{ secrets.PRIVACY_DENYLIST_EXTRA }}
+        run: |
+          set -euo pipefail
+          code=0
+          bash scripts/privacy-denylist.sh || code=$?
+          if [[ "$code" -eq 0 ]]; then
+            exit 0
+          fi
+          if [[ "$code" -eq 2 && -n "${PRIVACY_DENYLIST_EXTRA:-}" ]]; then
+            echo "::warning title=Privacy guard::PRIVACY_DENYLIST_EXTRA has invalid regex line(s) for git grep -E. Re-running with the tracked denylist only. Fix the Actions secret."
+            unset PRIVACY_DENYLIST_EXTRA
+            bash scripts/privacy-denylist.sh
+            exit $?
+          fi
+          exit "$code"
+      - name: Check commit emails and trailers
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Pull requests: the commits this PR adds. Push to the default
+          # branch: the full history. Other pushes: the pushed range.
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            export PRIVACY_COMMIT_RANGE="${PR_BASE}..${PR_HEAD}"
+          elif [[ "$EVENT_NAME" == "push" && "$REF_NAME" == "$DEFAULT_BRANCH" ]]; then
+            export PRIVACY_COMMIT_RANGE="--all"
+          elif [[ "$EVENT_NAME" == "push" && "${BEFORE:-}" != "" && "$BEFORE" != 0000000000000000000000000000000000000000 ]]; then
+            export PRIVACY_COMMIT_RANGE="${BEFORE}..HEAD"
+          else
+            export PRIVACY_COMMIT_RANGE="--all"
+          fi
+          bash scripts/check-commit-emails.sh
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install and build package
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          if node -p "Boolean(require('./package.json').scripts && require('./package.json').scripts.build)" | grep -q true; then
+            pnpm build
+          fi
+      - name: Check package contents
+        run: bash scripts/check-package-contents.sh
