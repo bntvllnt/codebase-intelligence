@@ -10,6 +10,12 @@ next-env.d.ts
 .vllnt/
 test-results/
 scripts/
+!scripts/check-commit-emails.sh
+!scripts/privacy-denylist.sh
+!scripts/test-privacy-denylist.sh
+!scripts/test-check-commit-emails.sh
+!scripts/check-package-contents.sh
+!scripts/test-check-package-contents.sh
 
 # analysis + coverage artifacts
 .codebase-intelligence/
