@@ -111,7 +111,7 @@ EC3. Zero cluster strength: Equivalent to current behavior — no grouping force
 - [x] Error states handled (jitter prevention via distanceMin=5)
 - [x] No hardcoded secrets or credentials
 - [x] Cloud cleanup/disposal still works (no memory leaks from new geometry)
-- [x] Visual verification on both small (codebase-intelligence, 19 files) and large (the-forge, 500+ files) projects
+- [x] Visual verification on both small (codebase-intelligence, 19 files) and large (a 500+ file fixture repo) projects
 
 ### Advisory
 

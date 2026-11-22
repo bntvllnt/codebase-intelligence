@@ -723,7 +723,7 @@ Gate modes: all, new-only. Returns pass/warn/fail verdict, findings with advisor
 - **Default scanner excludes**: `.git`, `node_modules`, `.codebase-intelligence`, legacy `.code-visualizer`, `.next`, `dist`, `coverage`, `.turbo`, `.cache`, `.worktrees`, and `.claude/worktrees`.
 - **Monorepo imports**: Root tsconfig path aliases and local package.json package names resolve to source files before graph construction.
 - **Large repo mode**: Above 1500 TypeScript files, use AST-only extraction to avoid TypeScript program OOM. Override with `CBI_FULL_PROGRAM_FILE_LIMIT`.
-- **Real-repo verification**: `pnpm verify:cli-real` runs the default matrix. `pnpm verify:cli-real:heavy` sets `CBI_REAL_PROFILE=heavy` and verifies large `/home/ubuntu` repos with minimum file/dependency thresholds.
+- **Real-repo verification**: `pnpm verify:cli-real` runs the default matrix against this repository. `pnpm verify:cli-real:heavy` sets `CBI_REAL_PROFILE=heavy` and applies large-repo file/dependency thresholds to additional trees supplied via `CBI_REAL_HOME`, `CBI_REAL_TARGETS`, or `CBI_REAL_MATRIX` (or the `--home`, `--targets`, and `--matrix` flags). Discovery never uses a hard-coded machine path.
 - **Progress**: All progress messages go to stderr. Results go to stdout.
 - **JSON mode**: `--json` outputs stable JSON schema to stdout.
 - **Exit codes**: 0 = success, 1 = runtime error, 2 = bad args/usage.

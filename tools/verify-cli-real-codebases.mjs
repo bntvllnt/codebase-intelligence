@@ -7,7 +7,8 @@ import { spawnSync } from "node:child_process";
 const root = process.cwd();
 const cli = path.join(root, "dist", "cli.js");
 const expectedVersion = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf-8")).version;
-const profile = process.env.CBI_REAL_PROFILE ?? "default";
+const cliArgs = parseCliArgs(process.argv.slice(2));
+const profile = cliArgs.profile ?? process.env.CBI_REAL_PROFILE ?? "default";
 const timeoutMs = Number.parseInt(
   process.env.CBI_REAL_TIMEOUT_MS ?? (profile === "heavy" ? "180000" : "60000"),
   10,
@@ -28,71 +29,29 @@ const bannedPathSegments = new Set([
 ]);
 
 const defaultTargets = [
-  { name: "codebase-intelligence", path: root, file: "src/install/index.ts", symbol: "upsertManagedBlock" },
-  {
-    name: "create-vllnt-app-cli",
-    path: "/home/ubuntu/vllnt-toolbox/create-vllnt-app/cli",
-    file: "src/core/doctor.ts",
-    symbol: "runDoctor",
-  },
-  {
-    name: "create-vllnt-app-www",
-    path: "/home/ubuntu/vllnt-toolbox/create-vllnt-app/www",
-    file: "app/[locale]/(marketing)/layout.tsx",
-    symbol: "default",
-  },
+  { name: "self", path: root, file: "src/install/index.ts", symbol: "upsertManagedBlock" },
 ];
 
-const heavyProfileTargets = [
-  {
-    name: "heavy-harness",
-    path: "/home/ubuntu/harness",
-    file: "harnesses/cli/src/cli-args/list-models.ts",
-    symbol: "listModels",
-    minFiles: 800,
-    minDependencies: 500,
-  },
-  {
-    name: "heavy-ui",
-    path: "/home/ubuntu/ui",
-    file: "",
-    symbol: "",
-    minFiles: 1500,
-    minDependencies: 1000,
-  },
-  {
-    name: "heavy-songtrivia",
-    path: "/home/ubuntu/anthm/songtrivia",
-    file: "",
-    symbol: "",
-    minFiles: 2500,
-    minDependencies: 2500,
-  },
-];
-
-const extraTargets = (process.env.CBI_REAL_TARGETS ?? "")
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean)
-  .map((targetPath, index) => ({
-    name: `external-${index + 1}`,
-    path: targetPath,
-    file: "",
-    symbol: "",
-  }));
-
-const profileTargets = profile === "heavy" ? heavyProfileTargets : [];
 if (profile !== "default" && profile !== "heavy") {
   console.error(`Unknown CBI_REAL_PROFILE=${profile}; expected default or heavy`);
   process.exit(2);
 }
 
-const shouldDiscoverHome = process.env.CBI_REAL_DISCOVER_HOME === "1" || profile === "heavy";
+const extraTargets = targetsFromSpec(
+  [...(process.env.CBI_REAL_TARGETS ?? "").split(","), ...cliArgs.targets],
+  "external",
+);
+const matrixTargets = loadMatrixFile(cliArgs.matrixFile ?? process.env.CBI_REAL_MATRIX);
+
+const homeDir = cliArgs.home ?? process.env.CBI_REAL_HOME;
+const shouldDiscoverHome =
+  cliArgs.discover || process.env.CBI_REAL_DISCOVER_HOME === "1" || Boolean(homeDir);
 const discoveredTargets = shouldDiscoverHome
-  ? discoverHomeTargets(process.env.CBI_REAL_HOME ?? "/home/ubuntu", profile === "heavy" ? largeRepoFileThreshold : 1)
+  ? discoverHomeTargets(homeDir ?? os.homedir(), profile === "heavy" ? largeRepoFileThreshold : 1)
   : [];
 
-const targets = uniqueTargets([...defaultTargets, ...profileTargets, ...extraTargets, ...discoveredTargets]);
+const targets = uniqueTargets([...defaultTargets, ...matrixTargets, ...extraTargets, ...discoveredTargets]);
+applyHeavyThresholds(targets, profile, root);
 
 let pass = 0;
 let fail = 0;
@@ -136,6 +95,69 @@ function arrayAt(value, keys) {
     if (Array.isArray(value?.[key])) return value[key];
   }
   return [];
+}
+
+
+function parseCliArgs(argv) {
+  const parsed = { targets: [], home: undefined, profile: undefined, discover: false, matrixFile: undefined };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    const next = argv[i + 1];
+    if (arg === "--profile" && next) {
+      parsed.profile = next;
+      i += 1;
+    } else if ((arg === "--targets" || arg === "--target") && next) {
+      parsed.targets.push(...next.split(","));
+      i += 1;
+    } else if (arg === "--home" && next) {
+      parsed.home = next;
+      i += 1;
+    } else if (arg === "--discover-home") {
+      parsed.discover = true;
+    } else if ((arg === "--matrix" || arg === "--matrix-file") && next) {
+      parsed.matrixFile = next;
+      i += 1;
+    }
+  }
+  return parsed;
+}
+
+function targetsFromSpec(values, namePrefix) {
+  return values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((targetPath, index) => ({
+      name: `${namePrefix}-${index + 1}`,
+      path: targetPath,
+      file: "",
+      symbol: "",
+    }));
+}
+
+function loadMatrixFile(filePath) {
+  if (!filePath) return [];
+  const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+  const entries = Array.isArray(raw) ? raw : raw.targets;
+  if (!Array.isArray(entries)) return [];
+  return entries.map((entry, index) => ({
+    name: String(entry.name ?? `matrix-${index + 1}`),
+    path: String(entry.path ?? ""),
+    file: String(entry.file ?? ""),
+    symbol: String(entry.symbol ?? ""),
+    minFiles: typeof entry.minFiles === "number" ? entry.minFiles : undefined,
+    minDependencies: typeof entry.minDependencies === "number" ? entry.minDependencies : undefined,
+  })).filter((entry) => entry.path);
+}
+
+function applyHeavyThresholds(list, currentProfile, selfRoot) {
+  if (currentProfile !== "heavy") return;
+  const minFiles = Number.parseInt(process.env.CBI_REAL_MIN_FILES ?? "300", 10);
+  const minDependencies = Number.parseInt(process.env.CBI_REAL_MIN_DEPS ?? "0", 10);
+  for (const target of list) {
+    if (path.resolve(target.path) === path.resolve(selfRoot)) continue;
+    if (target.minFiles == null) target.minFiles = minFiles;
+    if (minDependencies > 0 && target.minDependencies == null) target.minDependencies = minDependencies;
+  }
 }
 
 function uniqueTargets(candidates) {

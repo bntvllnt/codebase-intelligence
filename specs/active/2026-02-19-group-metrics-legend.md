@@ -147,7 +147,7 @@ EC3. Very long group names: truncated in legend
 
 | Assumption | Evidence For | Evidence Against | Verdict |
 |------------|-------------|-----------------|---------|
-| `cloudGroup()` is the right grouping for metrics | Works well for the-forge (5 clear groups) | Might oversimplify monorepos with packages/ | VALID — handles `packages/` in SOURCE_DIRS |
+| `cloudGroup()` is the right grouping for metrics | Works well for a mid-size fixture repo (5 clear groups) | Might oversimplify monorepos with packages/ | VALID — handles `packages/` in SOURCE_DIRS |
 | Groups should be sorted by importance (PageRank) | Matches what user asked for ("top groups") | Could sort by LOC or coupling instead | VALID — importance is most intuitive |
 | Legend should only show when clouds are visible | Avoids clutter when user doesn't want clouds | Could always show groups regardless | VALID — user already has a toggle |
 
@@ -156,7 +156,7 @@ EC3. Very long group names: truncated in legend
 1. **[Performance]** Computing groups on every `analyzeGraph()` call adds work. Unlikely to matter (grouping is O(n) over files), but worth noting.
    Why it matters: Could slow startup for huge codebases (10k+ files).
 
-2. **[UX]** Legend might have too many entries for projects with many top-level dirs. the-forge has 5, but a monorepo could have 15+.
+2. **[UX]** Legend might have too many entries for projects with many top-level dirs. a mid-size fixture repo has 5, but a monorepo could have 15+.
    Why it matters: Legend would overflow screen. → Cap at top 8 groups by importance.
 
 ### Failure Hypotheses
