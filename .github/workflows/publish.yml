@@ -70,6 +70,9 @@ jobs:
       - name: Build
         run: pnpm build
 
+      - name: Check package contents
+        working-directory: ${{ github.workspace }}
+        run: bash scripts/check-package-contents.sh
       - name: Publish canary
         run: |
           sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"
@@ -176,6 +179,9 @@ jobs:
           git tag -a "v${{ steps.version.outputs.version }}" -m "v${{ steps.version.outputs.version }}"
           git push origin "v${{ steps.version.outputs.version }}"
 
+      - name: Check package contents
+        working-directory: ${{ github.workspace }}
+        run: bash scripts/check-package-contents.sh
       - name: Publish to npm
         run: |
           sed -i '/_authToken/d' "$NPM_CONFIG_USERCONFIG"

@@ -25,3 +25,4 @@ coverage/
 GEMINI.md
 CONVENTIONS.md
 .github/copilot-instructions.md
+.privacy-denylist.local
