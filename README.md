@@ -353,8 +353,8 @@ pnpm test         # vitest
 pnpm lint         # eslint
 pnpm typecheck    # tsc --noEmit
 pnpm build        # production build
-pnpm verify:cli-real        # default real-repo CLI matrix
-pnpm verify:cli-real:heavy  # large /home/ubuntu repo matrix
+pnpm verify:cli-real        # default real-repo CLI matrix (this repository)
+pnpm verify:cli-real:heavy  # large-repo matrix; set CBI_REAL_HOME or CBI_REAL_TARGETS
 ```
 
 ## License

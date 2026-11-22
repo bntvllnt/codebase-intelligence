@@ -183,7 +183,7 @@ EC3. Click symbol from different view: no-op until user switches to symbol view
 
 | Assumption | Evidence For | Evidence Against | Verdict |
 |------------|-------------|------------------|---------|
-| ForceGraph3D handles symbol-level node count (1000+ nodes) | Library docs claim 100k+ nodes; file-level already renders 549 nodes | Symbol count could be 5-10x file count; WebGL has real limits | RISKY — benchmark on the-forge fixture (603 symbols) before scaling claims |
+| ForceGraph3D handles symbol-level node count (1000+ nodes) | Library docs claim 100k+ nodes; file-level already renders 549 nodes | Symbol count could be 5-10x file count; WebGL has real limits | RISKY — benchmark on a large fixture repo (603 symbols) before scaling claims |
 | Lazy loading prevents initial page slowdown | SWR supports conditional fetching; existing pattern fetches 4 endpoints | User will click "Symbols" and wait; perceived latency shifts not eliminates | VALID — lazy is strictly better than eager for optional data |
 | Color-by-type is the best visual encoding | Standard convention in IDE symbol explorers | Could also color by module (consistency with file views) or by pageRank (heatmap) | VALID — type coloring is most intuitive; module coloring available as future option |
 
@@ -214,7 +214,7 @@ Confirmed — spec solves the right problem. The pipeline computes symbol data t
 
 - [improvement] Add symbol search to search bar → defer to future spec
 - [improvement] Add confidence visual on call edges (solid vs dashed) → defer, explore during 7B
-- [risk] Benchmark symbol graph render on the-forge (603 symbols) during 7B → explore during ship
+- [risk] Benchmark symbol graph render on a large fixture repo (603 symbols) during 7B → explore during ship
 - [question] Should "Types" be a separate view tab or a filter toggle within Symbols view? → ship as separate tab, simpler UX
 
 ## Notes
