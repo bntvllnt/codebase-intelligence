@@ -163,8 +163,6 @@ export function renameSymbol(
     }
   }
 
-  void newName;
-
   return {
     dryRun,
     oldName,

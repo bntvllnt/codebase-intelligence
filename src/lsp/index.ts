@@ -131,7 +131,7 @@ function parseMessages(buffer: string): { messages: JsonRpcMessage[]; rest: stri
     const body = rest.slice(bodyStart, bodyStart + length);
     rest = rest.slice(bodyStart + length);
     const parsed: unknown = JSON.parse(body);
-    if (parsed && typeof parsed === "object") messages.push(parsed as JsonRpcMessage);
+    if (parsed && typeof parsed === "object") messages.push(parsed);
   }
   return { messages, rest };
 }
