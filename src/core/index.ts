@@ -641,7 +641,7 @@ export function computeForces(
 
   type CohesionVerdict = "COHESIVE" | "MODERATE" | "JUNK_DRAWER" | "LEAF";
   const moduleCohesion = graph.forceAnalysis.moduleCohesion.map((m) => {
-    if (m.verdict === "LEAF") return { path: m.path, cohesion: m.cohesion, verdict: "LEAF" as CohesionVerdict, files: m.files };
+    if (m.verdict === "LEAF") return { path: m.path, cohesion: m.cohesion, verdict: "LEAF", files: m.files };
     const verdict: CohesionVerdict = m.cohesion >= cohesionMin ? "COHESIVE" : m.cohesion >= cohesionMin * 0.67 ? "MODERATE" : "JUNK_DRAWER";
     return { path: m.path, cohesion: m.cohesion, verdict, files: m.files };
   });
