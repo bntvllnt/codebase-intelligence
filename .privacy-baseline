@@ -1,0 +1,8 @@
+# Placeholder draft. decided is not an acceptance date.
+# Do not merge until the exposure is accepted and recorded
+# in the security-findings ledger.
+#
+# Required keys (no others):
+sha: 8cd099d035f7e0673377844f5038f3861798dc88
+reason: historical commit-metadata findings; no rewrite
+decided: 1970-01-01
